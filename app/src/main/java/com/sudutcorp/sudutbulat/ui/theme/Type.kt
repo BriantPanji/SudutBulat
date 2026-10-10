@@ -1,4 +1,4 @@
-package com.sudutcorp.sudutbulat.ui.theme
+﻿package com.sudutcorp.sudutbulat.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
@@ -11,72 +11,72 @@ import com.sudutcorp.sudutbulat.R
 
 val PlusJakartaSans = FontFamily(
     Font(
-        R.font.PlusJakartaSans_Bold,
+        R.font.plus_jakarta_sans_bold,
         FontWeight.Bold,
         FontStyle.Normal
     ),
     Font(
-        R.font.PlusJakartaSans_ExtraBold,
+        R.font.plus_jakarta_sans_extra_bold,
         FontWeight.ExtraBold,
         FontStyle.Normal
     ),
     Font(
-        R.font.PlusJakartaSans_ExtraLight,
+        R.font.plus_jakarta_sans_extra_light,
         FontWeight.ExtraLight,
         FontStyle.Normal
     ),
     Font(
-        R.font.PlusJakartaSans_Light,
+        R.font.plus_jakarta_sans_light,
         FontWeight.Light,
         FontStyle.Normal
     ),
     Font(
-        R.font.PlusJakartaSans_Medium,
+        R.font.plus_jakarta_sans_medium,
         FontWeight.Medium,
         FontStyle.Normal
     ),
     Font(
-        R.font.PlusJakartaSans_Regular,
+        R.font.plus_jakarta_sans_regular,
         FontWeight.Normal,
         FontStyle.Normal
     ),
     Font(
-        R.font.PlusJakartaSans_SemiBold,
+        R.font.plus_jakarta_sans_semi_bold,
         FontWeight.SemiBold,
         FontStyle.Normal
     ),
     Font(
-        R.font.PlusJakartaSans_BoldItalic,
+        R.font.plus_jakarta_sans_bold_italic,
         FontWeight.Bold,
         FontStyle.Italic
     ),
     Font(
-        R.font.PlusJakartaSans_ExtraBoldItalic,
+        R.font.plus_jakarta_sans_extra_bold_italic,
         FontWeight.ExtraBold,
         FontStyle.Italic
     ),
     Font(
-        R.font.PlusJakartaSans_ExtraLightItalic,
+        R.font.plus_jakarta_sans_extra_light_italic,
         FontWeight.ExtraLight,
         FontStyle.Italic
     ),
     Font(
-        R.font.PlusJakartaSans_LightItalic,
+        R.font.plus_jakarta_sans_light_italic,
         FontWeight.Light,
         FontStyle.Italic
     ),
     Font(
-        R.font.PlusJakartaSans_MediumItalic,
+        R.font.plus_jakarta_sans_medium_italic,
         FontWeight.Medium,
         FontStyle.Italic
     ),
     Font(
-        R.font.PlusJakartaSans_Italic,
+        R.font.plus_jakarta_sans_italic,
         FontWeight.Normal,
         FontStyle.Italic
     ),
     Font(
-        R.font.PlusJakartaSans_SemiBoldItalic,
+        R.font.plus_jakarta_sans_semi_bold_italic,
         FontWeight.SemiBold,
         FontStyle.Italic
     ),
