@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "317049244438",
+    "project_id": "pemobb-9f67e",
+    "storage_bucket": "pemobb-9f67e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:317049244438:android:a0a1c23bdd62394b2e5e37",
+        "android_client_info": {
+          "package_name": "com.sudutcorp.sudutbulat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAg34uqg14S-ffPwSv8ceQurGonfTaysOc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
