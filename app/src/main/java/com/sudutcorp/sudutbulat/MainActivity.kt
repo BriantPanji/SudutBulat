@@ -3,6 +3,7 @@ package com.sudutcorp.sudutbulat
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.sudutcorp.sudutbulat.jetpackcompose.navigation_bar.NavbarNavigation
 import com.sudutcorp.sudutbulat.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.ui.theme.Typography
@@ -43,6 +45,10 @@ import com.sudutcorp.sudutbulat.ui.theme.Typography
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        installSplashScreen()
+
+        enableEdgeToEdge()
         setContent {
             MaterialTheme(
                 typography = Typography,
