@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sudutcorp.sudutbulat.jetpackcompose.navigation_bar.NavbarNavigation
 import com.sudutcorp.sudutbulat.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.ui.theme.Typography
 
@@ -54,36 +55,44 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    Scaffold(
-                        bottomBar = { BottomNavBar() },
-                        floatingActionButton = { AIFab() }
-                    ) { innerPadding ->
-                        HomePage(modifier = Modifier.padding(innerPadding))
-                    }
+                    NavbarNavigation()
                 }
             }
         }
     }
 }
 
-@Preview(showBackground = true, showSystemUi = true, widthDp = 390)
-@Composable
-private fun HomePagePrev() {
-    MaterialTheme(
-        typography = Typography,
-        colorScheme = lightColorScheme(
-            primary = SBColor.Primary,
-            background = Color.White
-        )
-    ) {
-        Scaffold(
-            bottomBar = { BottomNavBar() },
-            floatingActionButton = { AIFab() }
-        ) { innerPadding ->
-            HomePage(modifier = Modifier.padding(innerPadding))
-        }
-    }
-}
+//@Preview(showBackground = true, showSystemUi = true, widthDp = 390)
+//@Composable
+//private fun HomePagePrev() {
+//    MaterialTheme(
+//        typography = Typography,
+//        colorScheme = lightColorScheme(
+//            primary = SBColor.Primary,
+//            background = Color.White
+//        )
+//    ) {
+//        Scaffold(
+//            bottomBar = { BottomNavBar() },
+//            floatingActionButton = { AIFab() }
+//        ) { innerPadding ->
+//            HomePage(modifier = Modifier.padding(innerPadding))
+//        }
+//    }
+//}
+//@Preview(showBackground = true, showSystemUi = true, widthDp = 390)
+//@Composable
+//private fun HomePagePrev() {
+//    MaterialTheme(
+//        typography = Typography,
+//        colorScheme = lightColorScheme(
+//            primary = SBColor.Primary,
+//            background = Color.White
+//        )
+//    ) {
+//        NavbarNavigation()
+//    }
+//}
 
 @Composable
 fun AIFab() {
