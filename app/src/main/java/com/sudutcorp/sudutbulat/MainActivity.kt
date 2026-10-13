@@ -38,6 +38,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.google.firebase.FirebaseApp
 import com.sudutcorp.sudutbulat.jetpackcompose.navigation_bar.NavbarNavigation
 import com.sudutcorp.sudutbulat.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.ui.theme.Typography
@@ -47,6 +48,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         installSplashScreen()
+
+        FirebaseApp.initializeApp(this)
 
         enableEdgeToEdge()
         setContent {
@@ -61,7 +64,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    NavbarNavigation()
+                    AuthApp()
                 }
             }
         }

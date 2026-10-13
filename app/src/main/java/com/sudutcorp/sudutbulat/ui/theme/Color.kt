@@ -45,6 +45,7 @@ object SBColor {
     val Primary_300 = Color(0xFFFE877D)
     val Primary_400 = Color(0xFFF53F0F)
     val Primary_500 = Color(0xFFB62C08)
+    val Primary_550 = Color(0xFFCD3009)
     val Primary_600 = Color(0xFF7A1A03)
     val Primary_700 = Color(0xFF440A01)
     val Primary = Color(0xFFF53F0F)
