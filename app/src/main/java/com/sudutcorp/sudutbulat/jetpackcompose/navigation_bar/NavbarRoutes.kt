@@ -15,6 +15,12 @@ sealed class NavbarRoutes {
     object OwnerReport: NavbarRoutes()
 
     @Serializable
+    object Distribution: NavbarRoutes()
+
+    @Serializable
+    object OutletReport: NavbarRoutes()
+
+    @Serializable
     object Profile: NavbarRoutes()
 
 }
