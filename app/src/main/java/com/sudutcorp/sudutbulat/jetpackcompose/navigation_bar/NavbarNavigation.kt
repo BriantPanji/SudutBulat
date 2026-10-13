@@ -11,7 +11,8 @@ import com.sudutcorp.sudutbulat.AIFab
 
 @Composable
 fun NavbarNavigation(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLogout: () -> Unit = {}
 ) {
 
     val navController = rememberNavController()
@@ -41,7 +42,7 @@ fun NavbarNavigation(
             }
 
             composable<NavbarRoutes.Profile> {
-                NavbarProfileScreen(navController)
+                NavbarProfileScreen(navController = navController, onLogout = onLogout)
             }
         }
     }
