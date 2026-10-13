@@ -1,5 +1,7 @@
 package com.sudutcorp.sudutbulat.jetpackcompose.navigation_bar
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -27,7 +29,11 @@ fun NavbarNavigation(
         NavHost(
             navController = navController,
             startDestination = NavbarRoutes.Home,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
         ) {
             composable<NavbarRoutes.Home> {
                 NavbarHomeScreen(navController)
