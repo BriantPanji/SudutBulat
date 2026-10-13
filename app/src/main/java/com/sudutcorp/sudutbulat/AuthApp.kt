@@ -105,7 +105,17 @@ fun AuthApp(
         }
 
         composable<AuthRoutes.Main> {
-            NavbarNavigation()
+            NavbarNavigation(
+                onLogout = {
+                    runCatching { FirebaseAuth.getInstance().signOut() }
+                    navController.navigate(AuthRoutes.Login) {
+                        popUpTo<AuthRoutes.Main> {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
     }
 }
