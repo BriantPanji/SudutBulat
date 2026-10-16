@@ -3,6 +3,12 @@ package com.sudutcorp.sudutbulat.core.ui.theme
 import androidx.compose.ui.graphics.Color
 
 object SBColor {
+    val Warning_100 = Color(0xFFF8EBD8)
+    val Warning_600 = Color(0xFF645434)
+    // Error
+    val Error_100 = Color(0xFFFEE2E2)
+    val Error_600 = Color(0xFFA47676)
+
     // Primary
     val Primary_100 = Color(0xFFFFEDEC)
     val Primary_200 = Color(0xFFFEC2BE)
