@@ -1,0 +1,140 @@
+// id: dbdiagram ini digunakan sebagai acuan database Firestore
+// en: this dbdiagram is used as a reference for the Firestore database
+
+
+// nama document dari collection users adalah logincode untuk login
+Table users { //collection users
+  id string [pk]
+  name string [not null]
+  email string [not null]
+  username string [not null]
+  role UserRole [not null]
+  outlet_id string [ref: >? outlets.id]
+  is_active boolean [not null, default: true]
+}
+
+Table outlets {
+  id string [pk]
+  name string [not null]
+  address string  [not null]
+  coordinate geopoint [not null]
+  is_active boolean [not null, default: true]
+}
+
+Table materials {
+  id string [pk]
+  name string [unique]
+  cost int
+  unit Unit
+}
+
+Table daily_reports {
+  id string [pk]
+  outlet_id string
+  date date
+  cash_revenue int
+  qris_revenue int
+  total_sold int
+
+  indexes {
+    (outlet_id, date) [unique]
+  }
+}
+
+Table daily_report_damaged_materials {
+  id string [pk]
+  daily_report_id string [ref: > daily_reports.id]
+  material_id string [ref: > materials.id]
+  quantity int
+  note string(512)
+
+  indexes {
+    (daily_report_id, material_id) [unique]
+  }
+}
+
+Table daily_report_expenses {
+  daily_report_id string [ref: ?> daily_reports.id]
+  category expense_category
+  note string(512)
+}
+
+Table daily_report_products {
+  id string [pk]
+  daily_report_id string [not null, ref: > daily_reports.id]
+  product_id string [not null, ref: > products.id]
+  quantity int [not null, default: 0]
+  price int [not null]
+
+  indexes {
+    (daily_report_id, product_id) [unique]
+  }
+}
+
+Enum expense_category {
+  GAS
+  PLASTIC_BAG
+  OTHER
+}
+
+Table products {
+  id string [pk]
+  name string [not null, unique]
+  price int [not null]
+  is_active boolean [not null, default: true]
+}
+
+Table material_distributions {
+  id string [pk]
+  outlet_id string [not null, ref: > outlets.id]
+  created_by string [not null, ref: > users.id]
+  confirmed_by string [ref: > users.id]
+
+  status DistributionStatus [not null, default: 'DRAFT']
+
+  note string(512)
+  confirmation_note string(512)
+
+  created_at timestamp [not null]
+  sent_at timestamp
+  confirmed_at timestamp
+}
+
+Table material_distribution_items {
+  id string [pk]
+  distribution_id string [not null, ref: > material_distributions.id]
+  material_id string [not null, ref: > materials.id]
+
+  quantity_sent int [not null]
+  quantity_received int
+
+  note string(512)
+
+  indexes {
+    (distribution_id, material_id) [unique]
+  }
+}
+
+
+enum Unit {
+  pcs
+  gr
+  ml
+  unit
+}
+
+Enum DistributionStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  PARTIALLY_RECEIVED
+  NOT_RECEIVED
+  CANCELLED
+}
+
+enum UserRole {
+  DEV
+  OWNER
+  WAREHOUSE
+  OUTLET
+}
