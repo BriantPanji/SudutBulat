@@ -16,6 +16,14 @@ class AuthRepository(
 
     private val emailRegex = Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 
+    fun isUserLoggedIn(): Boolean {
+        return auth?.currentUser != null
+    }
+
+    fun logout() {
+        runCatching { auth?.signOut() }
+    }
+
     fun loginWithCodeOrEmail(
         login: String,
         password: String,

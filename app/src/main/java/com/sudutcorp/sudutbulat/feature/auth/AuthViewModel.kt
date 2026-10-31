@@ -54,6 +54,15 @@ class AuthViewModel(
         )
     }
 
+    fun isUserLoggedIn(): Boolean {
+        return repository.isUserLoggedIn()
+    }
+
+    fun logout() {
+        repository.logout()
+        resetState()
+    }
+
     fun resetState() {
         _uiState.value = AuthUiState()
     }

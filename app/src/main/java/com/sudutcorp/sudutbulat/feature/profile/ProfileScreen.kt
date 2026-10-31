@@ -27,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.google.firebase.auth.FirebaseAuth
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 
@@ -399,7 +398,6 @@ fun ProfileScreen(
                         .height(65.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
-                            runCatching { FirebaseAuth.getInstance().signOut() }
                             onLogout()
                         }
                         .drawBehind {

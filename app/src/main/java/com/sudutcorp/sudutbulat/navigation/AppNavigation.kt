@@ -14,8 +14,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.google.firebase.auth.FirebaseAuth
 import com.sudutcorp.sudutbulat.core.components.AIFab
+import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.auth.LoginScreen
 import kotlinx.coroutines.launch
@@ -24,11 +24,16 @@ import kotlinx.coroutines.launch
 fun AppNavigation(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    userRole: Role = Role.OWNER
+    userRole: Role = Role.OWNER,
+    authRepository: AuthRepository = remember { AuthRepository() }
 ) {
+    val startDestination = remember {
+        if (authRepository.isUserLoggedIn()) AppRoutes.Main else AppRoutes.Login
+    }
+
     NavHost(
         navController = navController,
-        startDestination = AppRoutes.Login,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable<AppRoutes.Login> {
@@ -51,7 +56,7 @@ fun AppNavigation(
             MainScreen(
                 userRole = userRole,
                 onLogout = {
-                    runCatching { FirebaseAuth.getInstance().signOut() }
+                    authRepository.logout()
                     navController.navigate(AppRoutes.Login) {
                         popUpTo<AppRoutes.Main> {
                             inclusive = true
