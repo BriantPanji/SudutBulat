@@ -9,14 +9,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -29,22 +32,31 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
@@ -53,10 +65,16 @@ import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
-import com.sudutcorp.sudutbulat.core.ui.theme.Typography
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 private val HeaderMaxHeight = 260.dp
 private val HeaderMinHeight = 20.dp
+
+private enum class FocusedLoginField {
+    LOGIN,
+    PASSWORD
+}
 
 @Composable
 fun LoginScreen(
@@ -72,10 +90,56 @@ fun LoginScreen(
     val collapseRangePx = with(density) { (HeaderMaxHeight - HeaderMinHeight).toPx() }
     val collapseFraction = (scrollState.value / collapseRangePx).coerceIn(0f, 1f)
 
+    var boxCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var loginFieldCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var passwordFieldCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var focusedField by remember { mutableStateOf<FocusedLoginField?>(null) }
+
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
+    val latestImeBottomPx by rememberUpdatedState(imeBottomPx)
+    val isImeVisible = imeBottomPx > 0
+
+    suspend fun scrollFocusedFieldToCenter(field: FocusedLoginField, currentImeBottomPx: Int) {
+        val containerCoords = boxCoords?.takeIf { it.isAttached } ?: return
+        val fieldCoords = when (field) {
+            FocusedLoginField.LOGIN -> loginFieldCoords
+            FocusedLoginField.PASSWORD -> passwordFieldCoords
+        }?.takeIf { it.isAttached } ?: return
+
+        val fieldCenterInBox = containerCoords.localPositionOf(
+            fieldCoords,
+            Offset(0f, fieldCoords.size.height / 2f)
+        ).y
+        val visibleTop = with(density) { HeaderMinHeight.toPx() }
+        val visibleBottom = (containerCoords.size.height - currentImeBottomPx).toFloat().coerceAtLeast(visibleTop)
+        val targetCenterInBox = (visibleTop + visibleBottom) / 2f
+        val deltaScroll = fieldCenterInBox - targetCenterInBox
+        val targetScroll = (scrollState.value + deltaScroll)
+            .roundToInt()
+            .coerceIn(0, scrollState.maxValue)
+
+        scrollState.animateScrollTo(targetScroll)
+    }
+
+    LaunchedEffect(focusedField) {
+        val field = focusedField ?: return@LaunchedEffect
+        withFrameNanos { }
+        scrollFocusedFieldToCenter(field, latestImeBottomPx)
+    }
+
+    LaunchedEffect(isImeVisible) {
+        val field = focusedField ?: return@LaunchedEffect
+        if (isImeVisible) {
+            delay(150)
+            scrollFocusedFieldToCenter(field, latestImeBottomPx)
+        }
+    }
+
     Scaffold(modifier = modifier) { innerPadding ->
         Box(
             Modifier
                 .fillMaxSize()
+                .onGloballyPositioned { boxCoords = it }
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { focusManager.clearFocus() })
                 }
@@ -98,10 +162,26 @@ fun LoginScreen(
                         uiState = uiState,
                         onLoginChange = viewModel::onLoginChanged,
                         onPasswordChange = viewModel::onPasswordChanged,
-                        onSubmit = { viewModel.login(onSuccess = onLoginSuccess) }
+                        onSubmit = { viewModel.login(onSuccess = onLoginSuccess) },
+                        onLoginPositioned = { loginFieldCoords = it },
+                        onPasswordPositioned = { passwordFieldCoords = it },
+                        onLoginFocusChanged = { isFocused ->
+                            if (isFocused) {
+                                focusedField = FocusedLoginField.LOGIN
+                            } else if (focusedField == FocusedLoginField.LOGIN) {
+                                focusedField = null
+                            }
+                        },
+                        onPasswordFocusChanged = { isFocused ->
+                            if (isFocused) {
+                                focusedField = FocusedLoginField.PASSWORD
+                            } else if (focusedField == FocusedLoginField.PASSWORD) {
+                                focusedField = null
+                            }
+                        }
                     )
                 }
-                Spacer(Modifier.height(280.dp))
+                Spacer(Modifier.height(420.dp))
             }
             LoginHeader(collapseFraction = collapseFraction)
         }
@@ -159,8 +239,14 @@ fun LoginFormSection(
     onLoginChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLoginPositioned: (LayoutCoordinates) -> Unit = {},
+    onPasswordPositioned: (LayoutCoordinates) -> Unit = {},
+    onLoginFocusChanged: (Boolean) -> Unit = {},
+    onPasswordFocusChanged: (Boolean) -> Unit = {}
 ) {
+    val focusManager = LocalFocusManager.current
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -174,8 +260,14 @@ fun LoginFormSection(
                     placeholder = { Text("Masukkan email / kode login Anda", fontSize = 13.sp) },
                     leadingIcon = { Icon(painterResource(R.drawable.ic_user), contentDescription = null) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Next
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned(onLoginPositioned)
+                        .onFocusChanged { onLoginFocusChanged(it.isFocused) },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.Black,
@@ -197,8 +289,22 @@ fun LoginFormSection(
                     leadingIcon = { Icon(painterResource(R.drawable.ic_logout), contentDescription = null) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            if (!uiState.isLoading) {
+                                focusManager.clearFocus()
+                                onSubmit()
+                            }
+                        }
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned(onPasswordPositioned)
+                        .onFocusChanged { onPasswordFocusChanged(it.isFocused) },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.Black,
