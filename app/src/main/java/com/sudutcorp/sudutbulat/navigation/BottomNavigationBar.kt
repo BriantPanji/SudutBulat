@@ -56,17 +56,18 @@ data class NavItem(
 
 fun getNavItemsForRole(role: Role): List<NavItem> {
     return when (role) {
+        Role.DEV,
         Role.OWNER -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
-            NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
-            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER), TabRoutes.OwnerReport) { nav, _ -> OwnerReportScreen(nav) },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER), TabRoutes.Profile) { nav, onLogout -> ProfileScreen(nav, onLogout) }
+            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER, Role.DEV), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
+            NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER, Role.DEV), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
+            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER, Role.DEV), TabRoutes.OwnerReport) { nav, _ -> OwnerReportScreen(nav) },
+            NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER, Role.DEV), TabRoutes.Profile) { nav, onLogout -> ProfileScreen(nav, onLogout) }
         )
-        Role.GUDANG -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.GUDANG), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
-            NavItem("Outlet", R.drawable.ic_store, listOf(Role.GUDANG), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
-            NavItem("Distribusi", R.drawable.ic_wallet, listOf(Role.GUDANG), TabRoutes.Distribution) { nav, _ -> DistributionScreen(nav) },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.GUDANG), TabRoutes.Profile) { nav, onLogout -> ProfileScreen(nav, onLogout) }
+        Role.WAREHOUSE -> listOf(
+            NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
+            NavItem("Outlet", R.drawable.ic_store, listOf(Role.WAREHOUSE), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
+            NavItem("Distribusi", R.drawable.ic_wallet, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ -> DistributionScreen(nav) },
+            NavItem("Profil", R.drawable.ic_user, listOf(Role.WAREHOUSE), TabRoutes.Profile) { nav, onLogout -> ProfileScreen(nav, onLogout) }
         )
         Role.OUTLET -> listOf(
             NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
