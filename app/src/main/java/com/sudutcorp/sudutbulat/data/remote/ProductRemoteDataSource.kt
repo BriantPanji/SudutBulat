@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class ProductRemoteDataSource(
+open class ProductRemoteDataSource(
     firestore: FirebaseFirestore? = null
 ) {
     private val db: FirebaseFirestore? by lazy {
@@ -17,7 +17,7 @@ class ProductRemoteDataSource(
     private val productsCollection
         get() = db?.collection(FirestoreCollections.PRODUCTS)
 
-    fun getProductsFlow(onlyActive: Boolean = false): Flow<List<Product>> = callbackFlow {
+    open fun getProductsFlow(onlyActive: Boolean = false): Flow<List<Product>> = callbackFlow {
         val col = productsCollection
         if (col == null) {
             trySend(emptyList())
@@ -38,22 +38,22 @@ class ProductRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun getProducts(onlyActive: Boolean = false): Result<List<Product>> = runCatching {
+    open suspend fun getProducts(onlyActive: Boolean = false): Result<List<Product>> = runCatching {
         val col = productsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val query = if (onlyActive) col.whereEqualTo("is_active", true) else col
         val snapshot = query.get().await()
         snapshot.toObjects(Product::class.java)
     }
 
-    suspend fun getActiveProducts(): Result<List<Product>> = getProducts(onlyActive = true)
+    open suspend fun getActiveProducts(): Result<List<Product>> = getProducts(onlyActive = true)
 
-    suspend fun getProductById(productId: String): Result<Product?> = runCatching {
+    open suspend fun getProductById(productId: String): Result<Product?> = runCatching {
         val col = productsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.document(productId).get().await()
         if (snapshot.exists()) snapshot.toObject(Product::class.java) else null
     }
 
-    suspend fun saveProduct(product: Product): Result<String> = runCatching {
+    open suspend fun saveProduct(product: Product): Result<String> = runCatching {
         val col = productsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val docRef = if (product.id.isNotBlank()) {
             col.document(product.id)
@@ -65,18 +65,18 @@ class ProductRemoteDataSource(
         docRef.id
     }
 
-    suspend fun updateProduct(product: Product): Result<Unit> = runCatching {
+    open suspend fun updateProduct(product: Product): Result<Unit> = runCatching {
         val col = productsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         require(product.id.isNotBlank()) { "Product ID tidak boleh kosong saat memperbarui produk." }
         col.document(product.id).set(product).await()
     }
 
-    suspend fun setProductActive(productId: String, isActive: Boolean): Result<Unit> = runCatching {
+    open suspend fun setProductActive(productId: String, isActive: Boolean): Result<Unit> = runCatching {
         val col = productsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         col.document(productId).update("is_active", isActive).await()
     }
 
-    suspend fun deleteProduct(productId: String): Result<Unit> = runCatching {
+    open suspend fun deleteProduct(productId: String): Result<Unit> = runCatching {
         val col = productsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         col.document(productId).delete().await()
     }

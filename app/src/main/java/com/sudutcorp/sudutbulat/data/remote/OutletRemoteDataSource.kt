@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class OutletRemoteDataSource(
+open class OutletRemoteDataSource(
     firestore: FirebaseFirestore? = null
 ) {
     private val db: FirebaseFirestore? by lazy {
@@ -17,7 +17,7 @@ class OutletRemoteDataSource(
     private val outletsCollection
         get() = db?.collection(FirestoreCollections.OUTLETS)
 
-    fun getOutletsFlow(onlyActive: Boolean = false): Flow<List<Outlet>> = callbackFlow {
+    open fun getOutletsFlow(onlyActive: Boolean = false): Flow<List<Outlet>> = callbackFlow {
         val col = outletsCollection
         if (col == null) {
             trySend(emptyList())
@@ -38,20 +38,20 @@ class OutletRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun getOutlets(onlyActive: Boolean = false): Result<List<Outlet>> = runCatching {
+    open suspend fun getOutlets(onlyActive: Boolean = false): Result<List<Outlet>> = runCatching {
         val col = outletsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val query = if (onlyActive) col.whereEqualTo("is_active", true) else col
         val snapshot = query.get().await()
         snapshot.toObjects(Outlet::class.java)
     }
 
-    suspend fun getOutletById(outletId: String): Result<Outlet?> = runCatching {
+    open suspend fun getOutletById(outletId: String): Result<Outlet?> = runCatching {
         val col = outletsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.document(outletId).get().await()
         if (snapshot.exists()) snapshot.toObject(Outlet::class.java) else null
     }
 
-    fun getOutletFlow(outletId: String): Flow<Outlet?> = callbackFlow {
+    open fun getOutletFlow(outletId: String): Flow<Outlet?> = callbackFlow {
         val col = outletsCollection
         if (col == null) {
             trySend(null)
@@ -70,7 +70,7 @@ class OutletRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun saveOutlet(outlet: Outlet): Result<String> = runCatching {
+    open suspend fun saveOutlet(outlet: Outlet): Result<String> = runCatching {
         val col = outletsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val docRef = if (outlet.id.isNotBlank()) {
             col.document(outlet.id)
@@ -82,18 +82,18 @@ class OutletRemoteDataSource(
         docRef.id
     }
 
-    suspend fun updateOutlet(outlet: Outlet): Result<Unit> = runCatching {
+    open suspend fun updateOutlet(outlet: Outlet): Result<Unit> = runCatching {
         val col = outletsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         require(outlet.id.isNotBlank()) { "Outlet ID tidak boleh kosong saat memperbarui outlet." }
         col.document(outlet.id).set(outlet).await()
     }
 
-    suspend fun setOutletActive(outletId: String, isActive: Boolean): Result<Unit> = runCatching {
+    open suspend fun setOutletActive(outletId: String, isActive: Boolean): Result<Unit> = runCatching {
         val col = outletsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         col.document(outletId).update("is_active", isActive).await()
     }
 
-    suspend fun setOutletOpen(outletId: String, isOpen: Boolean): Result<Unit> = runCatching {
+    open suspend fun setOutletOpen(outletId: String, isOpen: Boolean): Result<Unit> = runCatching {
         val col = outletsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         col.document(outletId).update("is_open", isOpen).await()
     }

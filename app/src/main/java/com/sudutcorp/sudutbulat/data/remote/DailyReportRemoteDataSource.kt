@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class DailyReportRemoteDataSource(
+open class DailyReportRemoteDataSource(
     firestore: FirebaseFirestore? = null
 ) {
     private val db: FirebaseFirestore? by lazy {
@@ -31,7 +31,7 @@ class DailyReportRemoteDataSource(
     private val reportDamagedMaterialsCollection
         get() = db?.collection(FirestoreCollections.DAILY_REPORT_DAMAGED_MATERIALS)
 
-    fun getDailyReportsFlow(outletId: String? = null): Flow<List<DailyReport>> = callbackFlow {
+    open fun getDailyReportsFlow(outletId: String? = null): Flow<List<DailyReport>> = callbackFlow {
         val col = dailyReportsCollection
         if (col == null) {
             trySend(emptyList())
@@ -57,7 +57,7 @@ class DailyReportRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun getDailyReports(outletId: String? = null): Result<List<DailyReport>> = runCatching {
+    open suspend fun getDailyReports(outletId: String? = null): Result<List<DailyReport>> = runCatching {
         val col = dailyReportsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         var query: Query = col
         if (!outletId.isNullOrBlank()) {
@@ -69,13 +69,13 @@ class DailyReportRemoteDataSource(
         snapshot.toObjects(DailyReport::class.java)
     }
 
-    suspend fun getDailyReportById(id: String): Result<DailyReport?> = runCatching {
+    open suspend fun getDailyReportById(id: String): Result<DailyReport?> = runCatching {
         val col = dailyReportsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.document(id).get().await()
         if (snapshot.exists()) snapshot.toObject(DailyReport::class.java) else null
     }
 
-    fun getDailyReportFlow(id: String): Flow<DailyReport?> = callbackFlow {
+    open fun getDailyReportFlow(id: String): Flow<DailyReport?> = callbackFlow {
         val col = dailyReportsCollection
         if (col == null) {
             trySend(null)
@@ -94,7 +94,7 @@ class DailyReportRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun getDailyReportByOutletAndDate(
+    open suspend fun getDailyReportByOutletAndDate(
         outletId: String,
         startDate: Timestamp,
         endDate: Timestamp
@@ -114,7 +114,7 @@ class DailyReportRemoteDataSource(
     /**
      * Atomically creates a DailyReport along with its products, expenses, and damaged materials in a single batch.
      */
-    suspend fun createDailyReport(
+    open suspend fun createDailyReport(
         report: DailyReport,
         products: List<DailyReportProduct> = emptyList(),
         expenses: List<DailyReportExpense> = emptyList(),
@@ -155,25 +155,25 @@ class DailyReportRemoteDataSource(
         reportDoc.id
     }
 
-    suspend fun getDailyReportProducts(dailyReportId: String): Result<List<DailyReportProduct>> = runCatching {
+    open suspend fun getDailyReportProducts(dailyReportId: String): Result<List<DailyReportProduct>> = runCatching {
         val col = reportProductsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.whereEqualTo("daily_report_id", dailyReportId).get().await()
         snapshot.toObjects(DailyReportProduct::class.java)
     }
 
-    suspend fun getDailyReportExpenses(dailyReportId: String): Result<List<DailyReportExpense>> = runCatching {
+    open suspend fun getDailyReportExpenses(dailyReportId: String): Result<List<DailyReportExpense>> = runCatching {
         val col = reportExpensesCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.whereEqualTo("daily_report_id", dailyReportId).get().await()
         snapshot.toObjects(DailyReportExpense::class.java)
     }
 
-    suspend fun getDailyReportDamagedMaterials(dailyReportId: String): Result<List<DailyReportDamagedMaterial>> = runCatching {
+    open suspend fun getDailyReportDamagedMaterials(dailyReportId: String): Result<List<DailyReportDamagedMaterial>> = runCatching {
         val col = reportDamagedMaterialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.whereEqualTo("daily_report_id", dailyReportId).get().await()
         snapshot.toObjects(DailyReportDamagedMaterial::class.java)
     }
 
-    suspend fun addExpense(expense: DailyReportExpense): Result<String> = runCatching {
+    open suspend fun addExpense(expense: DailyReportExpense): Result<String> = runCatching {
         val col = reportExpensesCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val doc = if (expense.id.isNotBlank()) col.document(expense.id) else col.document()
         val dataToSave = if (expense.id.isBlank()) expense.copy(id = doc.id) else expense
@@ -181,7 +181,7 @@ class DailyReportRemoteDataSource(
         doc.id
     }
 
-    suspend fun addDamagedMaterial(damagedMaterial: DailyReportDamagedMaterial): Result<String> = runCatching {
+    open suspend fun addDamagedMaterial(damagedMaterial: DailyReportDamagedMaterial): Result<String> = runCatching {
         val col = reportDamagedMaterialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val doc = if (damagedMaterial.id.isNotBlank()) col.document(damagedMaterial.id) else col.document()
         val dataToSave = if (damagedMaterial.id.isBlank()) damagedMaterial.copy(id = doc.id) else damagedMaterial

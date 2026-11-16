@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class MaterialDistributionRemoteDataSource(
+open class MaterialDistributionRemoteDataSource(
     firestore: FirebaseFirestore? = null
 ) {
     private val db: FirebaseFirestore? by lazy {
@@ -24,7 +24,7 @@ class MaterialDistributionRemoteDataSource(
     private val distributionItemsCollection
         get() = db?.collection(FirestoreCollections.MATERIAL_DISTRIBUTION_ITEMS)
 
-    fun getDistributionsFlow(outletId: String? = null): Flow<List<MaterialDistribution>> = callbackFlow {
+    open fun getDistributionsFlow(outletId: String? = null): Flow<List<MaterialDistribution>> = callbackFlow {
         val col = distributionsCollection
         if (col == null) {
             trySend(emptyList())
@@ -50,7 +50,7 @@ class MaterialDistributionRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun getDistributions(
+    open suspend fun getDistributions(
         outletId: String? = null,
         status: DistributionStatus? = null
     ): Result<List<MaterialDistribution>> = runCatching {
@@ -68,13 +68,13 @@ class MaterialDistributionRemoteDataSource(
         snapshot.toObjects(MaterialDistribution::class.java)
     }
 
-    suspend fun getDistributionById(id: String): Result<MaterialDistribution?> = runCatching {
+    open suspend fun getDistributionById(id: String): Result<MaterialDistribution?> = runCatching {
         val col = distributionsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.document(id).get().await()
         if (snapshot.exists()) snapshot.toObject(MaterialDistribution::class.java) else null
     }
 
-    fun getDistributionFlow(id: String): Flow<MaterialDistribution?> = callbackFlow {
+    open fun getDistributionFlow(id: String): Flow<MaterialDistribution?> = callbackFlow {
         val col = distributionsCollection
         if (col == null) {
             trySend(null)
@@ -93,13 +93,13 @@ class MaterialDistributionRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun getDistributionItems(distributionId: String): Result<List<MaterialDistributionItem>> = runCatching {
+    open suspend fun getDistributionItems(distributionId: String): Result<List<MaterialDistributionItem>> = runCatching {
         val itemCol = distributionItemsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = itemCol.whereEqualTo("distribution_id", distributionId).get().await()
         snapshot.toObjects(MaterialDistributionItem::class.java)
     }
 
-    fun getDistributionItemsFlow(distributionId: String): Flow<List<MaterialDistributionItem>> = callbackFlow {
+    open fun getDistributionItemsFlow(distributionId: String): Flow<List<MaterialDistributionItem>> = callbackFlow {
         val itemCol = distributionItemsCollection
         if (itemCol == null) {
             trySend(emptyList())
@@ -123,7 +123,7 @@ class MaterialDistributionRemoteDataSource(
     /**
      * Atomically creates a MaterialDistribution and all associated line items using Firestore WriteBatch.
      */
-    suspend fun createDistribution(
+    open suspend fun createDistribution(
         distribution: MaterialDistribution,
         items: List<MaterialDistributionItem>
     ): Result<String> = runCatching {
@@ -158,7 +158,7 @@ class MaterialDistributionRemoteDataSource(
         distDoc.id
     }
 
-    suspend fun updateDistributionStatus(
+    open suspend fun updateDistributionStatus(
         id: String,
         status: DistributionStatus,
         confirmedBy: String? = null,
@@ -180,7 +180,7 @@ class MaterialDistributionRemoteDataSource(
      * Atomically confirms distribution receipt, updating header status & notes
      * along with received quantities on each item.
      */
-    suspend fun confirmDistribution(
+    open suspend fun confirmDistribution(
         distributionId: String,
         confirmedBy: String,
         confirmationNote: String?,

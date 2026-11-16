@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
-class MaterialRemoteDataSource(
+open class MaterialRemoteDataSource(
     firestore: FirebaseFirestore? = null
 ) {
     private val db: FirebaseFirestore? by lazy {
@@ -17,7 +17,7 @@ class MaterialRemoteDataSource(
     private val materialsCollection
         get() = db?.collection(FirestoreCollections.MATERIALS)
 
-    fun getMaterialsFlow(): Flow<List<Material>> = callbackFlow {
+    open fun getMaterialsFlow(): Flow<List<Material>> = callbackFlow {
         val col = materialsCollection
         if (col == null) {
             trySend(emptyList())
@@ -37,19 +37,19 @@ class MaterialRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
-    suspend fun getMaterials(): Result<List<Material>> = runCatching {
+    open suspend fun getMaterials(): Result<List<Material>> = runCatching {
         val col = materialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.get().await()
         snapshot.toObjects(Material::class.java)
     }
 
-    suspend fun getMaterialById(materialId: String): Result<Material?> = runCatching {
+    open suspend fun getMaterialById(materialId: String): Result<Material?> = runCatching {
         val col = materialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.document(materialId).get().await()
         if (snapshot.exists()) snapshot.toObject(Material::class.java) else null
     }
 
-    suspend fun saveMaterial(material: Material): Result<String> = runCatching {
+    open suspend fun saveMaterial(material: Material): Result<String> = runCatching {
         val col = materialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val docRef = if (material.id.isNotBlank()) {
             col.document(material.id)
@@ -61,13 +61,13 @@ class MaterialRemoteDataSource(
         docRef.id
     }
 
-    suspend fun updateMaterial(material: Material): Result<Unit> = runCatching {
+    open suspend fun updateMaterial(material: Material): Result<Unit> = runCatching {
         val col = materialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         require(material.id.isNotBlank()) { "Material ID tidak boleh kosong saat memperbarui bahan." }
         col.document(material.id).set(material).await()
     }
 
-    suspend fun deleteMaterial(materialId: String): Result<Unit> = runCatching {
+    open suspend fun deleteMaterial(materialId: String): Result<Unit> = runCatching {
         val col = materialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         col.document(materialId).delete().await()
     }
