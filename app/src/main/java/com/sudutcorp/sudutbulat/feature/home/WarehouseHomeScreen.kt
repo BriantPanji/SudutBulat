@@ -1,11 +1,17 @@
 package com.sudutcorp.sudutbulat.feature.home
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,64 +21,65 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.data.model.Role
 
 @Composable
 fun WarehouseHomeScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDevMode: Boolean = false,
+    onSwitchRoleClick: () -> Unit = {}
 ) {
-    var showRoleBottomSheet by remember { mutableStateOf(false) }
-    var selectedRole by remember { mutableStateOf("Owner") }
-
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(top = 32.dp, bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 24.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            WarehouseHeaderMain(
-                onProfileClick = { showRoleBottomSheet = true }
-            )
+        WarehouseHeaderMain(
+            isDevMode = isDevMode,
+            onProfileClick = {
+                if (isDevMode) onSwitchRoleClick()
+            }
+        )
 
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = SBColor.Primary
+        ) {
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFD34317))
-                    .padding(20.dp),
+                modifier = Modifier.padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Row(
@@ -82,127 +89,200 @@ fun WarehouseHomeScreen(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Total stok gudang", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                        Text("12.840", fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                        Text("pcs", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("12.840", fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        Text("pcs", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.9f))
                     }
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(68.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFFEE2E2)),
-                            contentAlignment = Alignment.Center
+                        Surface(
+                            modifier = Modifier.size(52.dp),
+                            shape = CircleShape,
+                            color = SBColor.Primary_100
                         ) {
-                            Icon(
-                                painterResource(R.drawable.ic_wallet),
-                                contentDescription = "",
-                                tint = Color(0xFFD34317),
-                                modifier = Modifier.size(28.dp)
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painterResource(R.drawable.ic_box),
+                                    contentDescription = null,
+                                    tint = SBColor.Primary_550,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
                         }
                     }
                 }
-                HorizontalDivider(thickness = 1.dp, color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(painterResource(R.drawable.arrow_up), "", tint = Color.White, modifier = Modifier.size(10.dp))
-                    Text("Diperbarui 09.38", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = Color.White.copy(alpha = 0.25f),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        painterResource(R.drawable.arrow_up),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text("Diperbarui 09.38", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
                 }
             }
+        }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedCard(
+                onClick = { /* Catat stok masuk */ },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SBColor.Grey_100)
+            ) {
                 Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .border(1.dp, SBColor.Grey_100, RoundedCornerShape(16.dp))
-                        .padding(16.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Box(
-                        Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFFEE2E2)),
-                        contentAlignment = Alignment.Center
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = SBColor.Primary_100
                     ) {
-                        Icon(painterResource(R.drawable.arrow_up), contentDescription = "", modifier = Modifier.size(20.dp), tint = Color(0xFFD34317))
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painterResource(R.drawable.arrow_up),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = SBColor.Primary_550
+                            )
+                        }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Stok masuk", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = SBColor.Grey_700)
-                        Text("Catat barang tiba", fontSize = 12.sp, color = SBColor.Grey_400)
-                    }
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .border(1.dp, SBColor.Grey_100, RoundedCornerShape(16.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFFEE2E2)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(painterResource(R.drawable.ic_wallet), contentDescription = "", modifier = Modifier.size(20.dp), tint = Color(0xFFD34317))
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Distribusi", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = SBColor.Grey_700)
-                        Text("Kirim ke outlet", fontSize = 12.sp, color = SBColor.Grey_400)
+                        Text("Catat barang tiba", fontSize = 12.sp, color = SBColor.Grey_500)
                     }
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Perlu perhatian", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
-                    Text("Kelola stok", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD34317))
-                }
-
+            OutlinedCard(
+                onClick = { /* Buat distribusi */ },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SBColor.Grey_100)
+            ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, SBColor.Grey_100, RoundedCornerShape(16.dp))
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = SBColor.Primary_100
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painterResource(R.drawable.ic_truck),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = SBColor.Primary_550
+                            )
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Distribusi", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = SBColor.Grey_700)
+                        Text("Kirim ke outlet", fontSize = 12.sp, color = SBColor.Grey_500)
+                    }
+                }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Perlu perhatian", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                TextButton(
+                    onClick = { /* Kelola stok */ },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("Kelola stok", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+                }
+            }
+
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SBColor.Grey_100)
+            ) {
+                Column {
                     WarehousePerhatianItem("Tahu Original", "Stok tersisa 620 pcs", "Menipis")
                     HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
                     WarehousePerhatianItem("Bumbu Pedas", "Stok tersisa 18 pak", "Menipis")
                 }
             }
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Distribusi hari ini", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
-                    Text("Lihat semua", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD34317))
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, SBColor.Grey_100, RoundedCornerShape(16.dp))
-                ) {
-                    DistribusiItem(isFinished = true, name = "Outlet Sudirman", info = "1.200 pcs • 08.15", statusText = "Terkirim", statusBg = Color(0xFFD1FAE5), statusTextColor = Color(0xFF065F46))
-                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                    DistribusiItem(isFinished = false, name = "Outlet Cikini", info = "900 pcs • 10.30", statusText = "Di perjalanan", statusBg = Color(0xFFF1F5F9), statusTextColor = Color(0xFF475569))
-                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                    DistribusiItem(isFinished = false, name = "Outlet Tebet", info = "1.050 pcs • 13.00", statusText = "Dijadwalkan", statusBg = Color(0xFFF1F5F9), statusTextColor = Color(0xFF475569))
-                }
-            }
         }
 
-        if (showRoleBottomSheet) {
-            WarehouseRoleBottomSheet(
-                selectedRole = selectedRole,
-                onDismiss = { showRoleBottomSheet = false },
-                onRoleSelected = { selectedRole = it }
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Distribusi hari ini", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                TextButton(
+                    onClick = { /* Lihat semua distribusi */ },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("Lihat semua", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+                }
+            }
+
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SBColor.Grey_100)
+            ) {
+                Column {
+                    DistribusiItem(
+                        isFinished = true,
+                        name = "Outlet Sudirman",
+                        info = "1.200 pcs • 08.15",
+                        statusText = "Terkirim",
+                        statusBg = SBColor.Success_100,
+                        statusTextColor = SBColor.Success_600
+                    )
+                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                    DistribusiItem(
+                        isFinished = false,
+                        name = "Outlet Cikini",
+                        info = "900 pcs • 10.30",
+                        statusText = "Di perjalanan",
+                        statusBg = SBColor.Warning_100,
+                        statusTextColor = SBColor.Warning_600
+                    )
+                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                    DistribusiItem(
+                        isFinished = false,
+                        name = "Outlet Tebet",
+                        info = "1.050 pcs • 13.00",
+                        statusText = "Dijadwalkan",
+                        statusBg = SBColor.Grey_100,
+                        statusTextColor = SBColor.Grey_600
+                    )
+                }
+            }
         }
     }
 }
@@ -210,7 +290,8 @@ fun WarehouseHomeScreen(
 @Composable
 fun WarehouseHeaderMain(
     onProfileClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDevMode: Boolean = false
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -218,104 +299,162 @@ fun WarehouseHeaderMain(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Gudang Pusat • Jakarta", fontSize = 13.sp, color = SBColor.Grey_500)
-            Text("Dashboard Gudang", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
+            Text(
+                text = if (isDevMode) "Gudang Pusat • Mode DEV" else "Gudang Pusat • Jakarta",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = SBColor.Grey_500
+            )
+            Text(
+                text = "Dashboard Gudang",
+                fontSize = 25.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = SBColor.Grey_700
+            )
         }
-        Box(
-            modifier = Modifier.clickable { onProfileClick() }
+        BadgedBox(
+            badge = {
+                Badge(
+                    containerColor = SBColor.Success_500,
+                    modifier = Modifier
+                        .size(12.dp)
+                        .border(2.dp, Color.White, CircleShape)
+                )
+            }
         ) {
-            Row(
+            Surface(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(SBColor.Secondary_100),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                    .clickable(enabled = isDevMode, onClick = onProfileClick),
+                shape = CircleShape,
+                color = SBColor.Secondary_100
             ) {
-                Text("AR", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_500)
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (isDevMode) "DV" else "BS",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_500
+                    )
+                }
             }
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .align(Alignment.BottomEnd)
-                    .clip(CircleShape)
-                    .background(Color(0xFF10B981))
-                    .border(2.dp, Color.White, CircleShape)
-            )
         }
     }
 }
 
 @Composable
-fun WarehousePerhatianItem(title: String, subtitle: String, badgeText: String) {
+fun WarehousePerhatianItem(
+    title: String,
+    subtitle: String,
+    badgeText: String,
+    onClick: () -> Unit = {}
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFFFEE2E2)),
-            contentAlignment = Alignment.Center
+        Surface(
+            modifier = Modifier.size(40.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = SBColor.Primary_100
         ) {
-            Icon(painterResource(R.drawable.ic_wallet), contentDescription = "", tint = Color(0xFFD34317), modifier = Modifier.size(20.dp))
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painterResource(R.drawable.ic_box),
+                    contentDescription = null,
+                    tint = SBColor.Primary_550,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SBColor.Grey_700)
-            Text(subtitle, fontSize = 12.sp, color = SBColor.Grey_400)
+            Text(subtitle, fontSize = 12.sp, color = SBColor.Grey_500)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFFFEF3C7))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = SBColor.Warning_100
             ) {
-                Text(badgeText, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB45309))
+                Text(
+                    text = badgeText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Warning_600,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
             }
-            Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = "", modifier = Modifier.size(16.dp), tint = SBColor.Grey_300)
+            Icon(
+                painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = SBColor.Grey_400
+            )
         }
     }
 }
 
 @Composable
-fun DistribusiItem(isFinished: Boolean, name: String, info: String, statusText: String, statusBg: Color, statusTextColor: Color) {
+fun DistribusiItem(
+    isFinished: Boolean,
+    name: String,
+    info: String,
+    statusText: String,
+    statusBg: Color,
+    statusTextColor: Color,
+    onClick: () -> Unit = {}
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(if (isFinished) Color(0xFFD1FAE5) else Color(0xFFF1F5F9)),
-            contentAlignment = Alignment.Center
+        Surface(
+            modifier = Modifier.size(40.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = if (isFinished) SBColor.Success_100 else SBColor.Grey_100
         ) {
-            Icon(
-                painterResource(if (isFinished) R.drawable.arrow_up else R.drawable.ic_store),
-                contentDescription = "",
-                tint = if (isFinished) Color(0xFF059669) else Color(0xFF64748B),
-                modifier = Modifier.size(20.dp)
-            )
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painterResource(if (isFinished) R.drawable.arrow_up else R.drawable.ic_truck),
+                    contentDescription = null,
+                    tint = if (isFinished) SBColor.Success_600 else SBColor.Grey_600,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SBColor.Grey_700)
-            Text(info, fontSize = 12.sp, color = SBColor.Grey_400)
+            Text(info, fontSize = 12.sp, color = SBColor.Grey_500)
         }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(statusBg)
-                .padding(horizontal = 10.dp, vertical = 4.dp)
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = statusBg
         ) {
-            Text(statusText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = statusTextColor)
+            Text(
+                text = statusText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = statusTextColor,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            )
         }
     }
 }
@@ -323,9 +462,9 @@ fun DistribusiItem(isFinished: Boolean, name: String, info: String, statusText: 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WarehouseRoleBottomSheet(
-    selectedRole: String,
+    selectedRole: Role,
     onDismiss: () -> Unit,
-    onRoleSelected: (String) -> Unit
+    onRoleSelected: (Role) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState()
 
@@ -343,32 +482,32 @@ fun WarehouseRoleBottomSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Lihat sebagai", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text("Berpindah peran untuk meninjau sistem", fontSize = 13.sp, color = SBColor.Grey_500)
+                Text("Lihat sebagai", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                Text("Berpindah peran untuk meninjau sistem (Mode DEV)", fontSize = 13.sp, color = SBColor.Grey_500)
             }
 
             RoleOptionItem(
                 title = "Owner",
                 subtitle = "Pantau bisnis & laporan",
-                isSelected = selectedRole == "Owner",
+                isSelected = selectedRole == Role.OWNER,
                 iconRes = R.drawable.ic_wallet,
-                onClick = { onRoleSelected("Owner") }
+                onClick = { onRoleSelected(Role.OWNER) }
             )
 
             RoleOptionItem(
                 title = "Admin Gudang",
                 subtitle = "Kelola stok & distribusi",
-                isSelected = selectedRole == "Admin Gudang",
-                iconRes = R.drawable.ic_store,
-                onClick = { onRoleSelected("Admin Gudang") }
+                isSelected = selectedRole == Role.WAREHOUSE,
+                iconRes = R.drawable.ic_truck,
+                onClick = { onRoleSelected(Role.WAREHOUSE) }
             )
 
             RoleOptionItem(
                 title = "Staf Outlet",
                 subtitle = "Operasional outlet harian",
-                isSelected = selectedRole == "Staf Outlet",
+                isSelected = selectedRole == Role.OUTLET,
                 iconRes = R.drawable.ic_store,
-                onClick = { onRoleSelected("Staf Outlet") }
+                onClick = { onRoleSelected(Role.OUTLET) }
             )
         }
     }
@@ -382,36 +521,60 @@ fun RoleOptionItem(
     iconRes: Int,
     onClick: () -> Unit
 ) {
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.02f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "RoleOptionScale"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isSelected) SBColor.Primary_400 else SBColor.Grey_100,
+        label = "RoleOptionBorder"
+    )
+    val bgColor by animateColorAsState(
+        targetValue = if (isSelected) SBColor.Primary_100.copy(alpha = 0.5f) else Color.White,
+        label = "RoleOptionBg"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(RoundedCornerShape(16.dp))
             .border(
-                width = 1.dp,
-                color = if (isSelected) Color(0xFFFEE2E2) else SBColor.Grey_100,
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = borderColor,
                 shape = RoundedCornerShape(16.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF5F5) else Color.Transparent)
-            .clickable { onClick() }
+            .background(bgColor)
+            .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFFFEF3C7)),
-            contentAlignment = Alignment.Center
+        Surface(
+            modifier = Modifier.size(44.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = if (isSelected) SBColor.Primary_100 else SBColor.Secondary_100
         ) {
-            Icon(
-                painterResource(iconRes),
-                contentDescription = "",
-                tint = Color(0xFFB45309),
-                modifier = Modifier.size(22.dp)
-            )
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painterResource(iconRes),
+                    contentDescription = null,
+                    tint = if (isSelected) SBColor.Primary_550 else SBColor.Secondary_500,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = SBColor.Grey_700)
             Text(subtitle, fontSize = 12.sp, color = SBColor.Grey_500)
         }

@@ -1,5 +1,17 @@
 package com.sudutcorp.sudutbulat.navigation
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role as SemanticsRole
 import androidx.compose.ui.text.font.FontWeight
@@ -41,8 +54,8 @@ import com.sudutcorp.sudutbulat.core.ui.theme.SudutBulatTheme
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionScreen
 import com.sudutcorp.sudutbulat.feature.home.HomeScreen
+import com.sudutcorp.sudutbulat.feature.home.OutletHomeScreen
 import com.sudutcorp.sudutbulat.feature.home.WarehouseHomeScreen
-import com.sudutcorp.sudutbulat.feature.outlet.OutletHomeScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
 import com.sudutcorp.sudutbulat.feature.profile.ProfileScreen
 import com.sudutcorp.sudutbulat.feature.report.OutletReportScreen
@@ -58,32 +71,75 @@ data class NavItem(
     val screen: @Composable (navController: NavHostController, onLogout: () -> Unit) -> Unit
 )
 
-fun getNavItemsForRole(role: Role, userEmail: String? = null): List<NavItem> {
+fun getNavItemsForRole(
+    role: Role,
+    userEmail: String? = null,
+    isDevAccount: Boolean = false,
+    onOpenRoleSwitcher: () -> Unit = {}
+): List<NavItem> {
     return when (role) {
-        // shortcut: DEV uses the same Home & Navigation UI as OWNER for now, upgrade to interactive Role Switcher later
         Role.DEV,
         Role.OWNER -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER, Role.DEV), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
-            NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER, Role.DEV), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
-            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER, Role.DEV), TabRoutes.OwnerReport) { nav, _ -> OwnerReportScreen(nav) },
+            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER, Role.DEV), TabRoutes.Home) { nav, _ ->
+                HomeScreen(navController = nav, isDevMode = isDevAccount, onSwitchRoleClick = onOpenRoleSwitcher)
+            },
+            NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER, Role.DEV), TabRoutes.Outlet) { nav, _ ->
+                OutletScreen(nav)
+            },
+            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER, Role.DEV), TabRoutes.OwnerReport) { nav, _ ->
+                OwnerReportScreen(nav)
+            },
             NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER, Role.DEV), TabRoutes.Profile) { nav, onLogout ->
-                ProfileScreen(navController = nav, onLogout = onLogout, userRole = role, userEmail = userEmail)
+                ProfileScreen(
+                    navController = nav,
+                    onLogout = onLogout,
+                    userRole = role,
+                    userEmail = userEmail,
+                    isDevAccount = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher
+                )
             }
         )
         Role.WAREHOUSE -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home) { nav, _ -> WarehouseHomeScreen(nav) },
-            NavItem("Stok", R.drawable.ic_box, listOf(Role.WAREHOUSE), TabRoutes.GudangStock) { nav, _ -> GudangStockScreen(nav) },
-            NavItem("Distribusi", R.drawable.ic_truck, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ -> DistributionScreen(nav) },
+            NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home) { nav, _ ->
+                WarehouseHomeScreen(navController = nav, isDevMode = isDevAccount, onSwitchRoleClick = onOpenRoleSwitcher)
+            },
+            NavItem("Stok", R.drawable.ic_box, listOf(Role.WAREHOUSE), TabRoutes.GudangStock) { nav, _ ->
+                GudangStockScreen(nav)
+            },
+            NavItem("Distribusi", R.drawable.ic_truck, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ ->
+                DistributionScreen(nav)
+            },
             NavItem("Profil", R.drawable.ic_user, listOf(Role.WAREHOUSE), TabRoutes.Profile) { nav, onLogout ->
-                ProfileScreen(navController = nav, onLogout = onLogout, userRole = role, userEmail = userEmail)
+                ProfileScreen(
+                    navController = nav,
+                    onLogout = onLogout,
+                    userRole = role,
+                    userEmail = userEmail,
+                    isDevAccount = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher
+                )
             }
         )
         Role.OUTLET -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home) { nav, _ -> OutletHomeScreen(nav) },
-            NavItem("Stok", R.drawable.ic_box, listOf(Role.OUTLET), TabRoutes.OutletStock) { nav, _ -> OutletStockScreen(nav) },
-            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OUTLET), TabRoutes.OutletReport) { nav, _ -> OutletReportScreen(nav) },
+            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home) { nav, _ ->
+                OutletHomeScreen(navController = nav, isDevMode = isDevAccount, onSwitchRoleClick = onOpenRoleSwitcher)
+            },
+            NavItem("Stok", R.drawable.ic_box, listOf(Role.OUTLET), TabRoutes.OutletStock) { nav, _ ->
+                OutletStockScreen(nav)
+            },
+            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OUTLET), TabRoutes.OutletReport) { nav, _ ->
+                OutletReportScreen(nav)
+            },
             NavItem("Profil", R.drawable.ic_user, listOf(Role.OUTLET), TabRoutes.Profile) { nav, onLogout ->
-                ProfileScreen(navController = nav, onLogout = onLogout, userRole = role, userEmail = userEmail)
+                ProfileScreen(
+                    navController = nav,
+                    onLogout = onLogout,
+                    userRole = role,
+                    userEmail = userEmail,
+                    isDevAccount = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher
+                )
             }
         )
     }
@@ -135,8 +191,32 @@ private fun BottomNavItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val contentColor = if (isSelected) SBColor.Primary_550 else SBColor.Grey_500
-    val indicatorColor = if (isSelected) SBColor.Primary_100 else Color.Transparent
+    val contentColor by animateColorAsState(
+        targetValue = if (isSelected) SBColor.Primary_550 else SBColor.Grey_500,
+        animationSpec = tween(durationMillis = 220),
+        label = "NavContentColor"
+    )
+    val indicatorColor by animateColorAsState(
+        targetValue = if (isSelected) SBColor.Primary_100 else Color.Transparent,
+        animationSpec = tween(durationMillis = 220),
+        label = "NavIndicatorColor"
+    )
+    val indicatorWidth by animateDpAsState(
+        targetValue = if (isSelected) 48.dp else 28.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "NavIndicatorWidth"
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.12f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "NavIconScale"
+    )
 
     Column(
         modifier = modifier
@@ -150,27 +230,50 @@ private fun BottomNavItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = 48.dp, height = 28.dp)
-                .clip(CircleShape)
-                .background(indicatorColor),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = painterResource(item.icon),
-                contentDescription = "NavbarItem_${item.title}",
-                tint = contentColor,
-                modifier = Modifier.size(20.dp)
-            )
+        AnimatedContent(
+            targetState = item.title to item.icon,
+            transitionSpec = {
+                (slideInVertically(
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                ) { height -> height / 2 } + fadeIn(tween(180))) togetherWith
+                    (slideOutVertically(
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                    ) { height -> -height / 2 } + fadeOut(tween(120)))
+            },
+            label = "NavItemRoll"
+        ) { (title, iconRes) ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = indicatorWidth, height = 28.dp)
+                        .clip(CircleShape)
+                        .background(indicatorColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = "NavbarItem_$title",
+                        tint = contentColor,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .graphicsLayer {
+                                scaleX = iconScale
+                                scaleY = iconScale
+                            }
+                    )
+                }
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                    color = contentColor
+                )
+            }
         }
-        Text(
-            text = item.title,
-            fontSize = 12.sp,
-            lineHeight = 16.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-            color = contentColor
-        )
     }
 }
 

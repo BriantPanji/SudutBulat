@@ -1,6 +1,17 @@
 package com.sudutcorp.sudutbulat.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
@@ -23,7 +34,14 @@ import com.sudutcorp.sudutbulat.core.components.AIFab
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.auth.LoginScreen
+import com.sudutcorp.sudutbulat.feature.home.WarehouseRoleBottomSheet
 import kotlinx.coroutines.launch
+
+private fun Role.workspaceOrder(): Int = when (this) {
+    Role.DEV, Role.OWNER -> 0
+    Role.WAREHOUSE -> 1
+    Role.OUTLET -> 2
+}
 
 @Composable
 fun AppNavigation(
@@ -103,8 +121,23 @@ fun MainScreen(
     userEmail: String? = null,
     onLogout: () -> Unit = {}
 ) {
+    val isDevAccount = userRole == Role.DEV
+    var activeViewRole by rememberSaveable(userRole) {
+        mutableStateOf(if (isDevAccount) Role.OWNER else userRole)
+    }
+    var showRoleBottomSheet by rememberSaveable { mutableStateOf(false) }
+
     val nestedNavController = rememberNavController()
-    val navItems = remember(userRole, userEmail) { getNavItemsForRole(userRole, userEmail) }
+    val navItems = remember(activeViewRole, userEmail, isDevAccount) {
+        getNavItemsForRole(
+            role = activeViewRole,
+            userEmail = userEmail,
+            isDevAccount = isDevAccount,
+            onOpenRoleSwitcher = {
+                if (isDevAccount) showRoleBottomSheet = true
+            }
+        )
+    }
     val pagerState = rememberPagerState(initialPage = 0) { navItems.size }
     val coroutineScope = rememberCoroutineScope()
 
@@ -121,7 +154,13 @@ fun MainScreen(
                 selectedPageIndex = pagerState.currentPage,
                 onPageSelected = { index ->
                     coroutineScope.launch {
-                        pagerState.scrollToPage(index)
+                        pagerState.animateScrollToPage(
+                            page = index,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        )
                     }
                 }
             )
@@ -129,14 +168,66 @@ fun MainScreen(
         floatingActionButton = { AIFab() },
         modifier = modifier
     ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
-            beyondViewportPageCount = 1,
+        AnimatedContent(
+            targetState = activeViewRole,
+            transitionSpec = {
+                val forward = targetState.workspaceOrder() >= initialState.workspaceOrder()
+                val direction = if (forward) 1 else -1
+                val slideSpec = spring<androidx.compose.ui.unit.IntOffset>(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+                val scaleSpec = spring<Float>(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+
+                (slideInHorizontally(animationSpec = slideSpec) { fullWidth ->
+                    direction * (fullWidth / 4)
+                } + scaleIn(
+                    initialScale = 0.94f,
+                    animationSpec = scaleSpec
+                ) + fadeIn(animationSpec = tween(220))) togetherWith
+                    (slideOutHorizontally(animationSpec = slideSpec) { fullWidth ->
+                        -direction * (fullWidth / 4)
+                    } + scaleOut(
+                        targetScale = 0.94f,
+                        animationSpec = scaleSpec
+                    ) + fadeOut(animationSpec = tween(160)))
+            },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-        ) { pageIndex ->
-            navItems.getOrNull(pageIndex)?.screen?.invoke(nestedNavController, onLogout)
+                .padding(innerPadding),
+            label = "RoleWorkspaceTransition"
+        ) { targetRole ->
+            val roleNavItems = remember(targetRole, userEmail, isDevAccount) {
+                getNavItemsForRole(
+                    role = targetRole,
+                    userEmail = userEmail,
+                    isDevAccount = isDevAccount,
+                    onOpenRoleSwitcher = {
+                        if (isDevAccount) showRoleBottomSheet = true
+                    }
+                )
+            }
+            HorizontalPager(
+                state = pagerState,
+                beyondViewportPageCount = 1,
+                modifier = Modifier.fillMaxSize()
+            ) { pageIndex ->
+                roleNavItems.getOrNull(pageIndex)?.screen?.invoke(nestedNavController, onLogout)
+            }
+        }
+
+        if (isDevAccount && showRoleBottomSheet) {
+            WarehouseRoleBottomSheet(
+                selectedRole = activeViewRole,
+                onDismiss = { showRoleBottomSheet = false },
+                onRoleSelected = { chosenRole ->
+                    activeViewRole = chosenRole
+                    showRoleBottomSheet = false
+                }
+            )
         }
     }
 }

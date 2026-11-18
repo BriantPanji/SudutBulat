@@ -1,5 +1,6 @@
-package com.sudutcorp.sudutbulat.feature.outlet
+package com.sudutcorp.sudutbulat.feature.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,8 +16,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,73 +42,120 @@ import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 @Composable
 fun OutletHomeScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDevMode: Boolean = false,
+    onSwitchRoleClick: () -> Unit = {}
 ) {
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(top = 32.dp, bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 24.dp, bottom = 100.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            // Header: Tanggal, Ucapan & Profil AR
-            OutletHeaderMain()
+        OutletHeaderMain(
+            isDevMode = isDevMode,
+            onProfileClick = onSwitchRoleClick
+        )
 
-            // Kartu Informasi Outlet Ditugaskan
-            AssignedOutletCard()
+        AssignedOutletCard()
 
-            // Kartu Utama: Penjualan Sementara & Target (Warna Oranye)
-            SalesTargetCard()
+        SalesTargetCard()
 
-            // Bagian Aksi Hari Ini
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Aksi hari ini",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = "Aksi hari ini",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = SBColor.Grey_700
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutletActionItem(
+                    iconRes = R.drawable.ic_wallet,
+                    iconTint = SBColor.Primary_550,
+                    iconBg = SBColor.Primary_100,
+                    title = "Input penjualan",
+                    subtitle = "Catat penjualan hari ini"
                 )
 
-                // PERBAIKAN: Pemisahan modifier dan verticalArrangement yang benar
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Item 1: Input Penjualan
-                    OutletActionItem(
-                        iconRes = R.drawable.ic_wallet,
-                        iconTint = Color(0xFFD34317),
-                        iconBg = Color(0xFFFEE2E2),
-                        title = "Input penjualan",
-                        subtitle = "Catat penjualan hari ini"
-                    )
+                OutletActionItem(
+                    iconRes = R.drawable.ic_wallet,
+                    iconTint = SBColor.Primary_550,
+                    iconBg = SBColor.Primary_100,
+                    title = "Catat pengeluaran",
+                    subtitle = "Operasional dan kebutuhan outlet"
+                )
 
-                    // Item 2: Catat Pengeluaran
-                    OutletActionItem(
-                        iconRes = R.drawable.ic_wallet,
-                        iconTint = Color(0xFFD34317),
-                        iconBg = Color(0xFFFEE2E2),
-                        title = "Catat pengeluaran",
-                        subtitle = "Operasional dan kebutuhan outlet"
-                    )
+                OutletActionItem(
+                    iconRes = R.drawable.ic_warning,
+                    iconTint = SBColor.Warning_600,
+                    iconBg = SBColor.Warning_100,
+                    title = "Laporkan stok rusak",
+                    subtitle = "Belum ada laporan hari ini"
+                )
 
-                    // Item 3: Laporkan Stok Rusak
-                    OutletActionItem(
-                        iconRes = R.drawable.ic_warning,
-                        iconTint = Color(0xFFB45309),
-                        iconBg = Color(0xFFFEF3C7),
-                        title = "Laporkan stok rusak",
-                        subtitle = "Belum ada laporan hari ini"
-                    )
+                OutletConfirmedStockItem()
+            }
+        }
+    }
+}
 
-                    // Item 4: Stok Awal Sudah Dikonfirmasi
-                    OutletConfirmedStockItem()
+@Composable
+fun OutletHeaderMain(
+    modifier: Modifier = Modifier,
+    isDevMode: Boolean = false,
+    onProfileClick: () -> Unit = {}
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = if (isDevMode) "Sabtu, 24 Mei • Mode DEV" else "Sabtu, 24 Mei",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = SBColor.Grey_500
+            )
+            Text(
+                text = "Selamat bekerja, Dimas",
+                fontSize = 25.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = SBColor.Grey_700
+            )
+        }
+        BadgedBox(
+            badge = {
+                Badge(
+                    containerColor = SBColor.Success_500,
+                    modifier = Modifier
+                        .size(12.dp)
+                        .border(2.dp, Color.White, CircleShape)
+                )
+            }
+        ) {
+            Surface(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = isDevMode, onClick = onProfileClick),
+                shape = CircleShape,
+                color = SBColor.Secondary_100
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (isDevMode) "DV" else "DP",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_500
+                    )
                 }
             }
         }
@@ -110,124 +163,99 @@ fun OutletHomeScreen(
 }
 
 @Composable
-fun OutletHeaderMain(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(text = "Sabtu, 24 Mei", fontSize = 13.sp, color = SBColor.Grey_500)
-            Text(text = "Selamat bekerja, Dimas", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
-        }
-        Box {
-            Row(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(SBColor.Secondary_100),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "AR", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_500)
-            }
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .align(Alignment.BottomEnd)
-                    .clip(CircleShape)
-                    .background(Color(0xFF10B981))
-                    .border(2.dp, Color.White, CircleShape)
-            )
-        }
-    }
-}
-
-@Composable
 fun AssignedOutletCard(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .border(1.dp, SBColor.Grey_100, RoundedCornerShape(16.dp))
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    OutlinedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, SBColor.Grey_100)
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFFFEE2E2)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_store),
-                contentDescription = "",
-                tint = Color(0xFFD34317),
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(text = "Outlet ditugaskan", fontSize = 12.sp, color = SBColor.Grey_400)
-            Text(text = "Sudirman", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
-            Text(text = "Jl. Jenderal Sudirman No. 18", fontSize = 12.sp, color = SBColor.Grey_500)
-        }
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFD1FAE5))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Text(
-                text = "Buka",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF065F46)
-            )
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = SBColor.Primary_100
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_store),
+                        contentDescription = null,
+                        tint = SBColor.Primary_550,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(text = "Outlet ditugaskan", fontSize = 12.sp, color = SBColor.Grey_500)
+                Text(text = "Sudirman", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                Text(text = "Jl. Jenderal Sudirman No. 18", fontSize = 12.sp, color = SBColor.Grey_500)
+            }
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = SBColor.Success_100
+            ) {
+                Text(
+                    text = "Buka",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Success_600,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
 fun SalesTargetCard(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFD34317))
-            .padding(20.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = SBColor.Primary
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(text = "Penjualan sementara", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
-            Text(text = "Rp1.860.000", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-            Text(text = "372 produk terjual", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-        }
-
-        Box(
+        Row(
             modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.15f)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(text = "Penjualan sementara", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                Text(text = "Rp1.860.000", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text(text = "372 produk terjual", fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
+            }
+
             Box(
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(64.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFB91C1C)),
+                    .background(Color.White.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "74%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(text = "target", fontSize = 9.sp, color = Color.White.copy(alpha = 0.8f))
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(SBColor.Primary_500),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "74%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = "target", fontSize = 9.sp, color = Color.White.copy(alpha = 0.85f))
+                    }
                 }
             }
         }
@@ -240,87 +268,110 @@ fun OutletActionItem(
     iconTint: Color,
     iconBg: Color,
     title: String,
-    subtitle: String
+    subtitle: String,
+    onClick: () -> Unit = {}
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, SBColor.Grey_100, RoundedCornerShape(16.dp))
-            .clickable { /* Handle click */ }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    OutlinedCard(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, SBColor.Grey_100)
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(iconBg),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = iconBg
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SBColor.Grey_700)
+                Text(text = subtitle, fontSize = 12.sp, color = SBColor.Grey_500)
+            }
             Icon(
-                painter = painterResource(iconRes),
-                contentDescription = "",
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
+                painter = painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = SBColor.Grey_400
             )
         }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SBColor.Grey_700)
-            Text(text = subtitle, fontSize = 12.sp, color = SBColor.Grey_400)
-        }
-        Icon(
-            painter = painterResource(R.drawable.ic_chevron_right),
-            contentDescription = "",
-            modifier = Modifier.size(16.dp),
-            tint = SBColor.Grey_300
-        )
     }
 }
 
 @Composable
-fun OutletConfirmedStockItem(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFF0FDF4))
-            .border(1.dp, Color(0xFFBBF7D0), RoundedCornerShape(16.dp))
-            .clickable { /* Handle click */ }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+fun OutletConfirmedStockItem(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
+) {
+    OutlinedCard(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = SBColor.Success_100),
+        border = BorderStroke(1.dp, SBColor.Success_300)
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFFDCFCE7)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = Color.White.copy(alpha = 0.7f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_up),
+                        contentDescription = null,
+                        tint = SBColor.Success_600,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = "Stok awal sudah dikonfirmasi",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = SBColor.Success_600
+                )
+                Text(
+                    text = "1.250 pcs • dikonfirmasi 07.12",
+                    fontSize = 12.sp,
+                    color = SBColor.Success_500
+                )
+            }
             Icon(
-                painter = painterResource(R.drawable.arrow_up),
-                contentDescription = "",
-                tint = Color(0xFF16A34A),
-                modifier = Modifier.size(20.dp)
+                painter = painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = SBColor.Success_600
             )
         }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(text = "Stok awal sudah dikonfirmasi", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF166534))
-            Text(text = "1.250 pcs • dikonfirmasi 07.12", fontSize = 12.sp, color = Color(0xFF15803D))
-        }
-        Icon(
-            painter = painterResource(R.drawable.ic_chevron_right),
-            contentDescription = "",
-            modifier = Modifier.size(16.dp),
-            tint = Color(0xFF16A34A)
-        )
     }
 }
 
@@ -329,9 +380,6 @@ fun OutletConfirmedStockItem(modifier: Modifier = Modifier) {
 private fun PreviewOutletHome() {
     val navController = rememberNavController()
     Scaffold(
-        bottomBar = {
-            // SBNavbar(navController = navController)
-        },
         modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
         OutletHomeScreen(

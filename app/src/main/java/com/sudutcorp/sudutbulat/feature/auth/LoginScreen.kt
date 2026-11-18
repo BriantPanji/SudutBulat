@@ -182,7 +182,11 @@ fun LoginScreen(
                         }
                     )
                 }
-                Spacer(Modifier.height(420.dp))
+                if (isImeVisible) {
+                    Spacer(Modifier.height(320.dp))
+                } else {
+                    Spacer(Modifier.height(32.dp))
+                }
             }
             LoginHeader(collapseFraction = collapseFraction)
         }
@@ -287,7 +291,7 @@ fun LoginFormSection(
                     onValueChange = onPasswordChange,
                     label = { Text("Password") },
                     placeholder = { Text("Password", fontSize = 13.sp) },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_logout), contentDescription = null) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_lock), contentDescription = null) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(

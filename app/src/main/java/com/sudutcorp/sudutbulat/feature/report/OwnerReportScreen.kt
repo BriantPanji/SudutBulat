@@ -1,16 +1,19 @@
 package com.sudutcorp.sudutbulat.feature.report
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,13 +21,20 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 
 @Composable
 fun OwnerReportScreen(
@@ -44,8 +55,8 @@ fun OwnerReportScreen(
 ) {
     OwnerReportContent(
         modifier = modifier,
-        onProfileClick = { /* contoh jika nanti ada aksi navigasi */ },
-        onSeeDetailClick = { /* aksi navigasi lihat detail */ }
+        onProfileClick = {},
+        onSeeDetailClick = {}
     )
 }
 
@@ -55,18 +66,21 @@ fun OwnerReportContent(
     onProfileClick: () -> Unit = {},
     onSeeDetailClick: () -> Unit = {}
 ) {
+    var selectedPeriod by rememberSaveable { mutableStateOf("30 Hari") }
+    val periods = listOf("7 Hari", "30 Hari", "3 Bulan")
+
     Column(
         modifier = modifier
+            .fillMaxSize()
+            .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 18.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(top = 32.dp, bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Header
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -74,111 +88,86 @@ fun OwnerReportContent(
                 Text(
                     text = "Owner",
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    color = SBColor.Grey_500
                 )
                 Text(
                     text = "Laporan",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 25.sp
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 25.sp,
+                    color = SBColor.Grey_700
                 )
             }
-            Box(contentAlignment = Alignment.BottomEnd) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(
-                            color = Color(0xFFF8EBD8),
-                            shape = CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "AR",
-                        color = Color(0xFFB62C08),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold
+            BadgedBox(
+                badge = {
+                    Badge(
+                        containerColor = SBColor.Success_500,
+                        modifier = Modifier
+                            .size(12.dp)
+                            .border(2.dp, Color.White, CircleShape)
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .offset(x = 1.dp, y = 1.dp)
-                        .size(12.dp)
-                        .border(width = 2.dp, shape = CircleShape, color = Color.White)
-                        .background(
-                            color = Color(0xFF168257),
-                            shape = CircleShape
+            ) {
+                Surface(
+                    modifier = Modifier.size(44.dp),
+                    shape = CircleShape,
+                    color = SBColor.Secondary_100
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "AR",
+                            color = SBColor.Primary_500,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                )
+                    }
+                }
             }
         }
 
-        // Filter waktu
+        // Filter waktu (Segmented Control)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(color = Color(0xFFF1F0F0), shape = RoundedCornerShape(12.dp))
-                .height(46.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+                .background(color = SBColor.Grey_100, shape = RoundedCornerShape(12.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    text = "7 Hari"
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .background(
-                        color = Color(0xFFFFFFFF),
-                        shape = RoundedCornerShape(size = 9.dp)
-                    ),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    text = "30 Hari"
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    text = "3 Bulan"
-                )
+            periods.forEach { period ->
+                val isSelected = period == selectedPeriod
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (isSelected) Color.White else Color.Transparent)
+                        .clickable { selectedPeriod = period },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                        color = if (isSelected) SBColor.Grey_700 else SBColor.Grey_500,
+                        text = period
+                    )
+                }
             }
         }
 
         // Omzet
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                color = Color(0xFF443D3D),
-                fontSize = 12.sp,
+                color = SBColor.Grey_600,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 text = "Omzet bersih"
             )
 
             Text(
-                fontSize = 25.sp,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(top = 8.dp),
+                color = SBColor.Grey_700,
                 text = "Rp184.650.000"
             )
             Row(
@@ -188,14 +177,13 @@ fun OwnerReportContent(
                 Icon(
                     painter = painterResource(id = R.drawable.arrow_up),
                     contentDescription = "Panah Ke Atas",
-                    tint = Color(0xFF14754F),
+                    tint = SBColor.Success_600,
                     modifier = Modifier.size(12.dp)
                 )
                 Text(
-                    color = Color(0xFF14754F),
+                    color = SBColor.Success_600,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 4.dp),
                     text = "8,7% dibanding periode lalu"
                 )
             }
@@ -205,12 +193,8 @@ fun OwnerReportContent(
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.outlinedCardColors(
-                containerColor = Color.White
-            ),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFEFEFEF))
-            )
+            colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SBColor.Grey_100)
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -226,24 +210,23 @@ fun OwnerReportContent(
                             text = "Tren penjualan",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1C1B1F)
+                            color = SBColor.Grey_700
                         )
                         Text(
                             text = "24 Apr - 24 Mei",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
-                            color = Color(0xFF685E5D)
+                            color = SBColor.Grey_500
                         )
                     }
                     Text(
                         text = "Rp",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = Color(0xFF685E5D)
+                        fontWeight = FontWeight.Medium,
+                        color = SBColor.Grey_500
                     )
                 }
 
-                // Grafik Batang
                 val barData = listOf(
                     "S" to 0.45f,
                     "S" to 0.55f,
@@ -263,7 +246,7 @@ fun OwnerReportContent(
                 ) {
                     barData.forEach { (day, heightFraction) ->
                         val isHighlighted = day == "M"
-                        val barColor = if (isHighlighted) Color(0xFFCD3009) else Color(0xFFFCDBD8)
+                        val barColor = if (isHighlighted) SBColor.Primary_550 else SBColor.Tertiary_100
 
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -289,7 +272,7 @@ fun OwnerReportContent(
                                 text = day,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFF685E5D)
+                                color = SBColor.Grey_500
                             )
                         }
                     }
@@ -298,9 +281,7 @@ fun OwnerReportContent(
         }
 
         // Ringkasan Bisnis
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -310,14 +291,17 @@ fun OwnerReportContent(
                     text = "Ringkasan bisnis",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1C1B1F)
+                    color = SBColor.Grey_700
                 )
-                TextButton(onClick = onSeeDetailClick) {
+                TextButton(
+                    onClick = onSeeDetailClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
                     Text(
                         text = "Lihat detail",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFCD3009)
+                        color = SBColor.Primary_550
                     )
                 }
             }
@@ -325,51 +309,44 @@ fun OwnerReportContent(
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.outlinedCardColors(
-                    containerColor = Color.White
-                ),
-                border = CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(Color(0xFFEFEFEF))
-                )
+                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SBColor.Grey_100)
             ) {
                 Column {
-                    // Item 1: Total penjualan
                     BusinessSummaryItem(
                         iconRes = R.drawable.ic_store,
                         title = "Total penjualan",
                         subtitle = "36.930 produk",
                         value = "Rp184,6jt",
-                        valueColor = Color(0xFF1C1B1F)
+                        valueColor = SBColor.Grey_700
                     )
 
                     HorizontalDivider(
-                        color = Color(0xFFF1F0F0),
+                        color = SBColor.Grey_100,
                         thickness = 1.dp,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
 
-                    // Item 2: Biaya operasional
                     BusinessSummaryItem(
                         iconRes = R.drawable.ic_wallet,
                         title = "Biaya operasional",
                         subtitle = "12,8% dari omzet",
                         value = "Rp23,7jt",
-                        valueColor = Color(0xFF1C1B1F)
+                        valueColor = SBColor.Grey_700
                     )
 
                     HorizontalDivider(
-                        color = Color(0xFFF1F0F0),
+                        color = SBColor.Grey_100,
                         thickness = 1.dp,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
 
-                    // Item 3: Estimasi laba
                     BusinessSummaryItem(
                         iconRes = R.drawable.ic_bar_chart,
                         title = "Estimasi laba",
                         subtitle = "Setelah biaya operasional",
                         value = "Rp62,4jt",
-                        valueColor = Color(0xFF156E4B)
+                        valueColor = SBColor.Success_600
                     )
                 }
             }
@@ -396,34 +373,32 @@ private fun BusinessSummaryItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(
-                        color = Color(0xFFFFEDEC),
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                contentAlignment = Alignment.Center
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = SBColor.Primary_100
             ) {
-                Icon(
-                    painter = painterResource(id = iconRes),
-                    contentDescription = title,
-                    tint = Color(0xFFCD3009),
-                    modifier = Modifier.size(20.dp)
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = title,
+                        tint = SBColor.Primary_550,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1C1B1F)
+                    color = SBColor.Grey_700
                 )
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    color = Color(0xFF685E5D)
+                    color = SBColor.Grey_500
                 )
             }
         }

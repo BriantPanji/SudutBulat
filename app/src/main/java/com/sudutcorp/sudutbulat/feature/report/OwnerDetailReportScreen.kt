@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 
 @Composable
 fun OutletDetailScreen(
@@ -46,23 +48,18 @@ fun OutletDetailContent(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {}
 ) {
-    // Definisi Warna
-    val primaryColor = Color(0xFF231F1F)
-    val secondaryColor = Color(0xFF443D3D)
-    val greenTrendColor = Color(0xFF14754F)
-
     Column(
         modifier = modifier
+            .fillMaxSize()
+            .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 18.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(top = 32.dp, bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Header
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -70,13 +67,13 @@ fun OutletDetailContent(
                 onClick = onBackClick,
                 modifier = Modifier
                     .size(44.dp)
-                    .background(color = Color(0xFFF1F0F0), shape = CircleShape)
+                    .background(color = SBColor.Grey_100, shape = CircleShape)
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_chevron_left),
                     contentDescription = "Kembali",
-                    tint = primaryColor,
-                    modifier = Modifier.size(22.dp)
+                    tint = SBColor.Grey_700,
+                    modifier = Modifier.size(24.dp)
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -84,48 +81,46 @@ fun OutletDetailContent(
                     text = "Laporan • 30 hari",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = secondaryColor
+                    color = SBColor.Grey_500
                 )
                 Text(
                     text = "Detail laporan",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primaryColor
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = SBColor.Grey_700
                 )
             }
         }
 
         // Section Omzet Bersih
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "Omzet bersih",
-                color = secondaryColor,
-                fontSize = 12.sp,
+                color = SBColor.Grey_600,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
 
             Text(
                 text = "Rp184.650.000",
-                fontSize = 25.sp,
+                fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = primaryColor,
-                modifier = Modifier.padding(top = 8.dp)
+                color = SBColor.Grey_700
             )
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(top = 4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.arrow_up),
                     contentDescription = "Panah Ke Atas",
-                    tint = greenTrendColor,
+                    tint = SBColor.Success_600,
                     modifier = Modifier.size(12.dp)
                 )
                 Text(
                     text = "8,7% dibanding periode lalu",
-                    color = greenTrendColor,
+                    color = SBColor.Success_600,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -133,33 +128,29 @@ fun OutletDetailContent(
         }
 
         // Section Rincian
-        Column(
-            modifier = Modifier.padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Ringkasan Penjualan
+        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "Ringkasan penjualan",
-                    fontSize = 14.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
 
                 DetailRowItem(
                     label = "Penjualan tunai",
                     value = "Rp102.340.000",
-                    labelColor = secondaryColor
+                    labelColor = SBColor.Grey_600
                 )
 
                 DetailRowItem(
                     label = "Penjualan QRIS",
                     value = "Rp82.310.000",
-                    labelColor = secondaryColor
+                    labelColor = SBColor.Grey_600
                 )
 
                 DottedDivider(
-                    color = Color(0xFFDCDCDC),
+                    color = SBColor.Grey_200,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
 
@@ -172,29 +163,28 @@ fun OutletDetailContent(
                 )
             }
 
-            // Pengeluaran
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "Pengeluaran",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
 
                 DetailRowItem(
                     label = "Gas & bahan bakar",
                     value = "Rp9.480.000",
-                    labelColor = secondaryColor
+                    labelColor = SBColor.Grey_600
                 )
 
                 DetailRowItem(
                     label = "Plastik & tusuk",
                     value = "Rp7.120.000",
-                    labelColor = secondaryColor
+                    labelColor = SBColor.Grey_600
                 )
 
                 DottedDivider(
-                    color = Color(0xFFDCDCDC),
+                    color = SBColor.Grey_200,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
 
@@ -207,25 +197,24 @@ fun OutletDetailContent(
                 )
             }
 
-            // Stok Rusak
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     text = "Stok rusak",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
 
                 DetailRowItem(
                     label = "Tahu Original",
                     value = "86 pcs",
-                    labelColor = secondaryColor
+                    labelColor = SBColor.Grey_600
                 )
 
                 DetailRowItem(
                     label = "Bumbu",
                     value = "7 pak",
-                    labelColor = secondaryColor
+                    labelColor = SBColor.Grey_600
                 )
             }
         }
@@ -235,7 +224,7 @@ fun OutletDetailContent(
 @Composable
 private fun DottedDivider(
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFFCCCCCC)
+    color: Color = SBColor.Grey_200
 ) {
     Canvas(
         modifier = modifier
@@ -258,12 +247,10 @@ private fun DetailRowItem(
     label: String,
     value: String,
     isBold: Boolean = false,
-    labelColor: Color = Color(0xFF231F1F),
+    labelColor: Color = SBColor.Grey_700,
     valueFontSize: TextUnit = 14.sp,
     valueFontWeight: FontWeight = if (isBold) FontWeight.Bold else FontWeight.SemiBold
 ) {
-    val textColor = Color(0xFF231F1F)
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -273,13 +260,13 @@ private fun DetailRowItem(
             text = label,
             fontSize = 14.sp,
             fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
-            color = if (isBold) textColor else labelColor
+            color = if (isBold) SBColor.Grey_700 else labelColor
         )
         Text(
             text = value,
             fontSize = valueFontSize,
             fontWeight = valueFontWeight,
-            color = textColor
+            color = SBColor.Grey_700
         )
     }
 }

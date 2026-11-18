@@ -1,11 +1,13 @@
 package com.sudutcorp.sudutbulat.feature.outlet
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +20,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -32,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 
 @Composable
 fun OwnerDetailOutletScreen(
@@ -49,25 +53,18 @@ fun OwnerDetailOutletContent(
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {}
 ) {
-    // Color Palette
-    val primaryColor = Color(0xFF231F1F)
-    val secondaryColor = Color(0xFF443D3D)
-    val successColor = Color(0xFF14754F)
-    val mutedColor = Color(0xFF685E5D)
-    val borderCardColor = Color(0xFFEFEFEF)
-
     Column(
         modifier = modifier
+            .fillMaxSize()
+            .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 18.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(top = 32.dp, bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Header
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -75,13 +72,13 @@ fun OwnerDetailOutletContent(
                 onClick = onBackClick,
                 modifier = Modifier
                     .size(44.dp)
-                    .background(color = Color(0xFFF1F0F0), shape = CircleShape)
+                    .background(color = SBColor.Grey_100, shape = CircleShape)
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_chevron_left),
                     contentDescription = "Kembali",
-                    tint = primaryColor,
-                    modifier = Modifier.size(28.dp)
+                    tint = SBColor.Grey_700,
+                    modifier = Modifier.size(24.dp)
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -89,13 +86,13 @@ fun OwnerDetailOutletContent(
                     text = "Outlet",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = secondaryColor
+                    color = SBColor.Grey_500
                 )
                 Text(
                     text = "Sudirman",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primaryColor
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = SBColor.Grey_700
                 )
             }
         }
@@ -103,11 +100,9 @@ fun OwnerDetailOutletContent(
         // Card Outlet Ditugaskan
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-            border = CardDefaults.outlinedCardBorder().copy(
-                brush = androidx.compose.ui.graphics.SolidColor(borderCardColor)
-            )
+            border = BorderStroke(1.dp, SBColor.Grey_100)
         ) {
             Row(
                 modifier = Modifier
@@ -120,21 +115,19 @@ fun OwnerDetailOutletContent(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = Color(0xFFFFEDEC),
-                                shape = RoundedCornerShape(12.dp)
-                            ),
-                        contentAlignment = Alignment.Center
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = SBColor.Primary_100
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_store),
-                            contentDescription = "Outlet",
-                            tint = Color(0xFFCD3009),
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_store),
+                                contentDescription = "Outlet",
+                                tint = SBColor.Primary_550,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -142,36 +135,33 @@ fun OwnerDetailOutletContent(
                             text = "Outlet ditugaskan",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
-                            color = secondaryColor
+                            color = SBColor.Grey_500
                         )
                         Text(
                             text = "Sudirman",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = primaryColor
+                            color = SBColor.Grey_700
                         )
                         Text(
                             text = "Jl. Jenderal Sudirman No. 18",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
-                            color = secondaryColor
+                            color = SBColor.Grey_500
                         )
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .background(
-                            color = Color(0xFFE6F5ED),
-                            shape = RoundedCornerShape(6.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = SBColor.Success_100
                 ) {
                     Text(
                         text = "Buka",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = successColor
+                        color = SBColor.Success_600,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -183,34 +173,24 @@ fun OwnerDetailOutletContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Card 1: Penjualan
                 MetricCard(
                     modifier = Modifier.weight(1f),
                     iconRes = R.drawable.ic_store,
-                    iconBgColor = Color(0xFFE6F5ED),
-                    iconTint = successColor,
+                    iconBgColor = SBColor.Success_100,
+                    iconTint = SBColor.Success_600,
                     title = "Penjualan",
                     value = "Rp2.480.000",
-                    subtitle = "496 pcs hari ini",
-                    secondaryColor = secondaryColor,
-                    primaryColor = primaryColor,
-                    mutedColor = mutedColor,
-                    borderColor = borderCardColor
+                    subtitle = "496 pcs hari ini"
                 )
 
-                // Card 2: Pengeluaran
                 MetricCard(
                     modifier = Modifier.weight(1f),
                     iconRes = R.drawable.ic_wallet,
-                    iconBgColor = Color(0xFFF8EBD8),
-                    iconTint = Color(0xFF645434),
+                    iconBgColor = SBColor.Secondary_100,
+                    iconTint = SBColor.Secondary_500,
                     title = "Pengeluaran",
                     value = "Rp185.000",
-                    subtitle = "3 transaksi",
-                    secondaryColor = secondaryColor,
-                    primaryColor = primaryColor,
-                    mutedColor = mutedColor,
-                    borderColor = borderCardColor
+                    subtitle = "3 transaksi"
                 )
             }
 
@@ -218,51 +198,37 @@ fun OwnerDetailOutletContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Card 3: Stok saat ini
                 MetricCard(
                     modifier = Modifier.weight(1f),
-                    iconRes = R.drawable.ic_store, // Sementara ic_store sesuai instruksi
-                    iconBgColor = Color(0xFFE6F5ED),
-                    iconTint = successColor,
+                    iconRes = R.drawable.ic_box,
+                    iconBgColor = SBColor.Success_100,
+                    iconTint = SBColor.Success_600,
                     title = "Stok saat ini",
                     value = "878 pcs",
-                    subtitle = "Tahu Original",
-                    secondaryColor = secondaryColor,
-                    primaryColor = primaryColor,
-                    mutedColor = mutedColor,
-                    borderColor = borderCardColor
+                    subtitle = "Tahu Original"
                 )
 
-                // Card 4: Stok rusak
                 MetricCard(
                     modifier = Modifier.weight(1f),
                     iconRes = R.drawable.ic_warning,
-                    iconBgColor = Color(0xFFF8EBD8),
-                    iconTint = Color(0xFF645434),
+                    iconBgColor = SBColor.Secondary_100,
+                    iconTint = SBColor.Secondary_500,
                     title = "Stok rusak",
                     value = "12 pcs",
-                    subtitle = "1 laporan",
-                    secondaryColor = secondaryColor,
-                    primaryColor = primaryColor,
-                    mutedColor = mutedColor,
-                    borderColor = borderCardColor
+                    subtitle = "1 laporan"
                 )
             }
         }
 
         // Section: Status Outlet
-        Column(
-            modifier = Modifier.padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 text = "Status outlet",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = primaryColor
+                color = SBColor.Grey_700
             )
 
-            // Jam operasional
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -272,17 +238,16 @@ fun OwnerDetailOutletContent(
                     text = "Jam operasional",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Normal,
-                    color = secondaryColor
+                    color = SBColor.Grey_600
                 )
                 Text(
                     text = "09.00 – 21.00",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
             }
 
-            // Staf bertugas
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -292,23 +257,21 @@ fun OwnerDetailOutletContent(
                     text = "Staf bertugas",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Normal,
-                    color = secondaryColor
+                    color = SBColor.Grey_600
                 )
                 Text(
                     text = "Dimas Pratama",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
             }
 
-            // Dotted Line atas Setoran Bersih
             DottedLine(
-                color = Color(0xFFDCDCDC),
+                color = SBColor.Grey_200,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
 
-            // Setoran bersih (est.)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -318,13 +281,13 @@ fun OwnerDetailOutletContent(
                     text = "Setoran bersih (est.)",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
                 Text(
                     text = "Rp1.675.000",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
             }
         }
@@ -339,59 +302,51 @@ private fun MetricCard(
     iconTint: Color,
     title: String,
     value: String,
-    subtitle: String,
-    secondaryColor: Color,
-    primaryColor: Color,
-    mutedColor: Color,
-    borderColor: Color
+    subtitle: String
 ) {
     OutlinedCard(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-        border = CardDefaults.outlinedCardBorder().copy(
-            brush = androidx.compose.ui.graphics.SolidColor(borderColor)
-        )
+        border = BorderStroke(1.dp, SBColor.Grey_100)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        color = iconBgColor,
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                contentAlignment = Alignment.Center
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = iconBgColor
             ) {
-                Icon(
-                    painter = painterResource(id = iconRes),
-                    contentDescription = title,
-                    tint = iconTint,
-                    modifier = Modifier.size(20.dp)
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = title,
+                        tint = iconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = title,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Normal,
-                    color = secondaryColor
+                    color = SBColor.Grey_500
                 )
                 Text(
                     text = value,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = primaryColor
+                    color = SBColor.Grey_700
                 )
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    color = mutedColor
+                    color = SBColor.Grey_400
                 )
             }
         }
@@ -401,7 +356,7 @@ private fun MetricCard(
 @Composable
 private fun DottedLine(
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFFCCCCCC)
+    color: Color = SBColor.Grey_200
 ) {
     Canvas(
         modifier = modifier
