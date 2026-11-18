@@ -662,4 +662,38 @@ class RepositoryTest {
         val addDmgRes = repo.addDamagedMaterial(dmg2)
         assertTrue(addDmgRes.isSuccess)
     }
+
+    @Test
+    fun testRoleParsingAndResolution() {
+        // Firestore role strings
+        assertEquals(Role.DEV, Role.fromString("dev"))
+        assertEquals(Role.OWNER, Role.fromString("owner"))
+        assertEquals(Role.WAREHOUSE, Role.fromString("warehouse"))
+        assertEquals(Role.OUTLET, Role.fromString("outlet"))
+        assertEquals(Role.DEV, Role.fromString("DEV"))
+        assertEquals(Role.WAREHOUSE, Role.fromString("gudang"))
+        assertEquals(Role.WAREHOUSE, Role.fromString("admin"))
+        assertEquals(Role.OUTLET, Role.fromString("staff"))
+        assertNull(Role.fromString("unknown_role"))
+
+        // Official emails & login codes
+        assertEquals(Role.DEV, Role.fromEmailOrCode("sdb.dev@gmail.com"))
+        assertEquals(Role.OUTLET, Role.fromEmailOrCode("sdb.staff@gmail.com"))
+        assertEquals(Role.WAREHOUSE, Role.fromEmailOrCode("sdb.gudang@gmail.com"))
+        assertEquals(Role.OWNER, Role.fromEmailOrCode("sdb.owner@gmail.com"))
+
+        assertEquals(Role.DEV, Role.fromEmailOrCode("dev"))
+        assertEquals(Role.OWNER, Role.fromEmailOrCode("owner"))
+        assertEquals(Role.WAREHOUSE, Role.fromEmailOrCode("gudang"))
+        assertEquals(Role.WAREHOUSE, Role.fromEmailOrCode("admin"))
+        assertEquals(Role.OUTLET, Role.fromEmailOrCode("staff"))
+
+        // Login code to email resolution
+        assertEquals("sdb.dev@gmail.com", Role.emailForLoginCode("dev"))
+        assertEquals("sdb.owner@gmail.com", Role.emailForLoginCode("owner"))
+        assertEquals("sdb.gudang@gmail.com", Role.emailForLoginCode("gudang"))
+        assertEquals("sdb.gudang@gmail.com", Role.emailForLoginCode("admin"))
+        assertEquals("sdb.staff@gmail.com", Role.emailForLoginCode("staff"))
+        assertNull(Role.emailForLoginCode("unknown"))
+    }
 }

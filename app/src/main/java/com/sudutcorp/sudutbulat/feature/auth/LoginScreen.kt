@@ -34,13 +34,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sudutcorp.sudutbulat.data.model.Role
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -80,10 +81,10 @@ private enum class FocusedLoginField {
 fun LoginScreen(
     modifier: Modifier = Modifier,
     viewModel: AuthViewModel = remember { AuthViewModel() },
-    onLoginSuccess: () -> Unit = {},
+    onLoginSuccess: (Role) -> Unit = {},
     onNavigateToRegister: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
     val density = LocalDensity.current

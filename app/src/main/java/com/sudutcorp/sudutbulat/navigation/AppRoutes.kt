@@ -22,6 +22,12 @@ sealed class TabRoutes {
     data object Outlet : TabRoutes()
 
     @Serializable
+    data object GudangStock : TabRoutes()
+
+    @Serializable
+    data object OutletStock : TabRoutes()
+
+    @Serializable
     data object OwnerReport : TabRoutes()
 
     @Serializable

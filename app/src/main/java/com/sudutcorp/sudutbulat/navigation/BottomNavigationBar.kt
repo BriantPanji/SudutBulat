@@ -41,10 +41,14 @@ import com.sudutcorp.sudutbulat.core.ui.theme.SudutBulatTheme
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionScreen
 import com.sudutcorp.sudutbulat.feature.home.HomeScreen
+import com.sudutcorp.sudutbulat.feature.home.WarehouseHomeScreen
+import com.sudutcorp.sudutbulat.feature.outlet.OutletHomeScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
 import com.sudutcorp.sudutbulat.feature.profile.ProfileScreen
 import com.sudutcorp.sudutbulat.feature.report.OutletReportScreen
 import com.sudutcorp.sudutbulat.feature.report.OwnerReportScreen
+import com.sudutcorp.sudutbulat.feature.stock.GudangStockScreen
+import com.sudutcorp.sudutbulat.feature.stock.OutletStockScreen
 
 data class NavItem(
     val title: String,
@@ -54,26 +58,33 @@ data class NavItem(
     val screen: @Composable (navController: NavHostController, onLogout: () -> Unit) -> Unit
 )
 
-fun getNavItemsForRole(role: Role): List<NavItem> {
+fun getNavItemsForRole(role: Role, userEmail: String? = null): List<NavItem> {
     return when (role) {
+        // shortcut: DEV uses the same Home & Navigation UI as OWNER for now, upgrade to interactive Role Switcher later
         Role.DEV,
         Role.OWNER -> listOf(
             NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER, Role.DEV), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
             NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER, Role.DEV), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
             NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER, Role.DEV), TabRoutes.OwnerReport) { nav, _ -> OwnerReportScreen(nav) },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER, Role.DEV), TabRoutes.Profile) { nav, onLogout -> ProfileScreen(nav, onLogout) }
+            NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER, Role.DEV), TabRoutes.Profile) { nav, onLogout ->
+                ProfileScreen(navController = nav, onLogout = onLogout, userRole = role, userEmail = userEmail)
+            }
         )
         Role.WAREHOUSE -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
-            NavItem("Outlet", R.drawable.ic_store, listOf(Role.WAREHOUSE), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
-            NavItem("Distribusi", R.drawable.ic_wallet, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ -> DistributionScreen(nav) },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.WAREHOUSE), TabRoutes.Profile) { nav, onLogout -> ProfileScreen(nav, onLogout) }
+            NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home) { nav, _ -> WarehouseHomeScreen(nav) },
+            NavItem("Stok", R.drawable.ic_box, listOf(Role.WAREHOUSE), TabRoutes.GudangStock) { nav, _ -> GudangStockScreen(nav) },
+            NavItem("Distribusi", R.drawable.ic_truck, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ -> DistributionScreen(nav) },
+            NavItem("Profil", R.drawable.ic_user, listOf(Role.WAREHOUSE), TabRoutes.Profile) { nav, onLogout ->
+                ProfileScreen(navController = nav, onLogout = onLogout, userRole = role, userEmail = userEmail)
+            }
         )
         Role.OUTLET -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home) { nav, _ -> HomeScreen(nav) },
-            NavItem("Outlet", R.drawable.ic_store, listOf(Role.OUTLET), TabRoutes.Outlet) { nav, _ -> OutletScreen(nav) },
+            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home) { nav, _ -> OutletHomeScreen(nav) },
+            NavItem("Stok", R.drawable.ic_box, listOf(Role.OUTLET), TabRoutes.OutletStock) { nav, _ -> OutletStockScreen(nav) },
             NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OUTLET), TabRoutes.OutletReport) { nav, _ -> OutletReportScreen(nav) },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.OUTLET), TabRoutes.Profile) { nav, onLogout -> ProfileScreen(nav, onLogout) }
+            NavItem("Profil", R.drawable.ic_user, listOf(Role.OUTLET), TabRoutes.Profile) { nav, onLogout ->
+                ProfileScreen(navController = nav, onLogout = onLogout, userRole = role, userEmail = userEmail)
+            }
         )
     }
 }

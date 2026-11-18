@@ -51,7 +51,7 @@ open class UserRemoteDataSource(
 
     open suspend fun getUsersByRole(role: Role): Result<List<User>> = runCatching {
         val col = usersCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
-        val snapshot = col.whereEqualTo("role", role.name).get().await()
+        val snapshot = col.whereIn("role", listOf(role.firestoreValue, role.name)).get().await()
         snapshot.toObjects(User::class.java)
     }
 

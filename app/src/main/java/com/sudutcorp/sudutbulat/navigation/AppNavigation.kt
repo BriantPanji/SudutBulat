@@ -7,8 +7,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -24,9 +29,27 @@ import kotlinx.coroutines.launch
 fun AppNavigation(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    userRole: Role = Role.OWNER,
+    userRole: Role? = null,
     authRepository: AuthRepository = remember { AuthRepository() }
 ) {
+    var currentRole by rememberSaveable {
+        mutableStateOf(userRole ?: authRepository.getInitialRole())
+    }
+    var currentEmail by rememberSaveable {
+        mutableStateOf(authRepository.getCurrentUserEmail())
+    }
+
+    LaunchedEffect(userRole) {
+        if (userRole != null) {
+            currentRole = userRole
+        } else if (authRepository.isUserLoggedIn()) {
+            currentEmail = authRepository.getCurrentUserEmail()
+            authRepository.fetchCurrentUserRole { resolvedRole ->
+                currentRole = resolvedRole
+            }
+        }
+    }
+
     val startDestination = remember {
         if (authRepository.isUserLoggedIn()) AppRoutes.Main else AppRoutes.Login
     }
@@ -38,7 +61,9 @@ fun AppNavigation(
     ) {
         composable<AppRoutes.Login> {
             LoginScreen(
-                onLoginSuccess = {
+                onLoginSuccess = { resolvedRole ->
+                    currentRole = resolvedRole
+                    currentEmail = authRepository.getCurrentUserEmail()
                     navController.navigate(AppRoutes.Main) {
                         popUpTo<AppRoutes.Login> {
                             inclusive = true
@@ -54,9 +79,11 @@ fun AppNavigation(
 
         composable<AppRoutes.Main> {
             MainScreen(
-                userRole = userRole,
+                userRole = currentRole,
+                userEmail = currentEmail,
                 onLogout = {
                     authRepository.logout()
+                    currentEmail = null
                     navController.navigate(AppRoutes.Login) {
                         popUpTo<AppRoutes.Main> {
                             inclusive = true
@@ -73,10 +100,11 @@ fun AppNavigation(
 fun MainScreen(
     modifier: Modifier = Modifier,
     userRole: Role = Role.OWNER,
+    userEmail: String? = null,
     onLogout: () -> Unit = {}
 ) {
     val nestedNavController = rememberNavController()
-    val navItems = remember(userRole) { getNavItemsForRole(userRole) }
+    val navItems = remember(userRole, userEmail) { getNavItemsForRole(userRole, userEmail) }
     val pagerState = rememberPagerState(initialPage = 0) { navItems.size }
     val coroutineScope = rememberCoroutineScope()
 

@@ -29,13 +29,36 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.data.model.Role
 
 @Composable
 fun ProfileScreen(
     navController: NavHostController,
     onLogout: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    userRole: Role = Role.OWNER,
+    userEmail: String? = null
 ) {
+    val roleLabel = userRole.displayName
+    val displayName = when (userRole) {
+        Role.DEV -> "Developer SDB"
+        Role.OWNER -> "Arif Rahman"
+        Role.WAREHOUSE -> "Budi Santoso"
+        Role.OUTLET -> "Dimas Pratama"
+    }
+    val initials = when (userRole) {
+        Role.DEV -> "DV"
+        Role.OWNER -> "AR"
+        Role.WAREHOUSE -> "BS"
+        Role.OUTLET -> "DP"
+    }
+    val emailText = userEmail?.takeIf { it.isNotBlank() } ?: when (userRole) {
+        Role.DEV -> "sdb.dev@gmail.com"
+        Role.OWNER -> "sdb.owner@gmail.com"
+        Role.WAREHOUSE -> "sdb.gudang@gmail.com"
+        Role.OUTLET -> "sdb.staff@gmail.com"
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -53,13 +76,12 @@ fun ProfileScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .width(62.dp)
                     .height(55.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalAlignment = Alignment.Start,
             ) {
                 Text(
-                    text = "Owner",
+                    text = roleLabel,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
                     fontWeight = FontWeight(600),
@@ -82,7 +104,7 @@ fun ProfileScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "AR",
+                    text = initials,
                     style = TextStyle(
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
@@ -122,7 +144,7 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "AR",
+                        text = initials,
                         style = TextStyle(
                             fontSize = 25.sp,
                             lineHeight = 31.25.sp,
@@ -132,7 +154,7 @@ fun ProfileScreen(
                     )
                 }
                 Text(
-                    text = "Arif Rahman",
+                    text = displayName,
                     style = TextStyle(
                         fontSize = 20.sp,
                         lineHeight = 25.sp,
@@ -142,10 +164,9 @@ fun ProfileScreen(
                 )
                 Row(
                     Modifier
-                        .width(57.dp)
                         .height(25.dp)
                         .background(color = SBColor.Grey_100, shape = RoundedCornerShape(99.dp))
-                        .padding(start = 8.dp, top = 4.dp, end = 8.dp, bottom = 4.dp),
+                        .padding(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(
                         0.dp,
                         Alignment.CenterHorizontally
@@ -153,7 +174,7 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "Owner",
+                        text = roleLabel,
                         style = TextStyle(
                             fontSize = 12.sp,
                             lineHeight = 17.4.sp,
@@ -163,7 +184,7 @@ fun ProfileScreen(
                     )
                 }
                 Text(
-                    text = "arif@sudutbulat.id",
+                    text = emailText,
                     style = TextStyle(
                         fontSize = 14.sp,
                         lineHeight = 20.3.sp,
