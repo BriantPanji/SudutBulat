@@ -197,7 +197,7 @@ fun AddUserScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Peran pengguna (3 Role Segments: Owner, Gudang, Outlet)
+            // Peran pengguna (2 Role Segments sesuai PRD 3.1: Gudang & Outlet)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "Peran pengguna",
@@ -209,13 +209,6 @@ fun AddUserScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    RoleSegmentCard(
-                        modifier = Modifier.weight(1f),
-                        label = "Owner",
-                        iconRes = R.drawable.ic_user,
-                        isSelected = form.selectedRole == Role.OWNER,
-                        onClick = { onEvent(OwnerUiEvent.AddUserRoleSelected(Role.OWNER)) }
-                    )
                     RoleSegmentCard(
                         modifier = Modifier.weight(1f),
                         label = "Gudang",

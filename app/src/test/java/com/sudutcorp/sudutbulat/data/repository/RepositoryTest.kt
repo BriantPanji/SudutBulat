@@ -770,6 +770,7 @@ class RepositoryTest {
         val sample = listOf(
             com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi(
                 id = "a", rank = 1, name = "Cikini", displayName = "Outlet Cikini", address = "",
+                coordinateLabel = "-6.1898, 106.8390",
                 isOpen = true, isActive = true, openTime = "08.00", closeTime = "21.00", dailyTarget = 2_000_000L,
                 revenue = 1_780_000L, cashRevenue = 1_000_000L, qrisRevenue = 780_000L, piecesSold = 356,
                 targetProgress = 0.72f, targetPercentText = "72% target", activeStaffCount = 1,
@@ -778,6 +779,7 @@ class RepositoryTest {
             ),
             com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi(
                 id = "b", rank = 2, name = "Sudirman", displayName = "Outlet Sudirman", address = "",
+                coordinateLabel = "-6.2146, 106.8222",
                 isOpen = true, isActive = true, openTime = "09.00", closeTime = "21.00", dailyTarget = 2_900_000L,
                 revenue = 2_480_000L, cashRevenue = 1_480_000L, qrisRevenue = 1_000_000L, piecesSold = 496,
                 targetProgress = 0.85f, targetPercentText = "85% target", activeStaffCount = 2,
@@ -786,6 +788,7 @@ class RepositoryTest {
             ),
             com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi(
                 id = "c", rank = 3, name = "Blok M", displayName = "Outlet Blok M", address = "",
+                coordinateLabel = "-6.2440, 106.8000",
                 isOpen = false, isActive = true, openTime = "09.00", closeTime = "21.00", dailyTarget = 2_000_000L,
                 revenue = 720_000L, cashRevenue = 420_000L, qrisRevenue = 300_000L, piecesSold = 144,
                 targetProgress = 0.36f, targetPercentText = "36% target", activeStaffCount = 1,
@@ -821,5 +824,53 @@ class RepositoryTest {
             com.sudutcorp.sudutbulat.feature.owner.SortDirection.DESC
         )
         assertEquals(listOf("Sudirman", "Cikini", "Blok M"), byTargetDesc.map { it.name })
+    }
+
+    @Test
+    fun testSortCatalogMaterialsAndProducts() {
+        val materials = listOf(
+            com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi(
+                id = "m1", name = "Tahu Original", category = "Tahu", isProduct = false,
+                priceOrCost = 500L, unitLabel = "pcs", subtitleText = "", statusBadge = "Tahu", isWarning = false
+            ),
+            com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi(
+                id = "m2", name = "Chilly Oil", category = "Saus", isProduct = false,
+                priceOrCost = 15_000L, unitLabel = "botol", subtitleText = "", statusBadge = "Saus", isWarning = false
+            ),
+            com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi(
+                id = "m3", name = "Bumbu BBQ", category = "Bumbu", isProduct = false,
+                priceOrCost = 14_000L, unitLabel = "pak", subtitleText = "", statusBadge = "Bumbu", isWarning = false
+            )
+        )
+        val byCostDesc = com.sudutcorp.sudutbulat.feature.owner.sortMaterialCatalogItems(
+            materials,
+            com.sudutcorp.sudutbulat.feature.owner.MaterialSortField.COST,
+            com.sudutcorp.sudutbulat.feature.owner.SortDirection.DESC
+        )
+        assertEquals(listOf("Chilly Oil", "Bumbu BBQ", "Tahu Original"), byCostDesc.map { it.name })
+
+        val products = listOf(
+            com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi(
+                id = "p1", name = "Tahu Satuan", category = "Produk Jual", isProduct = true,
+                priceOrCost = 1_000L, unitLabel = "pcs", subtitleText = "", statusBadge = "Tidak dijual", isWarning = true
+            ),
+            com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi(
+                id = "p2", name = "Tahu Bungkus", category = "Produk Jual", isProduct = true,
+                priceOrCost = 5_000L, unitLabel = "bungkus", subtitleText = "", statusBadge = "Dijual", isWarning = false
+            )
+        )
+        val byPriceAsc = com.sudutcorp.sudutbulat.feature.owner.sortProductCatalogItems(
+            products,
+            com.sudutcorp.sudutbulat.feature.owner.ProductSortField.PRICE,
+            com.sudutcorp.sudutbulat.feature.owner.SortDirection.ASC
+        )
+        assertEquals(listOf("Tahu Satuan", "Tahu Bungkus"), byPriceAsc.map { it.name })
+
+        val byStatusAsc = com.sudutcorp.sudutbulat.feature.owner.sortProductCatalogItems(
+            products,
+            com.sudutcorp.sudutbulat.feature.owner.ProductSortField.STATUS,
+            com.sudutcorp.sudutbulat.feature.owner.SortDirection.ASC
+        )
+        assertEquals(listOf("Tahu Bungkus", "Tahu Satuan"), byStatusAsc.map { it.name })
     }
 }

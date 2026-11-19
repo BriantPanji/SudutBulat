@@ -60,12 +60,30 @@ enum class SortDirection {
     ASC
 }
 
+enum class CatalogTabMode(val label: String) {
+    MATERIAL("Material"),
+    PRODUCT("Produk Jual")
+}
+
+enum class MaterialSortField(val label: String) {
+    NAME("Nama"),
+    COST("Harga Modal"),
+    UNIT("Satuan")
+}
+
+enum class ProductSortField(val label: String) {
+    NAME("Nama"),
+    PRICE("Harga Jual"),
+    STATUS("Status")
+}
+
 data class OutletPerformanceUi(
     val id: String,
     val rank: Int,
     val name: String,
     val displayName: String,
     val address: String,
+    val coordinateLabel: String,
     val isOpen: Boolean,
     val isActive: Boolean,
     val openTime: String,
@@ -140,6 +158,8 @@ data class SingleReportDetailUi(
     val id: String,
     val outletName: String,
     val dateLabel: String,
+    val fullDateLabel: String,
+    val timeLabel: String,
     val cashRevenue: Long,
     val qrisRevenue: Long,
     val totalRevenue: Long,
@@ -258,9 +278,15 @@ data class OwnerUiState(
     val reportOutletFilterId: String? = null,
     val reportDateFilter: String = "Semua", // "Semua", "Hari ini", "7 Hari", "30 Hari", "3 Bulan"
 
-    // Catalog / Daftar Barang
+    // Catalog / Daftar Barang (2 tabs + per-tab sort)
+    val catalogTabMode: CatalogTabMode = CatalogTabMode.MATERIAL,
     val catalogSearchQuery: String = "",
     val catalogCategoryFilter: String = "Semua",
+    val productStatusFilter: String = "Semua",
+    val materialSortField: MaterialSortField = MaterialSortField.NAME,
+    val materialSortDirection: SortDirection = SortDirection.ASC,
+    val productSortField: ProductSortField = ProductSortField.NAME,
+    val productSortDirection: SortDirection = SortDirection.ASC,
     val catalogItems: List<CatalogItemUi> = emptyList(),
 
     // Notifications
@@ -297,13 +323,17 @@ sealed interface OwnerUiEvent {
     data class ReportDateFilterSelected(val filter: String) : OwnerUiEvent
 
     // Catalog Events
+    data class CatalogTabSelected(val mode: CatalogTabMode) : OwnerUiEvent
     data class CatalogSearchChanged(val query: String) : OwnerUiEvent
     data class CatalogFilterSelected(val category: String) : OwnerUiEvent
+    data class ProductStatusFilterSelected(val status: String) : OwnerUiEvent
+    data class MaterialSortChanged(val field: MaterialSortField, val direction: SortDirection) : OwnerUiEvent
+    data class ProductSortChanged(val field: ProductSortField, val direction: SortDirection) : OwnerUiEvent
     data class CatalogNameChanged(val name: String) : OwnerUiEvent
     data class CatalogTypeChanged(val isProduct: Boolean) : OwnerUiEvent
     data class CatalogPriceChanged(val priceInput: String) : OwnerUiEvent
     data class CatalogUnitChanged(val unit: UnitType) : OwnerUiEvent
-    data object ResetCatalogForm : OwnerUiEvent
+    data class ResetCatalogForm(val defaultIsProduct: Boolean = false) : OwnerUiEvent
     data object SubmitCatalogItem : OwnerUiEvent
 
     // Add Outlet Form Events
@@ -510,11 +540,33 @@ class OwnerViewModel(
             is OwnerUiEvent.ReportDateFilterSelected -> {
                 _state.update { it.copy(reportDateFilter = event.filter) }
             }
+            is OwnerUiEvent.CatalogTabSelected -> {
+                _state.update { it.copy(catalogTabMode = event.mode) }
+            }
             is OwnerUiEvent.CatalogSearchChanged -> {
                 _state.update { it.copy(catalogSearchQuery = event.query) }
             }
             is OwnerUiEvent.CatalogFilterSelected -> {
                 _state.update { it.copy(catalogCategoryFilter = event.category) }
+            }
+            is OwnerUiEvent.ProductStatusFilterSelected -> {
+                _state.update { it.copy(productStatusFilter = event.status) }
+            }
+            is OwnerUiEvent.MaterialSortChanged -> {
+                _state.update {
+                    it.copy(
+                        materialSortField = event.field,
+                        materialSortDirection = event.direction
+                    )
+                }
+            }
+            is OwnerUiEvent.ProductSortChanged -> {
+                _state.update {
+                    it.copy(
+                        productSortField = event.field,
+                        productSortDirection = event.direction
+                    )
+                }
             }
             is OwnerUiEvent.CatalogNameChanged -> {
                 _state.update {
@@ -537,8 +589,10 @@ class OwnerViewModel(
                     it.copy(addCatalogForm = it.addCatalogForm.copy(unit = event.unit, errorMessage = null))
                 }
             }
-            OwnerUiEvent.ResetCatalogForm -> {
-                _state.update { it.copy(addCatalogForm = AddCatalogItemFormState()) }
+            is OwnerUiEvent.ResetCatalogForm -> {
+                _state.update {
+                    it.copy(addCatalogForm = AddCatalogItemFormState(isProduct = event.defaultIsProduct))
+                }
             }
             OwnerUiEvent.SubmitCatalogItem -> {
                 submitCatalogItem()
@@ -1026,6 +1080,12 @@ class OwnerViewModel(
                     "Outlet ${outlet.name}"
                 },
                 address = outlet.address,
+                coordinateLabel = String.format(
+                    Locale.US,
+                    "%.4f, %.4f",
+                    outlet.coordinate.latitude,
+                    outlet.coordinate.longitude
+                ),
                 isOpen = outlet.isOpen,
                 isActive = outlet.isActive,
                 openTime = outlet.openTime.ifBlank { "09.00" },
@@ -1178,7 +1238,7 @@ class OwnerViewModel(
                 priceOrCost = prod.price,
                 unitLabel = if (prod.name.contains("Bungkus", ignoreCase = true)) "bungkus" else "pcs",
                 subtitleText = "Harga jual ${formatRupiah(prod.price)}",
-                statusBadge = if (prod.isActive) "Aktif" else "Nonaktif",
+                statusBadge = if (prod.isActive) "Dijual" else "Tidak dijual",
                 isWarning = !prod.isActive
             )
         }
@@ -1238,10 +1298,16 @@ class OwnerViewModel(
                 )
             }
 
+        val fullDateFmt = SimpleDateFormat("EEEE, dd MMMM yyyy", Locale("id", "ID"))
+        val timeFmt = SimpleDateFormat("HH.mm 'WIB'", Locale("id", "ID"))
+        val dateObj = Date(item.dateMillis)
+
         return SingleReportDetailUi(
             id = item.id,
             outletName = item.outletName,
             dateLabel = item.dateLabel,
+            fullDateLabel = fullDateFmt.format(dateObj),
+            timeLabel = timeFmt.format(dateObj),
             cashRevenue = item.cashRevenue,
             qrisRevenue = item.qrisRevenue,
             totalRevenue = item.totalRevenue,
@@ -1356,6 +1422,40 @@ fun sortOutletItems(
         OutletSortField.PROFIT -> compareBy { it.netDepositEstimate }
         OutletSortField.NAME -> compareBy { it.name.lowercase(Locale.ROOT) }
         OutletSortField.TARGET -> compareBy { it.targetProgress }
+    }
+    return when (direction) {
+        SortDirection.ASC -> items.sortedWith(comparator)
+        SortDirection.DESC -> items.sortedWith(comparator.reversed())
+    }
+}
+
+fun sortMaterialCatalogItems(
+    items: List<CatalogItemUi>,
+    field: MaterialSortField,
+    direction: SortDirection
+): List<CatalogItemUi> {
+    val comparator: Comparator<CatalogItemUi> = when (field) {
+        MaterialSortField.NAME -> compareBy { it.name.lowercase(Locale.ROOT) }
+        MaterialSortField.COST -> compareBy { it.priceOrCost }
+        MaterialSortField.UNIT -> compareBy<CatalogItemUi> { it.unitLabel.lowercase(Locale.ROOT) }
+            .thenBy { it.name.lowercase(Locale.ROOT) }
+    }
+    return when (direction) {
+        SortDirection.ASC -> items.sortedWith(comparator)
+        SortDirection.DESC -> items.sortedWith(comparator.reversed())
+    }
+}
+
+fun sortProductCatalogItems(
+    items: List<CatalogItemUi>,
+    field: ProductSortField,
+    direction: SortDirection
+): List<CatalogItemUi> {
+    val comparator: Comparator<CatalogItemUi> = when (field) {
+        ProductSortField.NAME -> compareBy { it.name.lowercase(Locale.ROOT) }
+        ProductSortField.PRICE -> compareBy { it.priceOrCost }
+        ProductSortField.STATUS -> compareBy<CatalogItemUi> { it.isWarning }
+            .thenBy { it.name.lowercase(Locale.ROOT) }
     }
     return when (direction) {
         SortDirection.ASC -> items.sortedWith(comparator)

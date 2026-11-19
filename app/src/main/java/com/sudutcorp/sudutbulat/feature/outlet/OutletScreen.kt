@@ -287,7 +287,7 @@ fun OutletScreen(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("Semua", "Outlet", "Gudang", "Owner").forEach { roleOpt ->
+                    listOf("Semua", "Outlet", "Gudang").forEach { roleOpt ->
                         val isSelected = uiState.staffRoleFilter == roleOpt
                         FilterChip(
                             selected = isSelected,

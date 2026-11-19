@@ -385,7 +385,15 @@ fun MainScreen(
                     navController = nestedNavController,
                     outletId = route.outletId,
                     uiState = ownerUiState,
-                    onEvent = ownerViewModel::onEvent
+                    onEvent = ownerViewModel::onEvent,
+                    onReportClick = { reportId ->
+                        nestedNavController.navigate(
+                            OwnerSubRoutes.DetailReport(
+                                period = ownerUiState.selectedReportPeriod,
+                                reportId = reportId
+                            )
+                        )
+                    }
                 )
             }
         }

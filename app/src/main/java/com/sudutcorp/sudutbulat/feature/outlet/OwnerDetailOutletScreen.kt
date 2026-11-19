@@ -30,8 +30,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
@@ -50,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -61,6 +64,7 @@ import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.model.Role
+import com.sudutcorp.sudutbulat.feature.owner.DailyReportListItemUi
 import com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
@@ -73,18 +77,24 @@ fun OwnerDetailOutletScreen(
     modifier: Modifier = Modifier,
     outletId: String = "outlet_sudirman",
     uiState: OwnerUiState = OwnerUiState(),
-    onEvent: (OwnerUiEvent) -> Unit = {}
+    onEvent: (OwnerUiEvent) -> Unit = {},
+    onReportClick: (String) -> Unit = {}
 ) {
     val outlet = uiState.outletItems.firstOrNull { it.id == outletId }
         ?: uiState.outletItems.firstOrNull()
     val allOutletStaff = remember(uiState.staffItems) {
         uiState.staffItems.filter { it.role == Role.OUTLET && it.isActive }
     }
+    val recentOutletReports = remember(uiState.reportListItems, outlet?.id) {
+        val targetId = outlet?.id ?: outletId
+        uiState.reportListItems.filter { it.outletId == targetId }.take(3)
+    }
 
     OwnerDetailOutletContent(
         modifier = modifier,
         outlet = outlet,
         allOutletStaff = allOutletStaff,
+        recentReports = recentOutletReports,
         onBackClick = { navController.popBackStack() },
         onToggleOpenStatus = {
             if (outlet != null) {
@@ -95,7 +105,8 @@ fun OwnerDetailOutletScreen(
             if (outlet != null) {
                 onEvent(OwnerUiEvent.AssignStaffToOutlet(outlet.id, selectedIds))
             }
-        }
+        },
+        onReportClick = onReportClick
     )
 }
 
@@ -105,22 +116,30 @@ fun OwnerDetailOutletContent(
     modifier: Modifier = Modifier,
     outlet: OutletPerformanceUi? = null,
     allOutletStaff: List<StaffItemUi> = emptyList(),
+    recentReports: List<DailyReportListItemUi> = emptyList(),
     onBackClick: () -> Unit = {},
     onToggleOpenStatus: () -> Unit = {},
-    onSaveStaffAssignment: (Set<String>) -> Unit = {}
+    onSaveStaffAssignment: (Set<String>) -> Unit = {},
+    onReportClick: (String) -> Unit = {}
 ) {
     val outletName = outlet?.name ?: "Sudirman"
     val outletAddress = outlet?.address ?: "Jl. Jenderal Sudirman No. 18"
+    val coordinateLabel = outlet?.coordinateLabel ?: "-6.2146, 106.8222"
     val isOpen = outlet?.isOpen ?: true
     val salesText = outlet?.let { formatRupiah(it.revenue) } ?: "Rp2.480.000"
-    val piecesSoldText = "${outlet?.piecesSold ?: 496} pcs hari ini"
+    val piecesSoldText = "${outlet?.piecesSold ?: 496} pcs terjual"
     val expenseText = outlet?.let { formatRupiah(it.expenseTotal) } ?: "Rp185.000"
     val expenseCountText = "${outlet?.expenseCount ?: 3} transaksi"
-    val damagedText = "${outlet?.damagedCount ?: 12} pcs"
+    val targetProgress = outlet?.targetProgress ?: 0.85f
+    val targetPercentValue = "${(targetProgress * 100).toInt()}%"
+    val dailyTargetSubtitle = "Target ${formatRupiah(outlet?.dailyTarget ?: 2_900_000L)}"
+    val damagedText = "${outlet?.damagedCount ?: 12} item"
     val damagedReportText = "${outlet?.damagedReportCount ?: 1} laporan"
-    val operatingHours = "${outlet?.openTime ?: "09.00"} – ${outlet?.closeTime ?: "21.00"}"
+    val operatingHours = "${outlet?.openTime ?: "09.00"} – ${outlet?.closeTime ?: "21.00"} WIB"
     val staffDisplay = outlet?.staffNames?.joinToString(", ")?.takeIf { it.isNotBlank() } ?: "Belum ada staf"
-    val netDepositText = outlet?.let { formatRupiah(it.netDepositEstimate) } ?: "Rp1.675.000"
+    val cashText = outlet?.let { formatRupiah(it.cashRevenue) } ?: "Rp1.480.000"
+    val qrisText = outlet?.let { formatRupiah(it.qrisRevenue) } ?: "Rp1.000.000"
+    val netDepositText = outlet?.let { formatRupiah(it.netDepositEstimate) } ?: "Rp2.295.000"
 
     var showOverrideStatusDialog by rememberSaveable { mutableStateOf(false) }
     var showStaffPickerSheet by rememberSaveable { mutableStateOf(false) }
@@ -161,13 +180,13 @@ fun OwnerDetailOutletContent(
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "Outlet",
+                    text = "Detail outlet",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = SBColor.Grey_500
                 )
                 Text(
-                    text = outletName,
+                    text = "Outlet $outletName",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = SBColor.Grey_700
@@ -175,81 +194,105 @@ fun OwnerDetailOutletContent(
             }
         }
 
-        // Card Outlet Ditugaskan
+        // Card Identitas Outlet (Gerobak Menetap + Koordinat + Status Override)
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
             border = BorderStroke(1.dp, SBColor.Grey_100)
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        modifier = Modifier.size(40.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        color = SBColor.Primary_100
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_store),
-                                contentDescription = "Outlet",
-                                tint = SBColor.Primary_550,
-                                modifier = Modifier.size(20.dp)
+                        Surface(
+                            modifier = Modifier.size(44.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = SBColor.Primary_100
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_store),
+                                    contentDescription = "Outlet",
+                                    tint = SBColor.Primary_550,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = "Gerobak menetap",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SBColor.Primary_550
+                            )
+                            Text(
+                                text = "Outlet $outletName",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SBColor.Grey_700
+                            )
+                            Text(
+                                text = outletAddress,
+                                fontSize = 12.sp,
+                                color = SBColor.Grey_500
                             )
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showOverrideStatusDialog = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isOpen) SBColor.Success_100 else SBColor.Grey_100
+                    ) {
                         Text(
-                            text = "Outlet ditugaskan",
+                            text = if (isOpen) "Buka ▾" else "Tutup ▾",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = SBColor.Grey_500
-                        )
-                        Text(
-                            text = outletName,
-                            fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = SBColor.Grey_700
-                        )
-                        Text(
-                            text = outletAddress,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = SBColor.Grey_500
+                            color = if (isOpen) SBColor.Success_600 else SBColor.Grey_600,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
 
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { showOverrideStatusDialog = true },
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (isOpen) SBColor.Success_100 else SBColor.Grey_100
+                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isOpen) "Buka" else "Tutup",
+                        text = "Koordinat lokasi",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isOpen) SBColor.Success_600 else SBColor.Grey_600,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        color = SBColor.Grey_500
+                    )
+                    Text(
+                        text = coordinateLabel,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SBColor.Grey_600
                     )
                 }
             }
         }
 
-        // Grid 2x2 Metric Cards
+        // Grid 2x2 Metric Cards (100% Sesuai PRD: Penjualan, Pengeluaran, Target Harian, Bahan Rusak)
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -280,37 +323,85 @@ fun OwnerDetailOutletContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                MetricCard(
+                OutlinedCard(
                     modifier = Modifier.weight(1f),
-                    iconRes = R.drawable.ic_box,
-                    iconBgColor = SBColor.Success_100,
-                    iconTint = SBColor.Success_600,
-                    title = "Stok saat ini",
-                    value = "878 pcs",
-                    subtitle = "Tahu Original"
-                )
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, SBColor.Grey_100)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            color = SBColor.Primary_100
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_bar_chart),
+                                    contentDescription = "Target harian",
+                                    tint = SBColor.Primary_550,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Target harian",
+                                fontSize = 13.sp,
+                                color = SBColor.Grey_500
+                            )
+                            Text(
+                                text = targetPercentValue,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SBColor.Grey_700
+                            )
+                            LinearProgressIndicator(
+                                progress = { targetProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(5.dp)
+                                    .clip(CircleShape),
+                                color = SBColor.Primary,
+                                trackColor = SBColor.Grey_100,
+                                strokeCap = StrokeCap.Round,
+                                gapSize = 0.dp,
+                                drawStopIndicator = {}
+                            )
+                            Text(
+                                text = dailyTargetSubtitle,
+                                fontSize = 11.sp,
+                                color = SBColor.Grey_400
+                            )
+                        }
+                    }
+                }
 
                 MetricCard(
                     modifier = Modifier.weight(1f),
                     iconRes = R.drawable.ic_warning,
                     iconBgColor = SBColor.Secondary_100,
                     iconTint = SBColor.Secondary_500,
-                    title = "Stok rusak",
+                    title = "Bahan rusak",
                     value = damagedText,
                     subtitle = damagedReportText
                 )
             }
         }
 
-        // Section: Status Outlet
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Section: Operasional & Keuangan Outlet
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Status outlet",
+                    text = "Operasional & keuangan",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = SBColor.Grey_700
@@ -331,68 +422,110 @@ fun OwnerDetailOutletContent(
                 }
             }
 
-            Row(
+            OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SBColor.Grey_100)
             ) {
-                Text(
-                    text = "Jam operasional",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_600
-                )
-                Text(
-                    text = operatingHours,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_700
-                )
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutletDetailRow("Jam operasional", operatingHours)
+                    OutletDetailRow("Staf bertugas", staffDisplay)
+                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                    OutletDetailRow("Penjualan tunai", cashText)
+                    OutletDetailRow("Penjualan QRIS", qrisText)
+                    DottedLine(
+                        color = SBColor.Grey_200,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Setoran bersih (est.)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Grey_700
+                        )
+                        Text(
+                            text = netDepositText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = SBColor.Success_600
+                        )
+                    }
+                }
             }
+        }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        // Section: Laporan Harian Terbaru Outlet Ini
+        if (recentReports.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Staf bertugas",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_600
-                )
-                Text(
-                    text = staffDisplay,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_700,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.weight(1f).padding(start = 16.dp)
-                )
-            }
-
-            DottedLine(
-                color = SBColor.Grey_200,
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Setoran bersih (est.)",
-                    fontSize = 14.sp,
+                    text = "Laporan harian terbaru",
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = SBColor.Grey_700
                 )
-                Text(
-                    text = netDepositText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SBColor.Grey_700
-                )
+
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, SBColor.Grey_100)
+                ) {
+                    Column {
+                        recentReports.forEachIndexed { index, report ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onReportClick(report.id) }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        text = report.dateLabel,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = SBColor.Grey_700
+                                    )
+                                    Text(
+                                        text = "${report.totalSold} pcs terjual",
+                                        fontSize = 12.sp,
+                                        color = SBColor.Grey_500
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = formatRupiah(report.totalRevenue),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SBColor.Grey_700
+                                    )
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_chevron_right),
+                                        contentDescription = null,
+                                        tint = SBColor.Grey_400,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            if (index < recentReports.lastIndex) {
+                                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -516,6 +649,31 @@ fun OwnerDetailOutletContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OutletDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            color = SBColor.Grey_600
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = SBColor.Grey_700,
+            textAlign = TextAlign.End,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 16.dp)
+        )
     }
 }
 

@@ -272,19 +272,6 @@ fun ProfileScreen(
             )
 
             ProfileMenuItem(
-                iconRes = R.drawable.ic_settings,
-                title = "Bahasa",
-                valueText = "Indonesia",
-                onClick = { /* Pengaturan bahasa */ }
-            )
-
-            ProfileMenuItem(
-                iconRes = R.drawable.ic_info,
-                title = "Bantuan",
-                onClick = { /* Pusat bantuan */ }
-            )
-
-            ProfileMenuItem(
                 iconRes = R.drawable.ic_logout,
                 title = "Keluar",
                 iconBgColor = SBColor.Primary_100,
