@@ -1,55 +1,53 @@
-# 🟡 SudutBulat (Internal Management App)
+# SudutBulat (Internal Management App)
 
-SudutBulat adalah aplikasi Android internal yang dirancang khusus untuk mengelola operasional, manajemen stok, dan pelaporan keuangan harian untuk jaringan bisnis Tahu Bulat berkonsep outlet gerobak menetap.
+SudutBulat adalah aplikasi Android internal untuk mengelola operasional, distribusi bahan mentah, dan pelaporan harian jaringan bisnis UMKM **Tahu Bulat** dengan konsep outlet gerobakan menetap (statis).
 
-Aplikasi ini dibangun menggunakan **Kotlin** dan **Jetpack Compose** untuk memberikan pengalaman antarmuka yang modern, reaktif, dan mudah digunakan oleh seluruh tingkat staf.
+Untuk spesifikasi lengkap, batasan domain, dan kontrak skema database, lihat [PRD.md](PRD.md).
 
----
+## Konsep Utama Bisnis
 
-## 👥 Role-Based Access Control (RBAC) & Fitur Utama
+- **Outlet Menetap:** Setiap gerobak berada di titik lokasi tetap (bukan keliling).
+- **Stok vs Produk:** **Stok (`Material`)** adalah bahan mentah yang disuplai gudang (tahu mentah `pcs`, saus sambal `pcs`, chilly oil `botol`, dll), sedangkan **Produk (`Product`)** adalah barang matang siap jual yang memiliki harga jual (satuan atau paket/bungkus).
+- **Cakupan Pencatatan:** Gudang tidak mencatat stok masuk dari *supplier* maupun sisa kuantitas stok di gudang; gudang hanya mengelola katalog bahan mentah dan mencatat pendistribusian ke outlet. Metode pengantaran fisik (Gojek, kurir, jemput sendiri) tidak dilacak di aplikasi.
 
-Sistem ini membagi hak akses ke dalam tiga role utama dengan alur kerja yang spesifik:
+## Role-Based Access Control (RBAC)
 
-### 1. 👑 Owner (Pemilik)
-Memiliki akses penuh untuk memantau seluruh aktivitas bisnis.
-* **Dashboard Utama:** Melihat ringkasan performa seluruh outlet.
-* **Laporan Komprehensif:** Akses rekapitulasi penjualan, pengeluaran operasional, dan penyusutan bahan (stok rusak) dari semua outlet.
+### 1. Owner (Superadmin & Monitoring)
+- Memantau dashboard performa, omzet (Cash & QRIS), pengeluaran outlet, dan laporan bahan rusak dari seluruh outlet.
+- Mengelola data master **Outlet** (CRUD) dan akun **User** (CRUD akun Admin Gudang dan Staf Outlet serta penugasan outlet).
+- Berhak mengelola katalog bahan mentah dan produk.
 
-### 2. 📦 Admin Gudang (Warehouse Admin)
-Bertanggung jawab atas pusat logistik dan ketersediaan bahan baku.
-* **Manajemen Stok Gudang:** Mencatat barang masuk dari *supplier*.
-* **Distribusi Stok:** Membagi dan mencatat pengiriman bahan baku ke masing-masing outlet gerobak. Bahan yang didistribusikan meliputi:
-    * Tahu bulat mentah
-    * Saus
-    * Bubuk topping / bumbu
-* **Pemantauan Permintaan:** Memantau sisa stok di setiap outlet untuk perencanaan distribusi hari berikutnya.
+### 2. Admin Gudang (1 Gudang, >= 2 Akun Pegawai)
+- Melakukan distribusi rutin pagi hari ke seluruh outlet aktif, dilengkapi indikator outlet mana saja yang belum menerima distribusi pagi.
+- Meninjau dan memutuskan (Terima / Tolak) permintaan (*request*) tambahan stok dari Staf Outlet.
+- Mengelola **Daftar Katalog Bahan Mentah (`Material`)** dan **Produk (`Product`)**.
 
-### 3. 🏪 Staf Outlet
-Bertugas di lapangan pada satu lokasi gerobak tetap (tidak ada rotasi/perpindahan lokasi outlet untuk staf).
-* **Laporan Penjualan (Income):** Menginput total tahu bulat yang berhasil terjual pada shift/hari tersebut.
-* **Laporan Pengeluaran (Expense):** Mencatat pengeluaran operasional harian gerobak (contoh: pembelian gas, plastik kantongan, tusuk lidi).
-* **Laporan Penyusutan (Damaged Stock):** Melaporkan jumlah stok tahu mentah atau bahan lain yang rusak, basi, atau tidak layak jual di akhir jam operasional.
+### 3. Staf Outlet (1 Akun = 1 Outlet Tetap)
+- Mengonfirmasi penerimaan distribusi stok dari gudang (`RECEIVED`, `PARTIALLY_RECEIVED`, atau `NOT_RECEIVED`).
+- Mengajukan permintaan tambahan stok ke gudang saat bahan menipis.
+- Mengisi **Laporan Harian (Closing)** saat outlet tutup:
+  - Penjualan produk siap jual (total terjual, pendapatan Cash & QRIS).
+  - Pengeluaran operasional mandiri outlet (gas LPG, plastik kantong/pembungkus, lidi tusuk, minyak goreng, saus sambal umum, dll).
+  - Bahan mentah rusak/basi (`damaged_materials`).
 
----
+### 4. Developer (`DEV` - Khusus Demo/Testing)
+- Mendukung *role switcher* untuk berpindah tampilan antar role (`OWNER`, `WAREHOUSE`, `OUTLET`) saat pengujian.
 
-## 🏗️ Alur Kerja Sistem (Business Logic)
+## Alur Kerja Operasional
 
-1. **Setup Outlet:** Setiap outlet (gerobak) berada di titik lokasi yang statis. Minimal 1 Staf Outlet di-assign secara permanen ke ID Outlet tersebut.
-2. **Distribusi:** Admin Gudang mengirimkan bahan baku ke outlet dan mencatat kuantitasnya di aplikasi.
-3. **Operasional:** Staf Outlet menerima stok (update status di sistem).
-4. **Closing (Akhir Hari):** Staf Outlet wajib mengisi *form closing* harian yang terdiri dari: Tahu Terjual, Pengeluaran Ekstra, dan Stok Rusak.
-5. **Sinkronisasi:** Data laporan langsung masuk ke database pusat dan dapat direview secara *real-time* oleh Owner.
+1. **Setup Master Data:** Owner menyiapkan data outlet dan akun pegawai; Gudang/Owner menyiapkan katalog bahan mentah dan produk.
+2. **Distribusi Pagi:** Admin Gudang mengirim distribusi rutin pagi ke seluruh outlet yang belum terdistribusi hari itu.
+3. **Operasional & Request Tambahan:** Staf Outlet mengonfirmasi penerimaan stok dan dapat mengirim request tambahan stok jika dibutuhkan (untuk disetujui/ditolak oleh Gudang).
+4. **Closing Harian:** Saat tutup toko, Staf Outlet mengirimkan laporan harian (penjualan, pengeluaran mandiri, dan bahan rusak) tanpa perlu menghitung sisa stok aktual secara otomatis.
+5. **Monitoring:** Owner meninjau laporan dan performa tiap outlet secara *real-time*.
 
----
+## Tech Stack & Architecture
 
-## 🛠️ Tech Stack & Architecture
-
-* **Platform:** Android (Min SDK 22 / Target SDK 31)
-* **UI Toolkit:** Jetpack Compose
-* **Language:** Kotlin
-* **Architecture Pattern:** MVVM (Model-View-ViewModel) + Clean Architecture
-* **Asynchronous Programming:** Kotlin Coroutines & Flow
-* **Dependency Injection:** Hilt / Dagger (Opsional, sesuaikan jika pakai)
-* **Network / API:** Retrofit & OkHttp
-* **BaaS / Cloud Services:** Firebase (Authentication, Crashlytics, Cloud Messaging)
-* **Local Storage:** Room Database / DataStore (untuk caching sesi login staf)
+- **Platform:** Android (`minSdk = 29`, `targetSdk = 37`, `compileSdk = 37`)
+- **Language:** Kotlin (`2.4.21`)
+- **UI Toolkit:** Jetpack Compose (`compose-bom:2026.02.01`) & Material 3
+- **Architecture:** MVI / Unidirectional Data Flow (UDF) + Repository Pattern
+- **Navigation:** Type-safe Navigation Compose (`2.10.0`)
+- **Async:** Kotlin Coroutines & Flow
+- **Dependency Injection:** Manual DI melalui `AppContainer` (`DefaultAppContainer`)
+- **Backend / BaaS:** Firebase Authentication & Cloud Firestore (`firebase-bom:35.0.0`)

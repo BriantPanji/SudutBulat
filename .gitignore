@@ -13,3 +13,13 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Environment & Firebase Service Account Secrets
+.env
+.env.*
+!.env.example
+serviceAccountKey.json
+*firebase-adminsdk*.json
+
+# Firestore Tools (Node.js)
+firestore-tools/node_modules/
