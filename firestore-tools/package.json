@@ -1,0 +1,20 @@
+{
+  "name": "sudutbulat-firestore-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Laravel/Prisma-style Firestore Seeder & Migration CLI for SudutBulat",
+  "scripts": {
+    "make:seed": "node scripts/cli.js make:seed",
+    "make:migration": "node scripts/cli.js make:migration",
+    "make:migrations": "node scripts/cli.js make:migrations",
+    "seed": "node scripts/cli.js seed",
+    "migrate": "node scripts/cli.js migrate",
+    "migrate:rollback": "node scripts/cli.js migrate:rollback",
+    "migrate:status": "node scripts/cli.js migrate:status",
+    "migrate:fresh": "node scripts/cli.js migrate:fresh"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "firebase-admin": "^13.0.2"
+  }
+}
