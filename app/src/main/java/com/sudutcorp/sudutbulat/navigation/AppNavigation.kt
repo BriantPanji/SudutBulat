@@ -141,9 +141,9 @@ fun MainScreen(
     val pagerState = rememberPagerState(initialPage = 0) { navItems.size }
     val coroutineScope = rememberCoroutineScope()
 
-    BackHandler(enabled = pagerState.currentPage != 0) {
+    BackHandler(enabled = pagerState.targetPage != 0) {
         coroutineScope.launch {
-            pagerState.animateScrollToPage(0)
+            pagerState.scrollToPage(0)
         }
     }
 
@@ -151,16 +151,12 @@ fun MainScreen(
         bottomBar = {
             BottomNavigationBar(
                 items = navItems,
-                selectedPageIndex = pagerState.currentPage,
+                selectedPageIndex = pagerState.targetPage,
                 onPageSelected = { index ->
-                    coroutineScope.launch {
-                        pagerState.animateScrollToPage(
-                            page = index,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMediumLow
-                            )
-                        )
+                    if (pagerState.targetPage != index) {
+                        coroutineScope.launch {
+                            pagerState.scrollToPage(index)
+                        }
                     }
                 }
             )
