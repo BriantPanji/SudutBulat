@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,11 +29,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.feature.owner.OwnerNotificationUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
@@ -67,6 +66,7 @@ fun OwnerNotificationContent(
 ) {
     val reviewItems = notifications.filter { it.isNeedsReview }
     val previousItems = notifications.filterNot { it.isNeedsReview }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -78,42 +78,12 @@ fun OwnerNotificationContent(
             .padding(top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(color = SBColor.Grey_100, shape = CircleShape)
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_chevron_left),
-                    contentDescription = "Kembali",
-                    tint = SBColor.Grey_700,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Owner",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_500
-                )
-                Text(
-                    text = "Notifikasi",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SBColor.Grey_700
-                )
-            }
-        }
+        SBSubHeader(
+            eyebrow = "Owner",
+            title = "Notifikasi",
+            onBackClick = onBackClick
+        )
 
-        // Section: Perlu ditinjau
         if (reviewItems.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
@@ -121,50 +91,35 @@ fun OwnerNotificationContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Perlu ditinjau",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Grey_700
-                    )
+                    Text("Perlu ditinjau", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                     TextButton(
                         onClick = onMarkAllAsReadClick,
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
-                        Text(
-                            text = "Tandai dibaca",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SBColor.Primary_550
-                        )
+                        Text("Tandai dibaca", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
                     }
                 }
 
                 reviewItems.forEach { item ->
-                    ReviewNotificationCard(
+                    NotificationItemCard(
                         title = item.title,
                         description = item.description,
                         time = item.time,
+                        isNeedsReview = true,
                         onClick = { onNotificationClick(item) }
                     )
                 }
             }
         }
 
-        // Section: Sebelumnya
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                text = "Sebelumnya",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = SBColor.Grey_700
-            )
-
+            Text("Sebelumnya", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
             previousItems.forEach { item ->
-                PreviousNotificationCard(
+                NotificationItemCard(
                     title = item.title,
                     description = item.description,
                     time = item.time,
+                    isNeedsReview = false,
                     onClick = { onNotificationClick(item) }
                 )
             }
@@ -173,18 +128,21 @@ fun OwnerNotificationContent(
 }
 
 @Composable
-private fun ReviewNotificationCard(
+private fun NotificationItemCard(
     title: String,
     description: String,
     time: String,
+    isNeedsReview: Boolean,
     onClick: () -> Unit = {}
 ) {
     OutlinedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = SBColor.Primary_100),
-        border = BorderStroke(1.dp, SBColor.Primary_200)
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (isNeedsReview) SBColor.Primary_100 else Color.White
+        ),
+        border = BorderStroke(1.dp, if (isNeedsReview) SBColor.Primary_200 else SBColor.Grey_100)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -194,13 +152,15 @@ private fun ReviewNotificationCard(
             Surface(
                 modifier = Modifier.size(40.dp),
                 shape = RoundedCornerShape(10.dp),
-                color = Color.White.copy(alpha = 0.8f)
+                color = if (isNeedsReview) Color.White.copy(alpha = 0.8f) else SBColor.Secondary_100
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        painter = painterResource(id = R.drawable.ic_warning),
+                        painter = painterResource(
+                            id = if (isNeedsReview) R.drawable.ic_warning else R.drawable.ic_store
+                        ),
                         contentDescription = null,
-                        tint = SBColor.Primary_550,
+                        tint = if (isNeedsReview) SBColor.Primary_550 else SBColor.Secondary_500,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -222,20 +182,15 @@ private fun ReviewNotificationCard(
                         color = SBColor.Grey_700,
                         modifier = Modifier.weight(1f)
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(color = SBColor.Primary_550, shape = CircleShape)
-                    )
+                    if (isNeedsReview) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(color = SBColor.Primary_550, shape = CircleShape)
+                        )
+                    }
                 }
-
-                Text(
-                    text = description,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_600
-                )
-
+                Text(text = description, fontSize = 12.sp, color = SBColor.Grey_600)
                 Text(
                     text = time,
                     fontSize = 12.sp,
@@ -246,74 +201,4 @@ private fun ReviewNotificationCard(
             }
         }
     }
-}
-
-@Composable
-private fun PreviousNotificationCard(
-    title: String,
-    description: String,
-    time: String,
-    onClick: () -> Unit = {}
-) {
-    OutlinedCard(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, SBColor.Grey_100)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = SBColor.Secondary_100
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_store),
-                        contentDescription = null,
-                        tint = SBColor.Secondary_500,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-
-                Text(
-                    text = description,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_600
-                )
-
-                Text(
-                    text = time,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = SBColor.Grey_500,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun OwnerNotificationScreenPreview() {
-    OwnerNotificationContent()
 }

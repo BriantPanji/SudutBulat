@@ -1,6 +1,5 @@
 package com.sudutcorp.sudutbulat.feature.outlet
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -15,31 +14,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -56,15 +42,18 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBBottomCtaBar
+import com.sudutcorp.sudutbulat.core.components.SBInlineAlert
+import com.sudutcorp.sudutbulat.core.components.SBLabeledTextField
+import com.sudutcorp.sudutbulat.core.components.SBSelectField
+import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.ThousandSeparatorVisualTransformation
 import com.sudutcorp.sudutbulat.core.util.TimeVisualTransformation
@@ -116,44 +105,11 @@ fun AddOutletScreen(
         modifier = modifier,
         containerColor = Color.White,
         bottomBar = {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = Color.White,
-                tonalElevation = 0.dp
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                    Button(
-                        onClick = { onEvent(OwnerUiEvent.SubmitNewOutlet) },
-                        enabled = !form.isSaving,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 16.dp)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SBColor.Primary_550,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        if (form.isSaving) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                text = "Simpan outlet",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
+            SBBottomCtaBar(
+                label = "Simpan outlet",
+                isLoading = form.isSaving,
+                onClick = { onEvent(OwnerUiEvent.SubmitNewOutlet) }
+            )
         }
     ) { innerPadding ->
         Column(
@@ -162,53 +118,21 @@ fun AddOutletScreen(
                 .background(Color.White)
                 .padding(innerPadding)
                 .imePadding()
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { focusManager.clearFocus() })
-                }
+                .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Sub Header (204:6480)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                IconButton(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(color = SBColor.Grey_100, shape = CircleShape)
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_chevron_left),
-                        contentDescription = "Kembali",
-                        tint = SBColor.Grey_700,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "Owner",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SBColor.Grey_600
-                    )
-                    Text(
-                        text = "Tambah outlet",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Grey_700
-                    )
-                }
-            }
+            SBSubHeader(
+                eyebrow = "Owner",
+                title = "Tambah outlet",
+                onBackClick = { navController.popBackStack() }
+            )
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Field: Nama outlet
-            FormLabeledTextField(
+            SBLabeledTextField(
                 label = "Nama outlet",
                 value = form.name,
                 placeholder = "Outlet Kemang",
@@ -218,8 +142,7 @@ fun AddOutletScreen(
                 onValueChange = { onEvent(OwnerUiEvent.AddOutletNameChanged(it)) }
             )
 
-            // Field: Alamat lengkap
-            FormLabeledTextField(
+            SBLabeledTextField(
                 label = "Alamat lengkap",
                 value = form.address,
                 placeholder = "Jl. Kemang Raya No. 12",
@@ -229,12 +152,11 @@ fun AddOutletScreen(
                 onValueChange = { onEvent(OwnerUiEvent.AddOutletAddressChanged(it)) }
             )
 
-            // Row: Jam buka & Jam tutup (hanya angka, diformat HH.mm)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                FormLabeledTextField(
+                SBLabeledTextField(
                     modifier = Modifier.weight(1f),
                     label = "Jam buka",
                     value = form.openTime,
@@ -246,7 +168,7 @@ fun AddOutletScreen(
                     onImeAction = { focusManager.moveFocus(FocusDirection.Next) },
                     onValueChange = { onEvent(OwnerUiEvent.AddOutletOpenTimeChanged(it)) }
                 )
-                FormLabeledTextField(
+                SBLabeledTextField(
                     modifier = Modifier.weight(1f),
                     label = "Jam tutup",
                     value = form.closeTime,
@@ -260,8 +182,7 @@ fun AddOutletScreen(
                 )
             }
 
-            // Field: Target penjualan harian (format ribuan otomatis dengan titik)
-            FormLabeledTextField(
+            SBLabeledTextField(
                 label = "Target penjualan harian",
                 value = form.dailyTargetInput,
                 placeholder = "2.000.000",
@@ -274,81 +195,19 @@ fun AddOutletScreen(
                 onValueChange = { onEvent(OwnerUiEvent.AddOutletTargetChanged(it)) }
             )
 
-            // Select Field: Staf outlet (min. 1)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Staf outlet (min. 1)",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_700
-                )
-                OutlinedCard(
-                    onClick = {
-                        focusManager.clearFocus()
-                        showStaffSheet = true
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, SBColor.Grey_200)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (selectedStaffNames.isNotBlank()) {
-                                selectedStaffNames
-                            } else {
-                                "Pilih staf yang ditugaskan"
-                            },
-                            fontSize = 14.sp,
-                            color = if (selectedStaffNames.isNotBlank()) SBColor.Grey_700 else SBColor.Grey_500,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_chevron),
-                            contentDescription = null,
-                            tint = SBColor.Grey_500,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+            SBSelectField(
+                label = "Staf outlet (min. 1)",
+                valueText = selectedStaffNames.ifBlank { "Pilih staf yang ditugaskan" },
+                isPlaceholder = selectedStaffNames.isBlank(),
+                onClick = {
+                    focusManager.clearFocus()
+                    showStaffSheet = true
                 }
-            }
+            )
 
-            // Inline Alert (#F8EBD8, teks #645434)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = SBColor.Secondary_100
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_info),
-                        contentDescription = null,
-                        tint = SBColor.Secondary_500,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = "Staf ditugaskan permanen ke outlet ini dan tidak berpindah lokasi.",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = SBColor.Secondary_500,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            SBInlineAlert(
+                message = "Staf ditugaskan permanen ke outlet ini dan tidak berpindah lokasi."
+            )
 
             form.errorMessage?.let { errorMsg ->
                 Text(
@@ -381,24 +240,14 @@ fun AddOutletScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Pilih staf outlet",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Grey_700
-                    )
+                    Text("Pilih staf outlet", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                     TextButton(
                         onClick = {
                             showStaffSheet = false
                             onAddNewUserClick()
                         }
                     ) {
-                        Text(
-                            text = "+ Buat staf baru",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SBColor.Primary_550
-                        )
+                        Text("+ Buat staf baru", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
                     }
                 }
 
@@ -426,17 +275,8 @@ fun AddOutletScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text(
-                                    text = staff.name,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = SBColor.Grey_700
-                                )
-                                Text(
-                                    text = staff.email,
-                                    fontSize = 12.sp,
-                                    color = SBColor.Grey_500
-                                )
+                                Text(staff.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                Text(staff.email, fontSize = 12.sp, color = SBColor.Grey_500)
                             }
                             Checkbox(
                                 checked = isChecked,
@@ -459,81 +299,5 @@ fun AddOutletScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-internal fun FormLabeledTextField(
-    label: String,
-    value: String,
-    placeholder: String,
-    leadingIconRes: Int,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    prefixText: String? = null,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    imeAction: ImeAction = ImeAction.Next,
-    visualTransformation: VisualTransformation = VisualTransformation.None,
-    onImeAction: () -> Unit = {}
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SBColor.Grey_700
-        )
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = {
-                Text(
-                    text = placeholder,
-                    fontSize = 14.sp,
-                    color = SBColor.Grey_500
-                )
-            },
-            leadingIcon = {
-                Icon(
-                    painter = painterResource(id = leadingIconRes),
-                    contentDescription = label,
-                    tint = SBColor.Grey_500,
-                    modifier = Modifier.size(18.dp)
-                )
-            },
-            prefix = prefixText?.let { prefix ->
-                {
-                    Text(
-                        text = prefix,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SBColor.Grey_700
-                    )
-                }
-            },
-            singleLine = true,
-            visualTransformation = visualTransformation,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = keyboardType,
-                imeAction = imeAction
-            ),
-            keyboardActions = KeyboardActions(
-                onNext = { onImeAction() },
-                onDone = { onImeAction() }
-            ),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = SBColor.Primary_550,
-                unfocusedBorderColor = SBColor.Grey_200,
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                focusedTextColor = SBColor.Grey_700,
-                unfocusedTextColor = SBColor.Grey_700
-            )
-        )
     }
 }

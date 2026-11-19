@@ -8,10 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -23,13 +21,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.RadioButton
@@ -45,16 +40,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
+import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
+import com.sudutcorp.sudutbulat.core.components.SBSectionCard
+import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
+import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
@@ -88,40 +85,11 @@ fun OwnerDetailStaffScreen(
             .padding(top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Sub Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            IconButton(
-                onClick = { navController.popBackStack() },
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(color = SBColor.Grey_100, shape = CircleShape)
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_chevron_left),
-                    contentDescription = "Kembali",
-                    tint = SBColor.Grey_700,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = staff?.role?.displayName ?: "Staf",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_500
-                )
-                Text(
-                    text = staff?.name ?: "Detail staf",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SBColor.Grey_700
-                )
-            }
-        }
+        SBSubHeader(
+            eyebrow = staff?.role?.displayName ?: "Staf",
+            title = staff?.name ?: "Detail staf",
+            onBackClick = { navController.popBackStack() }
+        )
 
         if (staff != null) {
             // Identity Card
@@ -158,35 +126,17 @@ fun OwnerDetailStaffScreen(
                             }
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = staff.name,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SBColor.Grey_700
-                            )
-                            Text(
-                                text = staff.email,
-                                fontSize = 13.sp,
-                                color = SBColor.Grey_500
-                            )
+                            Text(staff.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                            Text(staff.email, fontSize = 13.sp, color = SBColor.Grey_500)
                         }
                     }
 
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { showToggleActiveDialog = true },
-                        shape = RoundedCornerShape(6.dp),
-                        color = if (staff.isActive) SBColor.Success_100 else SBColor.Grey_100
-                    ) {
-                        Text(
-                            text = if (staff.isActive) "Aktif" else "Nonaktif",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (staff.isActive) SBColor.Success_600 else SBColor.Grey_600,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
+                    SBStatusBadge(
+                        text = if (staff.isActive) "Aktif" else "Nonaktif",
+                        containerColor = if (staff.isActive) SBColor.Success_100 else SBColor.Grey_100,
+                        contentColor = if (staff.isActive) SBColor.Success_600 else SBColor.Grey_600,
+                        onClick = { showToggleActiveDialog = true }
+                    )
                 }
             }
 
@@ -198,33 +148,19 @@ fun OwnerDetailStaffScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Penugasan outlet",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SBColor.Grey_700
-                        )
+                        Text("Penugasan outlet", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                         TextButton(
                             onClick = { showOutletPickerSheet = true },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                         ) {
-                            Text(
-                                text = "Ubah outlet",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SBColor.Primary_550
-                            )
+                            Text("Ubah outlet", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
                         }
                     }
 
                     OutlinedCard(
                         onClick = {
                             val assignedId = staff.outletId
-                            if (!assignedId.isNullOrBlank()) {
-                                onOutletClick(assignedId)
-                            } else {
-                                showOutletPickerSheet = true
-                            }
+                            if (!assignedId.isNullOrBlank()) onOutletClick(assignedId) else showOutletPickerSheet = true
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -284,32 +220,16 @@ fun OwnerDetailStaffScreen(
             }
 
             // Informasi Akun
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Informasi akun",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-
-                OutlinedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, SBColor.Grey_100)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StaffInfoRow("Kode login", staff.id)
-                        HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                        StaffInfoRow("Username", staff.username)
-                        HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                        StaffInfoRow("Email", staff.email)
-                        HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                        StaffInfoRow("Peran", staff.role.displayName)
-                        HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                        StaffInfoRow("Status akun", if (staff.isActive) "Aktif" else "Nonaktif")
-                    }
-                }
+            SBSectionCard(title = "Informasi akun") {
+                SBKeyValueRow("Kode login", staff.id, labelColor = SBColor.Grey_500)
+                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                SBKeyValueRow("Username", staff.username, labelColor = SBColor.Grey_500)
+                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                SBKeyValueRow("Email", staff.email, labelColor = SBColor.Grey_500)
+                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                SBKeyValueRow("Peran", staff.role.displayName, labelColor = SBColor.Grey_500)
+                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                SBKeyValueRow("Status akun", if (staff.isActive) "Aktif" else "Nonaktif", labelColor = SBColor.Grey_500)
             }
         }
     }
@@ -329,12 +249,7 @@ fun OwnerDetailStaffScreen(
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Pilih outlet penugasan",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
+                Text("Pilih outlet penugasan", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
 
                 LazyColumn(
                     modifier = Modifier
@@ -363,17 +278,8 @@ fun OwnerDetailStaffScreen(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text(
-                                    text = outlet.displayName,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = SBColor.Grey_700
-                                )
-                                Text(
-                                    text = outlet.address,
-                                    fontSize = 12.sp,
-                                    color = SBColor.Grey_500
-                                )
+                                Text(outlet.displayName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                Text(outlet.address, fontSize = 12.sp, color = SBColor.Grey_500)
                             }
                             RadioButton(
                                 selected = isSelected,
@@ -392,86 +298,15 @@ fun OwnerDetailStaffScreen(
 
     if (showToggleActiveDialog && staff != null) {
         val nextAction = if (staff.isActive) "nonaktifkan" else "aktifkan"
-        Dialog(onDismissRequest = { showToggleActiveDialog = false }) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = if (staff.isActive) "Nonaktifkan akun?" else "Aktifkan akun?",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Grey_700,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Apakah Anda yakin ingin men-$nextAction akun ${staff.name}?",
-                        fontSize = 14.sp,
-                        color = SBColor.Grey_500,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = { showToggleActiveDialog = false },
-                            modifier = Modifier.weight(1f).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = SBColor.Grey_100,
-                                contentColor = SBColor.Grey_700
-                            )
-                        ) {
-                            Text("Batal", fontWeight = FontWeight.Bold)
-                        }
-                        Button(
-                            onClick = {
-                                showToggleActiveDialog = false
-                                onEvent(OwnerUiEvent.ToggleUserActive(staff.id))
-                            },
-                            modifier = Modifier.weight(1f).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = SBColor.Primary_550,
-                                contentColor = Color.White
-                            )
-                        ) {
-                            Text("Konfirmasi", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+        SBConfirmDialog(
+            title = if (staff.isActive) "Nonaktifkan akun?" else "Aktifkan akun?",
+            description = "Apakah Anda yakin ingin men-$nextAction akun ${staff.name}?",
+            confirmText = "Konfirmasi",
+            onDismiss = { showToggleActiveDialog = false },
+            onConfirm = {
+                showToggleActiveDialog = false
+                onEvent(OwnerUiEvent.ToggleUserActive(staff.id))
             }
-        }
-    }
-}
-
-@Composable
-private fun StaffInfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            color = SBColor.Grey_500
-        )
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SBColor.Grey_700
         )
     }
 }

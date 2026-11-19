@@ -1,13 +1,11 @@
 package com.sudutcorp.sudutbulat.feature.profile
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,10 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -36,12 +30,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
+import com.sudutcorp.sudutbulat.core.components.SBPageHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
@@ -106,57 +100,15 @@ fun ProfileScreen(
             .padding(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // HEADER
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = roleLabel,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_500
-                )
-                Text(
-                    text = "Profil",
-                    fontSize = 25.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SBColor.Grey_700
-                )
-            }
-            BadgedBox(
-                badge = {
-                    Badge(
-                        containerColor = SBColor.Success_500,
-                        modifier = Modifier
-                            .size(12.dp)
-                            .border(2.dp, Color.White, CircleShape)
-                    )
-                }
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .clickable(enabled = isDevAccount, onClick = onSwitchRoleClick),
-                    shape = CircleShape,
-                    color = SBColor.Secondary_100
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = initials,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SBColor.Primary_500
-                        )
-                    }
-                }
-            }
-        }
+        SBPageHeader(
+            eyebrow = roleLabel,
+            title = "Profil",
+            initials = initials,
+            isAvatarClickable = isDevAccount,
+            onAvatarClick = onSwitchRoleClick
+        )
 
-        // PROFILE CARD
+        // Profile Identity
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -170,24 +122,11 @@ fun ProfileScreen(
                 color = SBColor.Secondary_100
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = initials,
-                        fontSize = 25.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = SBColor.Primary_500
-                    )
+                    Text(text = initials, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, color = SBColor.Primary_500)
                 }
             }
-            Text(
-                text = displayName,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = SBColor.Grey_700
-            )
-            Surface(
-                shape = RoundedCornerShape(99.dp),
-                color = SBColor.Grey_100
-            ) {
+            Text(text = displayName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+            Surface(shape = RoundedCornerShape(99.dp), color = SBColor.Grey_100) {
                 Text(
                     text = roleLabel,
                     fontSize = 12.sp,
@@ -196,15 +135,9 @@ fun ProfileScreen(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
-            Text(
-                text = emailText,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Normal,
-                color = SBColor.Grey_500
-            )
+            Text(text = emailText, fontSize = 14.sp, color = SBColor.Grey_500)
         }
 
-        // OWNER MANAGEMENT ACTIONS
         if (isOwnerView) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -223,7 +156,6 @@ fun ProfileScreen(
                     iconTint = SBColor.Primary_550,
                     onClick = onNavigateToAddUser
                 )
-
                 ProfileMenuItem(
                     iconRes = R.drawable.ic_store,
                     title = "Daftar outlet",
@@ -232,7 +164,6 @@ fun ProfileScreen(
                     iconTint = SBColor.Primary_550,
                     onClick = onNavigateToOutletList
                 )
-
                 ProfileMenuItem(
                     iconRes = R.drawable.ic_box,
                     title = "Daftar barang",
@@ -244,7 +175,6 @@ fun ProfileScreen(
             }
         }
 
-        // SETTING BUTTONS
         Column(modifier = Modifier.fillMaxWidth()) {
             if (isDevAccount) {
                 ProfileMenuItem(
@@ -264,13 +194,11 @@ fun ProfileScreen(
                 title = "Notifikasi",
                 onClick = onNavigateToNotifications
             )
-
             ProfileMenuItem(
                 iconRes = R.drawable.ic_lock,
                 title = "Keamanan & kata sandi",
-                onClick = { /* Navigasi keamanan */ }
+                onClick = {}
             )
-
             ProfileMenuItem(
                 iconRes = R.drawable.ic_logout,
                 title = "Keluar",
@@ -283,111 +211,20 @@ fun ProfileScreen(
         }
     }
 
-    // Figma Frame 27:2257 — Owner — Keluar (Konfirmasi)
     if (showLogoutDialog) {
-        LogoutConfirmDialog(
+        SBConfirmDialog(
+            title = "Keluar dari akun?",
+            description = "Anda perlu masuk kembali untuk mengakses data operasional.",
+            confirmText = "Keluar",
+            iconRes = R.drawable.ic_logout,
+            iconBgColor = SBColor.Primary_100,
+            iconTint = SBColor.Primary_550,
             onDismiss = { showLogoutDialog = false },
-            onConfirmLogout = {
+            onConfirm = {
                 showLogoutDialog = false
                 onLogout()
             }
         )
-    }
-}
-
-@Composable
-private fun LogoutConfirmDialog(
-    onDismiss: () -> Unit,
-    onConfirmLogout: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    modifier = Modifier.size(56.dp),
-                    shape = CircleShape,
-                    color = SBColor.Primary_100
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_logout),
-                            contentDescription = "Keluar",
-                            tint = SBColor.Primary_550,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Keluar dari akun?",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700,
-                    textAlign = TextAlign.Center
-                )
-
-                Text(
-                    text = "Anda perlu masuk kembali untuk mengakses data operasional.",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_500,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SBColor.Grey_100,
-                            contentColor = SBColor.Grey_700
-                        )
-                    ) {
-                        Text(
-                            text = "Batal",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Button(
-                        onClick = onConfirmLogout,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SBColor.Primary_550,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(
-                            text = "Keluar",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -437,12 +274,7 @@ private fun ProfileMenuItem(
                 color = textColor
             )
             if (!valueText.isNullOrBlank()) {
-                Text(
-                    text = valueText,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = SBColor.Grey_500
-                )
+                Text(text = valueText, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SBColor.Grey_500)
             }
             Icon(
                 painter = painterResource(id = R.drawable.ic_chevron),

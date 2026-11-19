@@ -2,7 +2,6 @@ package com.sudutcorp.sudutbulat.feature.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,8 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -29,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,12 +38,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBMetricCard
+import com.sudutcorp.sudutbulat.core.components.SBPageHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.core.util.formatDecimal
+import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.core.util.formatShortRupiah
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
-import com.sudutcorp.sudutbulat.feature.owner.formatRupiah
-import com.sudutcorp.sudutbulat.feature.owner.formatShortRupiah
-import java.text.NumberFormat
-import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -58,9 +57,8 @@ fun HomeScreen(
     onOutletClick: (String) -> Unit = {},
     onReviewReportsClick: () -> Unit = {}
 ) {
-    val numberFormatter = NumberFormat.getNumberInstance(Locale("id", "ID"))
     val firstName = uiState.ownerName.trim().split(Regex("\\s+")).firstOrNull()?.takeIf { it.isNotBlank() } ?: "Arif"
-    val topOutlets = uiState.outletItems.sortedBy { it.rank }.take(3)
+    val topOutlets = remember(uiState.outletItems) { uiState.outletItems.sortedBy { it.rank }.take(3) }
 
     Column(
         modifier = modifier
@@ -71,14 +69,40 @@ fun HomeScreen(
             .padding(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        PageHeaderMain(
-            firstName = firstName,
-            initials = if (isDevMode) "DV" else uiState.ownerInitials,
-            dateLabel = uiState.todayDateLabel,
-            isDevMode = isDevMode,
-            onProfileClick = onSwitchRoleClick
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SBPageHeader(
+                eyebrow = if (isDevMode) "Ringkasan bisnis • Mode DEV" else "Ringkasan bisnis",
+                title = "Selamat pagi, $firstName",
+                initials = if (isDevMode) "DV" else uiState.ownerInitials,
+                isAvatarClickable = isDevMode,
+                onAvatarClick = onSwitchRoleClick
+            )
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = SBColor.Grey_100
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        painterResource(R.drawable.calendar),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = SBColor.Grey_500
+                    )
+                    Text(
+                        text = uiState.todayDateLabel,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SBColor.Grey_500
+                    )
+                }
+            }
+        }
 
+        // Hero Revenue Card
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -136,83 +160,24 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedCard(
+            SBMetricCard(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, SBColor.Grey_100)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier.size(40.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        color = SBColor.Grey_100
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painterResource(R.drawable.ic_store),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = SBColor.Grey_600
-                            )
-                        }
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Produk terjual", fontSize = 13.sp, color = SBColor.Grey_500)
-                        Text(
-                            text = numberFormatter.format(uiState.todayTotalSold),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            color = SBColor.Grey_700
-                        )
-                        Text("pcs hari ini", fontSize = 12.sp, color = SBColor.Grey_400)
-                    }
-                }
-            }
-
-            OutlinedCard(
+                iconRes = R.drawable.ic_store,
+                iconBgColor = SBColor.Grey_100,
+                iconTint = SBColor.Grey_600,
+                title = "Produk terjual",
+                value = formatDecimal(uiState.todayTotalSold),
+                subtitle = "pcs hari ini"
+            )
+            SBMetricCard(
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, SBColor.Grey_100)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Surface(
-                        modifier = Modifier.size(40.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        color = SBColor.Secondary_100
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painterResource(R.drawable.ic_wallet),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = SBColor.Secondary_500
-                            )
-                        }
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Pengeluaran", fontSize = 13.sp, color = SBColor.Grey_500)
-                        Text(
-                            text = formatShortRupiah(uiState.todayTotalExpenses),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            color = SBColor.Grey_700
-                        )
-                        Text(
-                            text = "${uiState.todayExpenseTransactionsCount} transaksi",
-                            fontSize = 12.sp,
-                            color = SBColor.Grey_400
-                        )
-                    }
-                }
-            }
+                iconRes = R.drawable.ic_wallet,
+                iconBgColor = SBColor.Secondary_100,
+                iconTint = SBColor.Secondary_500,
+                title = "Pengeluaran",
+                value = formatShortRupiah(uiState.todayTotalExpenses),
+                subtitle = "${uiState.todayExpenseTransactionsCount} transaksi"
+            )
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -365,93 +330,6 @@ fun OutletItem(
                 modifier = Modifier.size(16.dp),
                 tint = SBColor.Grey_400
             )
-        }
-    }
-}
-
-@Composable
-fun PageHeaderMain(
-    modifier: Modifier = Modifier,
-    firstName: String = "Arif",
-    initials: String = "AR",
-    dateLabel: String = "Hari ini, 24 Mei 2025",
-    isDevMode: Boolean = false,
-    onProfileClick: () -> Unit = {}
-) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = if (isDevMode) "Ringkasan bisnis • Mode DEV" else "Ringkasan bisnis",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_500
-                )
-                Text(
-                    text = "Selamat pagi, $firstName",
-                    fontSize = 25.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SBColor.Grey_700
-                )
-            }
-            BadgedBox(
-                badge = {
-                    Badge(
-                        containerColor = SBColor.Success_500,
-                        modifier = Modifier
-                            .size(12.dp)
-                            .border(2.dp, Color.White, CircleShape)
-                    )
-                }
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .clickable(enabled = isDevMode, onClick = onProfileClick),
-                    shape = CircleShape,
-                    color = SBColor.Secondary_100
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = initials,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SBColor.Primary_500
-                        )
-                    }
-                }
-            }
-        }
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = SBColor.Grey_100
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    painterResource(R.drawable.calendar),
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = SBColor.Grey_500
-                )
-                Text(
-                    text = dateLabel,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_500
-                )
-            }
         }
     }
 }

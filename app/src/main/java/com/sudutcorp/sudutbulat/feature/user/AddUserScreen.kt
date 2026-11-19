@@ -1,6 +1,5 @@
 package com.sudutcorp.sudutbulat.feature.user
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,27 +16,18 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -63,9 +53,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBBottomCtaBar
+import com.sudutcorp.sudutbulat.core.components.SBInlineAlert
+import com.sudutcorp.sudutbulat.core.components.SBLabeledTextField
+import com.sudutcorp.sudutbulat.core.components.SBSelectField
+import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.model.Role
-import com.sudutcorp.sudutbulat.feature.outlet.FormLabeledTextField
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
@@ -106,44 +100,11 @@ fun AddUserScreen(
         modifier = modifier,
         containerColor = Color.White,
         bottomBar = {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = Color.White,
-                tonalElevation = 0.dp
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                    Button(
-                        onClick = { onEvent(OwnerUiEvent.SubmitNewUser) },
-                        enabled = !form.isSaving,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 16.dp)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SBColor.Primary_550,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        if (form.isSaving) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                text = "Buat akun pengguna",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
+            SBBottomCtaBar(
+                label = "Buat akun pengguna",
+                isLoading = form.isSaving,
+                onClick = { onEvent(OwnerUiEvent.SubmitNewUser) }
+            )
         }
     ) { innerPadding ->
         Column(
@@ -152,59 +113,23 @@ fun AddUserScreen(
                 .background(Color.White)
                 .padding(innerPadding)
                 .imePadding()
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { focusManager.clearFocus() })
-                }
+                .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(top = 16.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Sub Header (204:6610)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                IconButton(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(color = SBColor.Grey_100, shape = CircleShape)
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_chevron_left),
-                        contentDescription = "Kembali",
-                        tint = SBColor.Grey_700,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "Owner",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SBColor.Grey_600
-                    )
-                    Text(
-                        text = "Tambah pengguna",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Grey_700
-                    )
-                }
-            }
+            SBSubHeader(
+                eyebrow = "Owner",
+                title = "Tambah pengguna",
+                onBackClick = { navController.popBackStack() }
+            )
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Peran pengguna (2 Role Segments sesuai PRD 3.1: Gudang & Outlet)
+            // Peran pengguna (Gudang & Outlet saja)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Peran pengguna",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
+                Text("Peran pengguna", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -226,8 +151,7 @@ fun AddUserScreen(
                 }
             }
 
-            // Nama lengkap
-            FormLabeledTextField(
+            SBLabeledTextField(
                 label = "Nama lengkap",
                 value = form.fullName,
                 placeholder = "Dimas Prasetyo",
@@ -237,8 +161,7 @@ fun AddUserScreen(
                 onValueChange = { onEvent(OwnerUiEvent.AddUserNameChanged(it)) }
             )
 
-            // Email atau nomor HP
-            FormLabeledTextField(
+            SBLabeledTextField(
                 label = "Email atau nomor HP",
                 value = form.emailOrPhone,
                 placeholder = "dimas@sudutbulat.id",
@@ -249,25 +172,14 @@ fun AddUserScreen(
                 onValueChange = { onEvent(OwnerUiEvent.AddUserEmailChanged(it)) }
             )
 
-            // Kata sandi sementara
+            // Kata sandi sementara (dengan tombol Lihat/Tutup)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Kata sandi sementara",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_700
-                )
+                Text("Kata sandi sementara", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
                 OutlinedTextField(
                     value = form.password,
                     onValueChange = { onEvent(OwnerUiEvent.AddUserPasswordChanged(it)) },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = {
-                        Text(
-                            text = "••••••••",
-                            fontSize = 14.sp,
-                            color = SBColor.Grey_500
-                        )
-                    },
+                    placeholder = { Text("••••••••", fontSize = 14.sp, color = SBColor.Grey_500) },
                     leadingIcon = {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_lock),
@@ -297,9 +209,7 @@ fun AddUserScreen(
                         keyboardType = KeyboardType.Password,
                         imeAction = ImeAction.Done
                     ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { focusManager.clearFocus() }
-                    ),
+                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = SBColor.Primary_550,
@@ -312,82 +222,22 @@ fun AddUserScreen(
                 )
             }
 
-            // Select Field: Tugaskan ke outlet (aktif jika Role.OUTLET)
             if (form.selectedRole == Role.OUTLET) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Tugaskan ke outlet",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SBColor.Grey_700
-                    )
-                    OutlinedCard(
-                        onClick = { showOutletSheet = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, SBColor.Grey_200)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = selectedOutlet?.displayName ?: "Pilih outlet",
-                                fontSize = 14.sp,
-                                color = SBColor.Grey_700,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_chevron),
-                                contentDescription = null,
-                                tint = SBColor.Grey_500,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
+                SBSelectField(
+                    label = "Tugaskan ke outlet",
+                    valueText = selectedOutlet?.displayName ?: "Pilih outlet",
+                    isPlaceholder = selectedOutlet == null,
+                    onClick = { showOutletSheet = true }
+                )
             }
 
-            // Inline Alert (#F8EBD8, teks #645434)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = SBColor.Secondary_100
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_info),
-                        contentDescription = null,
-                        tint = SBColor.Secondary_500,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = if (form.selectedRole == Role.OUTLET) {
-                            "Staf outlet ditugaskan permanen ke satu outlet."
-                        } else if (form.selectedRole == Role.WAREHOUSE) {
-                            "Admin gudang bertugas di Gudang Pusat untuk distribusi stok."
-                        } else {
-                            "Akun Owner memiliki akses penuh ke pemantauan bisnis."
-                        },
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = SBColor.Secondary_500,
-                        modifier = Modifier.weight(1f)
-                    )
+            SBInlineAlert(
+                message = if (form.selectedRole == Role.OUTLET) {
+                    "Staf outlet ditugaskan permanen ke satu outlet."
+                } else {
+                    "Admin gudang bertugas di Gudang Pusat untuk distribusi stok."
                 }
-            }
+            )
 
             form.errorMessage?.let { errorMsg ->
                 Text(
@@ -415,12 +265,7 @@ fun AddUserScreen(
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Pilih outlet penugasan",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
+                Text("Pilih outlet penugasan", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                 uiState.outletItems.forEach { outlet ->
                     val isSelected = outlet.id == (selectedOutlet?.id ?: "")
                     Row(
@@ -435,17 +280,8 @@ fun AddUserScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = outlet.displayName,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = SBColor.Grey_700
-                            )
-                            Text(
-                                text = outlet.address,
-                                fontSize = 12.sp,
-                                color = SBColor.Grey_500
-                            )
+                            Text(outlet.displayName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                            Text(outlet.address, fontSize = 12.sp, color = SBColor.Grey_500)
                         }
                         RadioButton(
                             selected = isSelected,
@@ -472,11 +308,7 @@ private fun RoleSegmentCard(
 ) {
     val bgColor = if (isSelected) SBColor.Primary_100 else SBColor.Grey_100
     val contentColor = if (isSelected) SBColor.Primary_550 else SBColor.Grey_600
-    val borderMod = if (isSelected) {
-        Modifier.border(1.dp, SBColor.Primary_200, RoundedCornerShape(12.dp))
-    } else {
-        Modifier
-    }
+    val borderMod = if (isSelected) Modifier.border(1.dp, SBColor.Primary_200, RoundedCornerShape(12.dp)) else Modifier
 
     Column(
         modifier = modifier
@@ -495,11 +327,6 @@ private fun RoleSegmentCard(
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = contentColor
-        )
+        Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = contentColor)
     }
 }

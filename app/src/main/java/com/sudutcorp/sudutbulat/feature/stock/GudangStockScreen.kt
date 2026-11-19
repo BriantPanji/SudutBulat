@@ -2,10 +2,7 @@ package com.sudutcorp.sudutbulat.feature.stock
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,13 +15,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
@@ -38,8 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -52,7 +43,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -65,10 +55,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
+import com.sudutcorp.sudutbulat.core.components.SBLabeledTextField
+import com.sudutcorp.sudutbulat.core.components.SBPageHeader
+import com.sudutcorp.sudutbulat.core.components.SBSearchBar
+import com.sudutcorp.sudutbulat.core.components.SBSegmentedTabs
+import com.sudutcorp.sudutbulat.core.components.SBSortDropdownButton
+import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.ThousandSeparatorVisualTransformation
 import com.sudutcorp.sudutbulat.data.model.UnitType
-import com.sudutcorp.sudutbulat.feature.outlet.FormLabeledTextField
 import com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi
 import com.sudutcorp.sudutbulat.feature.owner.CatalogTabMode
 import com.sudutcorp.sudutbulat.feature.owner.MaterialSortField
@@ -93,7 +89,6 @@ fun GudangStockScreen(
 ) {
     val focusManager = LocalFocusManager.current
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
-    var showSortMenu by rememberSaveable { mutableStateOf(false) }
     val thousandTransformation = remember { ThousandSeparatorVisualTransformation() }
 
     val isProductTab = uiState.catalogTabMode == CatalogTabMode.PRODUCT
@@ -136,191 +131,53 @@ fun GudangStockScreen(
             .fillMaxSize()
             .background(Color.White)
             .then(
-                if (isStandaloneScreen) {
-                    Modifier.statusBarsPadding().navigationBarsPadding()
-                } else {
-                    Modifier
-                }
+                if (isStandaloneScreen) Modifier.statusBarsPadding().navigationBarsPadding() else Modifier
             )
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { focusManager.clearFocus() })
-            }
+            .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Page Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (isStandaloneScreen) {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(color = SBColor.Grey_100, shape = CircleShape)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_chevron_left),
-                            contentDescription = "Kembali",
-                            tint = SBColor.Grey_700,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = roleEyebrow,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SBColor.Grey_600
-                    )
-                    Text(
-                        text = "Daftar barang",
-                        fontSize = 25.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = SBColor.Grey_700
-                    )
-                }
-            }
-            BadgedBox(
-                badge = {
-                    Badge(
-                        containerColor = SBColor.Success_500,
-                        modifier = Modifier
-                            .size(12.dp)
-                            .border(2.dp, Color.White, CircleShape)
-                    )
-                }
-            ) {
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = CircleShape,
-                    color = SBColor.Secondary_100
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = initials,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SBColor.Primary_500
-                        )
-                    }
-                }
-            }
-        }
-
-        // 2-Tab Segmented Control: Material | Produk Jual
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(color = SBColor.Grey_100, shape = RoundedCornerShape(12.dp))
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            CatalogTabMode.entries.forEach { mode ->
-                val isSelected = uiState.catalogTabMode == mode
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (isSelected) Color.White else Color.Transparent)
-                        .clickable { onEvent(OwnerUiEvent.CatalogTabSelected(mode)) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = mode.label,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                        color = if (isSelected) SBColor.Grey_700 else SBColor.Grey_500
-                    )
-                }
-            }
-        }
-
-        // Search Bar
-        OutlinedTextField(
-            value = uiState.catalogSearchQuery,
-            onValueChange = { onEvent(OwnerUiEvent.CatalogSearchChanged(it)) },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = {
-                Text(
-                    if (isProductTab) "Cari produk jual..." else "Cari material atau kategori...",
-                    fontSize = 14.sp,
-                    color = SBColor.Grey_500
-                )
-            },
-            leadingIcon = {
-                Icon(
-                    painter = painterResource(R.drawable.ic_search),
-                    contentDescription = "Cari",
-                    tint = SBColor.Grey_500,
-                    modifier = Modifier.size(18.dp)
-                )
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = SBColor.Primary,
-                unfocusedBorderColor = SBColor.Grey_200,
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White
-            )
+        SBPageHeader(
+            eyebrow = roleEyebrow,
+            title = "Daftar barang",
+            initials = initials,
+            onBackClick = if (isStandaloneScreen) onBackClick else null
         )
 
-        // Filter Chips + Sort + Tambah
+        SBSegmentedTabs(
+            options = CatalogTabMode.entries,
+            selected = uiState.catalogTabMode,
+            labelOf = { it.label },
+            onSelected = { onEvent(OwnerUiEvent.CatalogTabSelected(it)) }
+        )
+
+        SBSearchBar(
+            query = uiState.catalogSearchQuery,
+            onQueryChange = { onEvent(OwnerUiEvent.CatalogSearchChanged(it)) },
+            placeholder = if (isProductTab) "Cari produk jual..." else "Cari material atau kategori..."
+        )
+
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             val chipOptions = if (isProductTab) {
-                listOf("Semua", "Dijual", "Tidak dijual")
+                listOf("Semua" to "Semua", "Dijual" to "Dijual", "Tidak dijual" to "Tidak dijual")
             } else {
-                listOf("Semua", "Tahu", "Saus", "Bumbu")
+                listOf("Semua" to "Semua", "Tahu" to "Tahu", "Saus" to "Saus", "Bumbu" to "Bumbu")
             }
             val selectedChip = if (isProductTab) uiState.productStatusFilter else uiState.catalogCategoryFilter
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                chipOptions.forEach { option ->
-                    val isSelected = option == selectedChip
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            if (isProductTab) {
-                                onEvent(OwnerUiEvent.ProductStatusFilterSelected(option))
-                            } else {
-                                onEvent(OwnerUiEvent.CatalogFilterSelected(option))
-                            }
-                        },
-                        label = {
-                            Text(
-                                text = option,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        },
-                        shape = RoundedCornerShape(9.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = SBColor.Grey_700,
-                            selectedLabelColor = Color.White,
-                            containerColor = SBColor.Grey_100,
-                            labelColor = SBColor.Grey_600
-                        ),
-                        border = null
-                    )
+            SBFilterChipRow(
+                options = chipOptions,
+                selectedKey = selectedChip,
+                onSelected = { option ->
+                    if (isProductTab) {
+                        onEvent(OwnerUiEvent.ProductStatusFilterSelected(option))
+                    } else {
+                        onEvent(OwnerUiEvent.CatalogFilterSelected(option))
+                    }
                 }
-            }
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -338,37 +195,39 @@ fun GudangStockScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Box {
-                        val activeSortLabel = if (isProductTab) {
-                            val arrow = if (uiState.productSortDirection == SortDirection.DESC) "↓" else "↑"
-                            "${uiState.productSortField.label} $arrow"
-                        } else {
-                            val arrow = if (uiState.materialSortDirection == SortDirection.DESC) "↓" else "↑"
-                            "${uiState.materialSortField.label} $arrow"
-                        }
-
-                        TextButton(
-                            onClick = { showSortMenu = true },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                        ) {
-                            Text(
-                                text = activeSortLabel,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SBColor.Grey_600
-                            )
-                        }
-
-                        CompactCatalogSortDropdown(
-                            expanded = showSortMenu,
-                            isProductTab = isProductTab,
-                            materialField = uiState.materialSortField,
-                            materialDirection = uiState.materialSortDirection,
-                            productField = uiState.productSortField,
-                            productDirection = uiState.productSortDirection,
-                            onDismiss = { showSortMenu = false },
-                            onSelectMaterialSort = { f, d -> onEvent(OwnerUiEvent.MaterialSortChanged(f, d)) },
-                            onSelectProductSort = { f, d -> onEvent(OwnerUiEvent.ProductSortChanged(f, d)) }
+                    if (isProductTab) {
+                        SBSortDropdownButton(
+                            fields = ProductSortField.entries,
+                            selectedField = uiState.productSortField,
+                            isDescending = uiState.productSortDirection == SortDirection.DESC,
+                            labelOf = { it.label },
+                            isAlphaField = { it == ProductSortField.NAME },
+                            defaultDescendingFor = { it == ProductSortField.PRICE },
+                            onSelectSort = { field, isDesc ->
+                                onEvent(
+                                    OwnerUiEvent.ProductSortChanged(
+                                        field,
+                                        if (isDesc) SortDirection.DESC else SortDirection.ASC
+                                    )
+                                )
+                            }
+                        )
+                    } else {
+                        SBSortDropdownButton(
+                            fields = MaterialSortField.entries,
+                            selectedField = uiState.materialSortField,
+                            isDescending = uiState.materialSortDirection == SortDirection.DESC,
+                            labelOf = { it.label },
+                            isAlphaField = { it == MaterialSortField.NAME || it == MaterialSortField.UNIT },
+                            defaultDescendingFor = { it == MaterialSortField.COST },
+                            onSelectSort = { field, isDesc ->
+                                onEvent(
+                                    OwnerUiEvent.MaterialSortChanged(
+                                        field,
+                                        if (isDesc) SortDirection.DESC else SortDirection.ASC
+                                    )
+                                )
+                            }
                         )
                     }
 
@@ -390,7 +249,7 @@ fun GudangStockScreen(
             }
         }
 
-        // Catalog List (without progress bar, ellipsis action menu instead of chevron)
+        // Catalog List (tanpa progress bar, menu elipsis untuk Edit / Hentikan jual / Hentikan pakai)
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp),
@@ -439,42 +298,16 @@ fun GudangStockScreen(
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text(
-                    text = "Tambah barang katalog",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
+                Text("Tambah barang katalog", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+
+                SBSegmentedTabs(
+                    options = listOf(false, true),
+                    selected = form.isProduct,
+                    labelOf = { if (it) "Produk Jual" else "Material" },
+                    onSelected = { onEvent(OwnerUiEvent.CatalogTypeChanged(it)) }
                 )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(color = SBColor.Grey_100, shape = RoundedCornerShape(12.dp))
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    listOf(false to "Material", true to "Produk Jual").forEach { (isProd, label) ->
-                        val isSelected = form.isProduct == isProd
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(36.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(if (isSelected) Color.White else Color.Transparent)
-                                .clickable { onEvent(OwnerUiEvent.CatalogTypeChanged(isProd)) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (isSelected) SBColor.Grey_700 else SBColor.Grey_500
-                            )
-                        }
-                    }
-                }
-
-                FormLabeledTextField(
+                SBLabeledTextField(
                     label = if (form.isProduct) "Nama produk" else "Nama material",
                     value = form.name,
                     placeholder = if (form.isProduct) "Tahu Bulat Keju (Bungkus 5 pcs)" else "Tahu Bulat Original",
@@ -484,7 +317,7 @@ fun GudangStockScreen(
                     onValueChange = { onEvent(OwnerUiEvent.CatalogNameChanged(it)) }
                 )
 
-                FormLabeledTextField(
+                SBLabeledTextField(
                     label = if (form.isProduct) "Harga jual" else "Harga modal per satuan",
                     value = form.priceOrCostInput,
                     placeholder = if (form.isProduct) "5.000" else "500",
@@ -499,12 +332,7 @@ fun GudangStockScreen(
 
                 if (!form.isProduct) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Satuan material",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = SBColor.Grey_700
-                        )
+                        Text("Satuan material", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -535,20 +363,13 @@ fun GudangStockScreen(
                 }
 
                 form.errorMessage?.let { err ->
-                    Text(
-                        text = err,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SBColor.Primary_550
-                    )
+                    Text(text = err, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
                 }
 
                 Button(
                     onClick = {
                         onEvent(OwnerUiEvent.SubmitCatalogItem)
-                        if (form.name.isNotBlank()) {
-                            showAddSheet = false
-                        }
+                        if (form.name.isNotBlank()) showAddSheet = false
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -556,11 +377,7 @@ fun GudangStockScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SBColor.Primary_550)
                 ) {
-                    Text(
-                        text = "Simpan barang",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(text = "Simpan barang", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -568,161 +385,9 @@ fun GudangStockScreen(
 }
 
 @Composable
-private fun CompactCatalogSortDropdown(
-    expanded: Boolean,
-    isProductTab: Boolean,
-    materialField: MaterialSortField,
-    materialDirection: SortDirection,
-    productField: ProductSortField,
-    productDirection: SortDirection,
-    onDismiss: () -> Unit,
-    onSelectMaterialSort: (MaterialSortField, SortDirection) -> Unit,
-    onSelectProductSort: (ProductSortField, SortDirection) -> Unit
-) {
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismiss,
-        modifier = Modifier
-            .width(228.dp)
-            .background(Color.White),
-        shape = RoundedCornerShape(14.dp),
-        containerColor = Color.White
-    ) {
-        Text(
-            text = "Urutkan berdasarkan",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = SBColor.Grey_500,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-        )
-
-        if (isProductTab) {
-            ProductSortField.entries.forEach { field ->
-                val isSelected = field == productField
-                DropdownMenuItem(
-                    text = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = field.label,
-                                fontSize = 14.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) SBColor.Primary_550 else SBColor.Grey_700
-                            )
-                            if (isSelected) {
-                                Text("✓", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
-                            }
-                        }
-                    },
-                    onClick = {
-                        val nextDir = if (isSelected) {
-                            if (productDirection == SortDirection.DESC) SortDirection.ASC else SortDirection.DESC
-                        } else if (field == ProductSortField.PRICE) {
-                            SortDirection.DESC
-                        } else {
-                            SortDirection.ASC
-                        }
-                        onSelectProductSort(field, nextDir)
-                    }
-                )
-            }
-        } else {
-            MaterialSortField.entries.forEach { field ->
-                val isSelected = field == materialField
-                DropdownMenuItem(
-                    text = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = field.label,
-                                fontSize = 14.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) SBColor.Primary_550 else SBColor.Grey_700
-                            )
-                            if (isSelected) {
-                                Text("✓", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
-                            }
-                        }
-                    },
-                    onClick = {
-                        val nextDir = if (isSelected) {
-                            if (materialDirection == SortDirection.DESC) SortDirection.ASC else SortDirection.DESC
-                        } else if (field == MaterialSortField.COST) {
-                            SortDirection.DESC
-                        } else {
-                            SortDirection.ASC
-                        }
-                        onSelectMaterialSort(field, nextDir)
-                    }
-                )
-            }
-        }
-
-        HorizontalDivider(
-            thickness = 1.dp,
-            color = SBColor.Grey_100,
-            modifier = Modifier.padding(vertical = 4.dp)
-        )
-
-        val currentDir = if (isProductTab) productDirection else materialDirection
-        val isAlphaField = if (isProductTab) {
-            productField == ProductSortField.NAME
-        } else {
-            materialField == MaterialSortField.NAME || materialField == MaterialSortField.UNIT
-        }
-        val ascLabel = if (isAlphaField) "A – Z ↑" else "Terendah ↑"
-        val descLabel = if (isAlphaField) "Z – A ↓" else "Tertinggi ↓"
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(SortDirection.ASC to ascLabel, SortDirection.DESC to descLabel).forEach { (dir, label) ->
-                val isDirSelected = currentDir == dir
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDirSelected) SBColor.Primary_100 else SBColor.Grey_100)
-                        .clickable {
-                            if (isProductTab) {
-                                onSelectProductSort(productField, dir)
-                            } else {
-                                onSelectMaterialSort(materialField, dir)
-                            }
-                            onDismiss()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isDirSelected) SBColor.Primary_550 else SBColor.Grey_600
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CatalogInventoryRow(
-    item: CatalogItemUi
-) {
+private fun CatalogInventoryRow(item: CatalogItemUi) {
     var menuExpanded by remember { mutableStateOf(false) }
     val tileBg = if (item.category == "Tahu") SBColor.Secondary_100 else SBColor.Primary_100
-    val badgeBg = if (item.isWarning) SBColor.Grey_100 else SBColor.Success_100
-    val badgeTextColor = if (item.isWarning) SBColor.Grey_600 else SBColor.Success_600
 
     Row(
         modifier = Modifier
@@ -738,9 +403,7 @@ private fun CatalogInventoryRow(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    painter = painterResource(
-                        if (item.isProduct) R.drawable.ic_store else R.drawable.ic_box
-                    ),
+                    painter = painterResource(if (item.isProduct) R.drawable.ic_store else R.drawable.ic_box),
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                     tint = SBColor.Tertiary_400
@@ -752,45 +415,22 @@ private fun CatalogInventoryRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(
-                text = item.name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = SBColor.Grey_700
-            )
-            Text(
-                text = item.subtitleText,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = SBColor.Grey_600
-            )
+            Text(text = item.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+            Text(text = item.subtitleText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_600)
         }
 
-        Surface(
-            shape = RoundedCornerShape(6.dp),
-            color = badgeBg
-        ) {
-            Text(
-                text = item.statusBadge,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = badgeTextColor,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-            )
-        }
+        SBStatusBadge(
+            text = item.statusBadge,
+            containerColor = if (item.isWarning) SBColor.Grey_100 else SBColor.Success_100,
+            contentColor = if (item.isWarning) SBColor.Grey_600 else SBColor.Success_600
+        )
 
-        // Ellipsis action menu (UI-only: Edit & Hentikan jual / Hentikan pakai)
         Box {
             IconButton(
                 onClick = { menuExpanded = true },
                 modifier = Modifier.size(34.dp)
             ) {
-                Text(
-                    text = "⋮",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_500
-                )
+                Text(text = "⋮", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_500)
             }
 
             DropdownMenu(

@@ -1,15 +1,12 @@
 package com.sudutcorp.sudutbulat.feature.outlet
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,13 +29,11 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,27 +44,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
+import com.sudutcorp.sudutbulat.core.components.SBDottedDivider
+import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
+import com.sudutcorp.sudutbulat.core.components.SBMetricCard
+import com.sudutcorp.sudutbulat.core.components.SBSectionCard
+import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
+import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.core.util.formatRupiah
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.owner.DailyReportListItemUi
 import com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.StaffItemUi
-import com.sudutcorp.sudutbulat.feature.owner.formatRupiah
 
 @Composable
 fun OwnerDetailOutletScreen(
@@ -97,14 +94,10 @@ fun OwnerDetailOutletScreen(
         recentReports = recentOutletReports,
         onBackClick = { navController.popBackStack() },
         onToggleOpenStatus = {
-            if (outlet != null) {
-                onEvent(OwnerUiEvent.ToggleOutletOpenStatus(outlet.id))
-            }
+            if (outlet != null) onEvent(OwnerUiEvent.ToggleOutletOpenStatus(outlet.id))
         },
         onSaveStaffAssignment = { selectedIds ->
-            if (outlet != null) {
-                onEvent(OwnerUiEvent.AssignStaffToOutlet(outlet.id, selectedIds))
-            }
+            if (outlet != null) onEvent(OwnerUiEvent.AssignStaffToOutlet(outlet.id, selectedIds))
         },
         onReportClick = onReportClick
     )
@@ -126,20 +119,9 @@ fun OwnerDetailOutletContent(
     val outletAddress = outlet?.address ?: "Jl. Jenderal Sudirman No. 18"
     val coordinateLabel = outlet?.coordinateLabel ?: "-6.2146, 106.8222"
     val isOpen = outlet?.isOpen ?: true
-    val salesText = outlet?.let { formatRupiah(it.revenue) } ?: "Rp2.480.000"
-    val piecesSoldText = "${outlet?.piecesSold ?: 496} pcs terjual"
-    val expenseText = outlet?.let { formatRupiah(it.expenseTotal) } ?: "Rp185.000"
-    val expenseCountText = "${outlet?.expenseCount ?: 3} transaksi"
     val targetProgress = outlet?.targetProgress ?: 0.85f
-    val targetPercentValue = "${(targetProgress * 100).toInt()}%"
-    val dailyTargetSubtitle = "Target ${formatRupiah(outlet?.dailyTarget ?: 2_900_000L)}"
-    val damagedText = "${outlet?.damagedCount ?: 12} item"
-    val damagedReportText = "${outlet?.damagedReportCount ?: 1} laporan"
     val operatingHours = "${outlet?.openTime ?: "09.00"} – ${outlet?.closeTime ?: "21.00"} WIB"
     val staffDisplay = outlet?.staffNames?.joinToString(", ")?.takeIf { it.isNotBlank() } ?: "Belum ada staf"
-    val cashText = outlet?.let { formatRupiah(it.cashRevenue) } ?: "Rp1.480.000"
-    val qrisText = outlet?.let { formatRupiah(it.qrisRevenue) } ?: "Rp1.000.000"
-    val netDepositText = outlet?.let { formatRupiah(it.netDepositEstimate) } ?: "Rp2.295.000"
 
     var showOverrideStatusDialog by rememberSaveable { mutableStateOf(false) }
     var showStaffPickerSheet by rememberSaveable { mutableStateOf(false) }
@@ -159,42 +141,13 @@ fun OwnerDetailOutletContent(
             .padding(top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier
-                    .size(44.dp)
-                    .background(color = SBColor.Grey_100, shape = CircleShape)
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_chevron_left),
-                    contentDescription = "Kembali",
-                    tint = SBColor.Grey_700,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = "Detail outlet",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_500
-                )
-                Text(
-                    text = "Outlet $outletName",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SBColor.Grey_700
-                )
-            }
-        }
+        SBSubHeader(
+            eyebrow = "Detail outlet",
+            title = "Outlet $outletName",
+            onBackClick = onBackClick
+        )
 
-        // Card Identitas Outlet (Gerobak Menetap + Koordinat + Status Override)
+        // Card Identitas Outlet
         OutlinedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -233,41 +186,18 @@ fun OwnerDetailOutletContent(
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = "Gerobak menetap",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = SBColor.Primary_550
-                            )
-                            Text(
-                                text = "Outlet $outletName",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SBColor.Grey_700
-                            )
-                            Text(
-                                text = outletAddress,
-                                fontSize = 12.sp,
-                                color = SBColor.Grey_500
-                            )
+                            Text("Gerobak menetap", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
+                            Text("Outlet $outletName", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                            Text(outletAddress, fontSize = 12.sp, color = SBColor.Grey_500)
                         }
                     }
 
-                    Surface(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { showOverrideStatusDialog = true },
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isOpen) SBColor.Success_100 else SBColor.Grey_100
-                    ) {
-                        Text(
-                            text = if (isOpen) "Buka ▾" else "Tutup ▾",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isOpen) SBColor.Success_600 else SBColor.Grey_600,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
+                    SBStatusBadge(
+                        text = if (isOpen) "Buka ▾" else "Tutup ▾",
+                        containerColor = if (isOpen) SBColor.Success_100 else SBColor.Grey_100,
+                        contentColor = if (isOpen) SBColor.Success_600 else SBColor.Grey_600,
+                        onClick = { showOverrideStatusDialog = true }
+                    )
                 }
 
                 HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
@@ -277,45 +207,35 @@ fun OwnerDetailOutletContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Koordinat lokasi",
-                        fontSize = 12.sp,
-                        color = SBColor.Grey_500
-                    )
-                    Text(
-                        text = coordinateLabel,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SBColor.Grey_600
-                    )
+                    Text("Koordinat lokasi", fontSize = 12.sp, color = SBColor.Grey_500)
+                    Text(coordinateLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
                 }
             }
         }
 
-        // Grid 2x2 Metric Cards (100% Sesuai PRD: Penjualan, Pengeluaran, Target Harian, Bahan Rusak)
+        // Grid 2x2 Metric Cards
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                MetricCard(
+                SBMetricCard(
                     modifier = Modifier.weight(1f),
                     iconRes = R.drawable.ic_store,
                     iconBgColor = SBColor.Success_100,
                     iconTint = SBColor.Success_600,
                     title = "Penjualan",
-                    value = salesText,
-                    subtitle = piecesSoldText
+                    value = outlet?.let { formatRupiah(it.revenue) } ?: "Rp2.480.000",
+                    subtitle = "${outlet?.piecesSold ?: 496} pcs terjual"
                 )
-
-                MetricCard(
+                SBMetricCard(
                     modifier = Modifier.weight(1f),
                     iconRes = R.drawable.ic_wallet,
                     iconBgColor = SBColor.Secondary_100,
                     iconTint = SBColor.Secondary_500,
                     title = "Pengeluaran",
-                    value = expenseText,
-                    subtitle = expenseCountText
+                    value = outlet?.let { formatRupiah(it.expenseTotal) } ?: "Rp185.000",
+                    subtitle = "${outlet?.expenseCount ?: 3} transaksi"
                 )
             }
 
@@ -349,17 +269,8 @@ fun OwnerDetailOutletContent(
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "Target harian",
-                                fontSize = 13.sp,
-                                color = SBColor.Grey_500
-                            )
-                            Text(
-                                text = targetPercentValue,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = SBColor.Grey_700
-                            )
+                            Text("Target harian", fontSize = 13.sp, color = SBColor.Grey_500)
+                            Text("${(targetProgress * 100).toInt()}%", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                             LinearProgressIndicator(
                                 progress = { targetProgress },
                                 modifier = Modifier
@@ -373,7 +284,7 @@ fun OwnerDetailOutletContent(
                                 drawStopIndicator = {}
                             )
                             Text(
-                                text = dailyTargetSubtitle,
+                                text = "Target ${formatRupiah(outlet?.dailyTarget ?: 2_900_000L)}",
                                 fontSize = 11.sp,
                                 color = SBColor.Grey_400
                             )
@@ -381,98 +292,46 @@ fun OwnerDetailOutletContent(
                     }
                 }
 
-                MetricCard(
+                SBMetricCard(
                     modifier = Modifier.weight(1f),
                     iconRes = R.drawable.ic_warning,
                     iconBgColor = SBColor.Secondary_100,
                     iconTint = SBColor.Secondary_500,
                     title = "Bahan rusak",
-                    value = damagedText,
-                    subtitle = damagedReportText
+                    value = "${outlet?.damagedCount ?: 12} item",
+                    subtitle = "${outlet?.damagedReportCount ?: 1} laporan"
                 )
             }
         }
 
-        // Section: Operasional & Keuangan Outlet
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Operasional & keuangan",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-                TextButton(
-                    onClick = {
-                        draftSelectedStaffIds = outlet?.staffIds?.toSet() ?: emptySet()
-                        showStaffPickerSheet = true
-                    },
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                ) {
-                    Text(
-                        text = "+ Pilih staf",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Primary_550
-                    )
-                }
+        // Operasional & Keuangan
+        SBSectionCard(
+            title = "Operasional & keuangan",
+            actionText = "+ Pilih staf",
+            onActionClick = {
+                draftSelectedStaffIds = outlet?.staffIds?.toSet() ?: emptySet()
+                showStaffPickerSheet = true
             }
-
-            OutlinedCard(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, SBColor.Grey_100)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutletDetailRow("Jam operasional", operatingHours)
-                    OutletDetailRow("Staf bertugas", staffDisplay)
-                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                    OutletDetailRow("Penjualan tunai", cashText)
-                    OutletDetailRow("Penjualan QRIS", qrisText)
-                    DottedLine(
-                        color = SBColor.Grey_200,
-                        modifier = Modifier.padding(vertical = 2.dp)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Setoran bersih (est.)",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SBColor.Grey_700
-                        )
-                        Text(
-                            text = netDepositText,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = SBColor.Success_600
-                        )
-                    }
-                }
-            }
+        ) {
+            SBKeyValueRow("Jam operasional", operatingHours)
+            SBKeyValueRow("Staf bertugas", staffDisplay)
+            HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+            SBKeyValueRow("Penjualan tunai", outlet?.let { formatRupiah(it.cashRevenue) } ?: "Rp1.480.000")
+            SBKeyValueRow("Penjualan QRIS", outlet?.let { formatRupiah(it.qrisRevenue) } ?: "Rp1.000.000")
+            SBDottedDivider(modifier = Modifier.padding(vertical = 2.dp))
+            SBKeyValueRow(
+                label = "Setoran bersih (est.)",
+                value = outlet?.let { formatRupiah(it.netDepositEstimate) } ?: "Rp2.295.000",
+                isBold = true,
+                valueColor = SBColor.Success_600,
+                valueFontSize = 16.sp
+            )
         }
 
-        // Section: Laporan Harian Terbaru Outlet Ini
+        // Laporan Harian Terbaru
         if (recentReports.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Laporan harian terbaru",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-
+                Text("Laporan harian terbaru", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                 OutlinedCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -490,28 +349,14 @@ fun OwnerDetailOutletContent(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(
-                                        text = report.dateLabel,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = SBColor.Grey_700
-                                    )
-                                    Text(
-                                        text = "${report.totalSold} pcs terjual",
-                                        fontSize = 12.sp,
-                                        color = SBColor.Grey_500
-                                    )
+                                    Text(report.dateLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                    Text("${report.totalSold} pcs terjual", fontSize = 12.sp, color = SBColor.Grey_500)
                                 }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = formatRupiah(report.totalRevenue),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = SBColor.Grey_700
-                                    )
+                                    Text(formatRupiah(report.totalRevenue), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_chevron_right),
                                         contentDescription = null,
@@ -532,9 +377,11 @@ fun OwnerDetailOutletContent(
 
     if (showOverrideStatusDialog) {
         val targetStatusLabel = if (isOpen) "Tutup" else "Buka"
-        OverrideStatusConfirmDialog(
-            outletName = outletName,
-            targetStatusLabel = targetStatusLabel,
+        SBConfirmDialog(
+            title = "Override status outlet?",
+            description = "Status buka/tutup normalnya diubah oleh Staf Outlet. Yakin ingin mengubah status Outlet $outletName menjadi $targetStatusLabel?",
+            confirmText = "Ubah",
+            iconRes = R.drawable.ic_warning,
             onDismiss = { showOverrideStatusDialog = false },
             onConfirm = {
                 showOverrideStatusDialog = false
@@ -558,17 +405,8 @@ fun OwnerDetailOutletContent(
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = "Pilih staf untuk $outletName",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-                Text(
-                    text = "Centang staf outlet yang bertugas di lokasi ini.",
-                    fontSize = 13.sp,
-                    color = SBColor.Grey_500
-                )
+                Text("Pilih staf untuk $outletName", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                Text("Centang staf outlet yang bertugas di lokasi ini.", fontSize = 13.sp, color = SBColor.Grey_500)
 
                 LazyColumn(
                     modifier = Modifier
@@ -582,12 +420,11 @@ fun OwnerDetailOutletContent(
                         contentType = { "outlet_staff_picker" }
                     ) { staff ->
                         val isChecked = staff.id in draftSelectedStaffIds
-                        val otherOutletHint = if (staff.outletId != null && staff.outletId != outlet?.id) {
-                            "Saat ini di ${staff.outletName ?: staff.outletId}"
-                        } else if (staff.outletId == outlet?.id) {
-                            "Bertugas di outlet ini"
-                        } else {
-                            "Belum ditugaskan"
+                        val otherOutletHint = when {
+                            staff.outletId != null && staff.outletId != outlet?.id ->
+                                "Saat ini di ${staff.outletName ?: staff.outletId}"
+                            staff.outletId == outlet?.id -> "Bertugas di outlet ini"
+                            else -> "Belum ditugaskan"
                         }
                         Row(
                             modifier = Modifier
@@ -607,17 +444,8 @@ fun OwnerDetailOutletContent(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text(
-                                    text = staff.name,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = SBColor.Grey_700
-                                )
-                                Text(
-                                    text = otherOutletHint,
-                                    fontSize = 12.sp,
-                                    color = SBColor.Grey_500
-                                )
+                                Text(staff.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                Text(otherOutletHint, fontSize = 12.sp, color = SBColor.Grey_500)
                             }
                             Checkbox(
                                 checked = isChecked,
@@ -650,213 +478,4 @@ fun OwnerDetailOutletContent(
             }
         }
     }
-}
-
-@Composable
-private fun OutletDetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            color = SBColor.Grey_600
-        )
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = SBColor.Grey_700,
-            textAlign = TextAlign.End,
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 16.dp)
-        )
-    }
-}
-
-@Composable
-private fun OverrideStatusConfirmDialog(
-    outletName: String,
-    targetStatusLabel: String,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    modifier = Modifier.size(56.dp),
-                    shape = CircleShape,
-                    color = SBColor.Secondary_100
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_warning),
-                            contentDescription = "Override Status",
-                            tint = SBColor.Secondary_500,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-
-                Text(
-                    text = "Override status outlet?",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700,
-                    textAlign = TextAlign.Center
-                )
-
-                Text(
-                    text = "Status buka/tutup normalnya diubah oleh Staf Outlet. Yakin ingin mengubah status Outlet $outletName menjadi $targetStatusLabel?",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_500,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SBColor.Grey_100,
-                            contentColor = SBColor.Grey_700
-                        )
-                    ) {
-                        Text(
-                            text = "Batal",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Button(
-                        onClick = onConfirm,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SBColor.Primary_550,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(
-                            text = "Ubah",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetricCard(
-    modifier: Modifier = Modifier,
-    iconRes: Int,
-    iconBgColor: Color,
-    iconTint: Color,
-    title: String,
-    value: String,
-    subtitle: String
-) {
-    OutlinedCard(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, SBColor.Grey_100)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = iconBgColor
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painter = painterResource(id = iconRes),
-                        contentDescription = title,
-                        tint = iconTint,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_500
-                )
-                Text(
-                    text = value,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-                Text(
-                    text = subtitle,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = SBColor.Grey_400
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DottedLine(
-    modifier: Modifier = Modifier,
-    color: Color = SBColor.Grey_200
-) {
-    Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(1.dp)
-    ) {
-        val pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f), 0f)
-        drawLine(
-            color = color,
-            start = Offset(0f, 0f),
-            end = Offset(size.width, 0f),
-            strokeWidth = 1.dp.toPx(),
-            pathEffect = pathEffect
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun OwnerDetailOutletScreenPreview() {
-    OwnerDetailOutletContent()
 }
