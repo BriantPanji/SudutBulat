@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
 import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.feature.owner.OwnerNotificationUi
@@ -50,7 +51,7 @@ fun OwnerNotificationScreen(
     OwnerNotificationContent(
         modifier = modifier,
         notifications = uiState.notifications,
-        onBackClick = { navController.popBackStack() },
+        onBackClick = { navController.popBackStackSafe() },
         onMarkAllAsReadClick = { onEvent(OwnerUiEvent.MarkAllNotificationsRead) },
         onNotificationClick = onNotificationClick
     )

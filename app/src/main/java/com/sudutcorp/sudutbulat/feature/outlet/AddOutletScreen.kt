@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
 import com.sudutcorp.sudutbulat.core.components.SBBottomCtaBar
 import com.sudutcorp.sudutbulat.core.components.SBInlineAlert
 import com.sudutcorp.sudutbulat.core.components.SBLabeledTextField
@@ -96,7 +97,7 @@ fun AddOutletScreen(
     LaunchedEffect(Unit) {
         effects.collect { effect ->
             if (effect is OwnerUiEffect.NavigateBack) {
-                navController.popBackStack()
+                navController.popBackStackSafe()
             }
         }
     }
@@ -127,7 +128,7 @@ fun AddOutletScreen(
             SBSubHeader(
                 eyebrow = "Owner",
                 title = "Tambah outlet",
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStackSafe() }
             )
 
             Spacer(modifier = Modifier.height(4.dp))

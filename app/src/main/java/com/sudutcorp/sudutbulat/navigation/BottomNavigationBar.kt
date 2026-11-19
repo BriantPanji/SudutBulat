@@ -100,10 +100,10 @@ fun getNavItemsForRole(
                         onSelectTab(1)
                     },
                     onOutletClick = { outletId ->
-                        nav.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                        nav.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
                     },
                     onReviewReportsClick = {
-                        nav.navigate(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
+                        nav.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
                     }
                 )
             },
@@ -115,18 +115,22 @@ fun getNavItemsForRole(
                     isDevMode = isDevAccount,
                     onSwitchRoleClick = onOpenRoleSwitcher,
                     onOutletClick = { outletId ->
-                        nav.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                        nav.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
                     },
                     onAddOutletClick = {
-                        onOwnerEvent(OwnerUiEvent.ResetAddOutletForm)
-                        nav.navigate(OwnerSubRoutes.AddOutlet)
+                        nav.navigateSingle(
+                            route = OwnerSubRoutes.AddOutlet,
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.ResetAddOutletForm) }
+                        )
                     },
                     onStaffClick = { userId ->
-                        nav.navigate(OwnerSubRoutes.DetailStaff(userId))
+                        nav.navigateSingle(OwnerSubRoutes.DetailStaff(userId))
                     },
                     onAddStaffAccountClick = {
-                        onOwnerEvent(OwnerUiEvent.InitAddUserForm(null))
-                        nav.navigate(OwnerSubRoutes.AddUser(null))
+                        nav.navigateSingle(
+                            route = OwnerSubRoutes.AddUser(null),
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                        )
                     }
                 )
             },
@@ -139,10 +143,10 @@ fun getNavItemsForRole(
                     isDevMode = isDevAccount,
                     onSwitchRoleClick = onOpenRoleSwitcher,
                     onSeeDetailClick = { period ->
-                        nav.navigate(OwnerSubRoutes.DetailReport(period = period, reportId = null))
+                        nav.navigateSingle(OwnerSubRoutes.DetailReport(period = period, reportId = null))
                     },
                     onReportItemClick = { reportId ->
-                        nav.navigate(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod, reportId = reportId))
+                        nav.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod, reportId = reportId))
                     }
                 )
             },
@@ -156,18 +160,22 @@ fun getNavItemsForRole(
                     onSwitchRoleClick = onOpenRoleSwitcher,
                     ownerUiState = ownerUiState,
                     onNavigateToNotifications = {
-                        nav.navigate(OwnerSubRoutes.Notification)
+                        nav.navigateSingle(OwnerSubRoutes.Notification)
                     },
                     onNavigateToAddUser = {
-                        onOwnerEvent(OwnerUiEvent.InitAddUserForm(null))
-                        nav.navigate(OwnerSubRoutes.AddUser(null))
+                        nav.navigateSingle(
+                            route = OwnerSubRoutes.AddUser(null),
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                        )
                     },
                     onNavigateToOutletList = {
-                        onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.OUTLET_LIST))
-                        nav.navigate(OwnerSubRoutes.OutletList)
+                        nav.navigateSingle(
+                            route = OwnerSubRoutes.OutletList,
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.OUTLET_LIST)) }
+                        )
                     },
                     onNavigateToCatalog = {
-                        nav.navigate(OwnerSubRoutes.Catalog)
+                        nav.navigateSingle(OwnerSubRoutes.Catalog)
                     }
                 )
             }
@@ -198,7 +206,7 @@ fun getNavItemsForRole(
                     onSwitchRoleClick = onOpenRoleSwitcher,
                     ownerUiState = ownerUiState,
                     onNavigateToNotifications = {
-                        nav.navigate(OwnerSubRoutes.Notification)
+                        nav.navigateSingle(OwnerSubRoutes.Notification)
                     }
                 )
             }
@@ -223,7 +231,7 @@ fun getNavItemsForRole(
                     onSwitchRoleClick = onOpenRoleSwitcher,
                     ownerUiState = ownerUiState,
                     onNavigateToNotifications = {
-                        nav.navigate(OwnerSubRoutes.Notification)
+                        nav.navigateSingle(OwnerSubRoutes.Notification)
                     }
                 )
             }

@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
 import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
 import com.sudutcorp.sudutbulat.core.components.SBDottedDivider
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
@@ -92,7 +93,7 @@ fun OwnerDetailOutletScreen(
         outlet = outlet,
         allOutletStaff = allOutletStaff,
         recentReports = recentOutletReports,
-        onBackClick = { navController.popBackStack() },
+        onBackClick = { navController.popBackStackSafe() },
         onToggleOpenStatus = {
             if (outlet != null) onEvent(OwnerUiEvent.ToggleOutletOpenStatus(outlet.id))
         },
@@ -186,7 +187,6 @@ fun OwnerDetailOutletContent(
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Gerobak menetap", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
                             Text("Outlet $outletName", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                             Text(outletAddress, fontSize = 12.sp, color = SBColor.Grey_500)
                         }

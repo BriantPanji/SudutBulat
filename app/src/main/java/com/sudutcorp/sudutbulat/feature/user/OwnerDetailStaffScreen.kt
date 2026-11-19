@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
 import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
 import com.sudutcorp.sudutbulat.core.components.SBSectionCard
@@ -88,7 +89,7 @@ fun OwnerDetailStaffScreen(
         SBSubHeader(
             eyebrow = staff?.role?.displayName ?: "Staf",
             title = staff?.name ?: "Detail staf",
-            onBackClick = { navController.popBackStack() }
+            onBackClick = { navController.popBackStackSafe() }
         )
 
         if (staff != null) {

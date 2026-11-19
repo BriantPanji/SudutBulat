@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
 import com.sudutcorp.sudutbulat.core.components.SBDottedDivider
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
 import com.sudutcorp.sudutbulat.core.components.SBSectionCard
@@ -52,7 +53,7 @@ fun OwnerDetailReportScreen(
         modifier = modifier,
         reportSummary = reportSummary,
         singleReport = singleReport,
-        onBackClick = { navController.popBackStack() }
+        onBackClick = { navController.popBackStackSafe() }
     )
 }
 

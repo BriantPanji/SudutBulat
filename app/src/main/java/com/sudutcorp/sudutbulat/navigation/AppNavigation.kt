@@ -156,15 +156,14 @@ fun AppNavigation(
                 onLoginSuccess = { resolvedRole ->
                     currentRole = resolvedRole
                     currentEmail = authRepository.getCurrentUserEmail()
-                    navController.navigate(AppRoutes.Main) {
+                    navController.navigateSingle(AppRoutes.Main) {
                         popUpTo<AppRoutes.Login> {
                             inclusive = true
                         }
-                        launchSingleTop = true
                     }
                 },
                 onNavigateToRegister = {
-                    navController.navigate(AppRoutes.Register)
+                    navController.navigateSingle(AppRoutes.Register)
                 }
             )
         }
@@ -176,11 +175,10 @@ fun AppNavigation(
                 onLogout = {
                     authRepository.logout()
                     currentEmail = null
-                    navController.navigate(AppRoutes.Login) {
+                    navController.navigateSingle(AppRoutes.Login) {
                         popUpTo<AppRoutes.Main> {
                             inclusive = true
                         }
-                        launchSingleTop = true
                     }
                 }
             )
@@ -359,21 +357,25 @@ fun MainScreen(
                     isDevMode = isDevAccount,
                     onSwitchRoleClick = { if (isDevAccount) showRoleBottomSheet = true },
                     onOutletClick = { outletId ->
-                        nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                        nestedNavController.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
                     },
                     onAddOutletClick = {
-                        ownerViewModel.onEvent(OwnerUiEvent.ResetAddOutletForm)
-                        nestedNavController.navigate(OwnerSubRoutes.AddOutlet)
+                        nestedNavController.navigateSingle(
+                            route = OwnerSubRoutes.AddOutlet,
+                            beforeNavigate = { ownerViewModel.onEvent(OwnerUiEvent.ResetAddOutletForm) }
+                        )
                     },
                     onStaffClick = { userId ->
-                        nestedNavController.navigate(OwnerSubRoutes.DetailStaff(userId))
+                        nestedNavController.navigateSingle(OwnerSubRoutes.DetailStaff(userId))
                     },
                     onAddStaffAccountClick = {
-                        ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null))
-                        nestedNavController.navigate(OwnerSubRoutes.AddUser(null))
+                        nestedNavController.navigateSingle(
+                            route = OwnerSubRoutes.AddUser(null),
+                            beforeNavigate = { ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                        )
                     },
                     isStandaloneListScreen = true,
-                    onBackClick = { nestedNavController.popBackStack() }
+                    onBackClick = { nestedNavController.popBackStackSafe() }
                 )
             }
         }
@@ -387,7 +389,7 @@ fun MainScreen(
                     uiState = ownerUiState,
                     onEvent = ownerViewModel::onEvent,
                     onReportClick = { reportId ->
-                        nestedNavController.navigate(
+                        nestedNavController.navigateSingle(
                             OwnerSubRoutes.DetailReport(
                                 period = ownerUiState.selectedReportPeriod,
                                 reportId = reportId
@@ -407,7 +409,7 @@ fun MainScreen(
                     uiState = ownerUiState,
                     onEvent = ownerViewModel::onEvent,
                     onOutletClick = { outletId ->
-                        nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                        nestedNavController.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
                     }
                 )
             }
@@ -421,8 +423,10 @@ fun MainScreen(
                     effects = ownerViewModel.effects,
                     onEvent = ownerViewModel::onEvent,
                     onAddNewUserClick = {
-                        ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null))
-                        nestedNavController.navigate(OwnerSubRoutes.AddUser(null))
+                        nestedNavController.navigateSingle(
+                            route = OwnerSubRoutes.AddUser(null),
+                            beforeNavigate = { ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                        )
                     }
                 )
             }
@@ -463,7 +467,7 @@ fun MainScreen(
                     roleEyebrow = if (activeViewRole == Role.WAREHOUSE) "Admin Gudang" else "Owner",
                     initials = if (isDevAccount) "DV" else ownerUiState.ownerInitials,
                     isStandaloneScreen = true,
-                    onBackClick = { nestedNavController.popBackStack() }
+                    onBackClick = { nestedNavController.popBackStackSafe() }
                 )
             }
         }
@@ -476,9 +480,9 @@ fun MainScreen(
                     onEvent = ownerViewModel::onEvent,
                     onNotificationClick = { notif ->
                         if (!notif.targetOutletId.isNullOrBlank()) {
-                            nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(notif.targetOutletId))
+                            nestedNavController.navigateSingle(OwnerSubRoutes.DetailOutlet(notif.targetOutletId))
                         } else {
-                            nestedNavController.navigate(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
+                            nestedNavController.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
                         }
                     }
                 )
