@@ -1,14 +1,22 @@
 package com.sudutcorp.sudutbulat.core.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,18 +35,23 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import kotlin.math.roundToInt
 
 @Composable
 fun <T> SBSegmentedTabs(
@@ -48,31 +61,61 @@ fun <T> SBSegmentedTabs(
     onSelected: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    if (options.isEmpty()) return
+
+    val spacing = 4.dp
+    val density = LocalDensity.current
+    val selectedIndex = options.indexOf(selected).coerceAtLeast(0)
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .background(color = SBColor.Grey_100, shape = RoundedCornerShape(12.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(4.dp)
+            .height(36.dp)
     ) {
-        options.forEach { option ->
-            val isSelected = option == selected
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (isSelected) Color.White else Color.Transparent)
-                    .clickable { onSelected(option) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = labelOf(option),
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                    color = if (isSelected) SBColor.Grey_700 else SBColor.Grey_500
-                )
+        val tabWidth = (maxWidth - spacing * (options.size - 1)) / options.size
+        val targetOffsetPx = with(density) { ((tabWidth + spacing) * selectedIndex).toPx() }
+        val indicatorOffsetPx by animateFloatAsState(
+            targetValue = targetOffsetPx,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            label = "sb_segmented_tab_indicator"
+        )
+
+        Box(
+            modifier = Modifier
+                .width(tabWidth)
+                .fillMaxHeight()
+                .offset { IntOffset(indicatorOffsetPx.roundToInt(), 0) }
+                .background(color = Color.White, shape = RoundedCornerShape(9.dp))
+        )
+
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(spacing),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            options.forEach { option ->
+                val isSelected = option == selected
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(9.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            role = Role.Tab
+                        ) { onSelected(option) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = labelOf(option),
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                        color = if (isSelected) SBColor.Grey_700 else SBColor.Grey_500
+                    )
+                }
             }
         }
     }
