@@ -20,6 +20,10 @@ class UserRepository(
         return remoteDataSource.getUserFlow(userId)
     }
 
+    fun getAllUsersFlow(): Flow<List<User>> {
+        return remoteDataSource.getAllUsersFlow()
+    }
+
     suspend fun getAllUsers(): Result<List<User>> {
         return remoteDataSource.getAllUsers()
     }
@@ -42,5 +46,9 @@ class UserRepository(
 
     suspend fun setUserActive(userId: String, isActive: Boolean): Result<Unit> {
         return remoteDataSource.setUserActive(userId, isActive)
+    }
+
+    suspend fun assignUsersToOutlet(userIds: List<String>, outletId: String): Result<Unit> {
+        return remoteDataSource.assignUsersToOutlet(userIds, outletId)
     }
 }

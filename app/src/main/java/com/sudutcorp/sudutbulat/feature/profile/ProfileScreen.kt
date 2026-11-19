@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,23 +19,32 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.model.Role
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 
 @Composable
 fun ProfileScreen(
@@ -44,15 +54,22 @@ fun ProfileScreen(
     userRole: Role = Role.OWNER,
     userEmail: String? = null,
     isDevAccount: Boolean = false,
-    onSwitchRoleClick: () -> Unit = {}
+    onSwitchRoleClick: () -> Unit = {},
+    ownerUiState: OwnerUiState = OwnerUiState(),
+    onNavigateToNotifications: () -> Unit = {},
+    onNavigateToAddUser: () -> Unit = {},
+    onNavigateToOutletList: () -> Unit = {},
+    onNavigateToCatalog: () -> Unit = {}
 ) {
+    var showLogoutDialog by rememberSaveable { mutableStateOf(false) }
+
     val roleLabel = if (isDevAccount) "Developer (${userRole.displayName})" else userRole.displayName
     val displayName = if (isDevAccount) {
         "Developer SDB"
     } else {
         when (userRole) {
             Role.DEV -> "Developer SDB"
-            Role.OWNER -> "Arif Rahman"
+            Role.OWNER -> ownerUiState.ownerName
             Role.WAREHOUSE -> "Budi Santoso"
             Role.OUTLET -> "Dimas Pratama"
         }
@@ -62,7 +79,7 @@ fun ProfileScreen(
     } else {
         when (userRole) {
             Role.DEV -> "DV"
-            Role.OWNER -> "AR"
+            Role.OWNER -> ownerUiState.ownerInitials
             Role.WAREHOUSE -> "BS"
             Role.OUTLET -> "DP"
         }
@@ -72,11 +89,13 @@ fun ProfileScreen(
     } else {
         when (userRole) {
             Role.DEV -> "sdb.dev@gmail.com"
-            Role.OWNER -> "sdb.owner@gmail.com"
+            Role.OWNER -> ownerUiState.ownerEmail.ifBlank { "arif@sudutbulat.id" }
             Role.WAREHOUSE -> "sdb.gudang@gmail.com"
             Role.OUTLET -> "sdb.staff@gmail.com"
         }
     }
+
+    val isOwnerView = userRole == Role.OWNER || userRole == Role.DEV
 
     Column(
         modifier = modifier
@@ -84,7 +103,7 @@ fun ProfileScreen(
             .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 32.dp, bottom = 80.dp),
+            .padding(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // HEADER
@@ -185,6 +204,46 @@ fun ProfileScreen(
             )
         }
 
+        // OWNER MANAGEMENT ACTIONS
+        if (isOwnerView) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Manajemen bisnis",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_500,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                ProfileMenuItem(
+                    iconRes = R.drawable.ic_user,
+                    title = "Tambah pengguna",
+                    valueText = "${ownerUiState.users.size} akun",
+                    iconBgColor = SBColor.Primary_100,
+                    iconTint = SBColor.Primary_550,
+                    onClick = onNavigateToAddUser
+                )
+
+                ProfileMenuItem(
+                    iconRes = R.drawable.ic_store,
+                    title = "Daftar outlet",
+                    valueText = "${ownerUiState.activeOutletsCount} outlet",
+                    iconBgColor = SBColor.Primary_100,
+                    iconTint = SBColor.Primary_550,
+                    onClick = onNavigateToOutletList
+                )
+
+                ProfileMenuItem(
+                    iconRes = R.drawable.ic_box,
+                    title = "Daftar barang",
+                    valueText = "${ownerUiState.catalogItems.size} item",
+                    iconBgColor = SBColor.Primary_100,
+                    iconTint = SBColor.Primary_550,
+                    onClick = onNavigateToCatalog
+                )
+            }
+        }
+
         // SETTING BUTTONS
         Column(modifier = Modifier.fillMaxWidth()) {
             if (isDevAccount) {
@@ -203,7 +262,7 @@ fun ProfileScreen(
             ProfileMenuItem(
                 iconRes = R.drawable.ic_bell,
                 title = "Notifikasi",
-                onClick = { /* Navigasi notifikasi */ }
+                onClick = onNavigateToNotifications
             )
 
             ProfileMenuItem(
@@ -215,6 +274,7 @@ fun ProfileScreen(
             ProfileMenuItem(
                 iconRes = R.drawable.ic_settings,
                 title = "Bahasa",
+                valueText = "Indonesia",
                 onClick = { /* Pengaturan bahasa */ }
             )
 
@@ -231,8 +291,115 @@ fun ProfileScreen(
                 iconTint = SBColor.Primary_500,
                 textColor = SBColor.Primary_500,
                 chevronTint = SBColor.Primary_500,
-                onClick = onLogout
+                onClick = { showLogoutDialog = true }
             )
+        }
+    }
+
+    // Figma Frame 27:2257 — Owner — Keluar (Konfirmasi)
+    if (showLogoutDialog) {
+        LogoutConfirmDialog(
+            onDismiss = { showLogoutDialog = false },
+            onConfirmLogout = {
+                showLogoutDialog = false
+                onLogout()
+            }
+        )
+    }
+}
+
+@Composable
+private fun LogoutConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirmLogout: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(56.dp),
+                    shape = CircleShape,
+                    color = SBColor.Primary_100
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_logout),
+                            contentDescription = "Keluar",
+                            tint = SBColor.Primary_550,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Keluar dari akun?",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_700,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "Anda perlu masuk kembali untuk mengakses data operasional.",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = SBColor.Grey_500,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SBColor.Grey_100,
+                            contentColor = SBColor.Grey_700
+                        )
+                    ) {
+                        Text(
+                            text = "Batal",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Button(
+                        onClick = onConfirmLogout,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SBColor.Primary_550,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = "Keluar",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -243,6 +410,7 @@ private fun ProfileMenuItem(
     title: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    valueText: String? = null,
     iconBgColor: Color = SBColor.Secondary_100,
     iconTint: Color = SBColor.Secondary_500,
     textColor: Color = SBColor.Grey_700,
@@ -281,6 +449,14 @@ private fun ProfileMenuItem(
                 fontWeight = fontWeight,
                 color = textColor
             )
+            if (!valueText.isNullOrBlank()) {
+                Text(
+                    text = valueText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = SBColor.Grey_500
+                )
+            }
             Icon(
                 painter = painterResource(id = R.drawable.ic_chevron),
                 contentDescription = null,

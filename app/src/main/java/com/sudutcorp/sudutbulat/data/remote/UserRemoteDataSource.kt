@@ -43,6 +43,26 @@ open class UserRemoteDataSource(
         awaitClose { registration.remove() }
     }
 
+    open fun getAllUsersFlow(): Flow<List<User>> = callbackFlow {
+        val col = usersCollection
+        if (col == null) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        val registration = col.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            val users = snapshot?.toObjects(User::class.java) ?: emptyList()
+            trySend(users)
+        }
+
+        awaitClose { registration.remove() }
+    }
+
     open suspend fun getAllUsers(): Result<List<User>> = runCatching {
         val col = usersCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.get().await()
@@ -81,5 +101,18 @@ open class UserRemoteDataSource(
     open suspend fun setUserActive(userId: String, isActive: Boolean): Result<Unit> = runCatching {
         val col = usersCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         col.document(userId).update("is_active", isActive).await()
+    }
+
+    open suspend fun assignUsersToOutlet(userIds: List<String>, outletId: String): Result<Unit> = runCatching {
+        if (userIds.isEmpty()) return@runCatching
+        val firestore = db ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
+        val col = usersCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
+        val batch = firestore.batch()
+        userIds.forEach { uid ->
+            if (uid.isNotBlank()) {
+                batch.update(col.document(uid), "outlet_id", outletId)
+            }
+        }
+        batch.commit().await()
     }
 }

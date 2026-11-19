@@ -57,9 +57,13 @@ import com.sudutcorp.sudutbulat.feature.home.HomeScreen
 import com.sudutcorp.sudutbulat.feature.home.OutletHomeScreen
 import com.sudutcorp.sudutbulat.feature.home.WarehouseHomeScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
+import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
 import com.sudutcorp.sudutbulat.feature.profile.ProfileScreen
 import com.sudutcorp.sudutbulat.feature.report.OutletReportScreen
 import com.sudutcorp.sudutbulat.feature.report.OwnerReportScreen
+import com.sudutcorp.sudutbulat.feature.report.defaultReportPeriodSummary
 import com.sudutcorp.sudutbulat.feature.stock.GudangStockScreen
 import com.sudutcorp.sudutbulat.feature.stock.OutletStockScreen
 
@@ -75,19 +79,61 @@ fun getNavItemsForRole(
     role: Role,
     userEmail: String? = null,
     isDevAccount: Boolean = false,
-    onOpenRoleSwitcher: () -> Unit = {}
+    onOpenRoleSwitcher: () -> Unit = {},
+    ownerUiState: OwnerUiState = OwnerUiState(),
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
+    onOwnerEvent: (OwnerUiEvent) -> Unit = {},
+    onSelectTab: (Int) -> Unit = {}
 ): List<NavItem> {
     return when (role) {
         Role.DEV,
         Role.OWNER -> listOf(
             NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER, Role.DEV), TabRoutes.Home) { nav, _ ->
-                HomeScreen(navController = nav, isDevMode = isDevAccount, onSwitchRoleClick = onOpenRoleSwitcher)
+                HomeScreen(
+                    navController = nav,
+                    uiState = ownerUiState,
+                    isDevMode = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    onSeeAllOutletsClick = {
+                        onOwnerEvent(OwnerUiEvent.SetOutletManagementMode(false))
+                        onSelectTab(1)
+                    },
+                    onOutletClick = { outletId ->
+                        nav.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                    },
+                    onReviewReportsClick = {
+                        nav.navigate(OwnerSubRoutes.DetailReport(ownerUiState.selectedReportPeriod))
+                    }
+                )
             },
             NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER, Role.DEV), TabRoutes.Outlet) { nav, _ ->
-                OutletScreen(nav)
+                OutletScreen(
+                    navController = nav,
+                    uiState = ownerUiState,
+                    onEvent = onOwnerEvent,
+                    isDevMode = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    onOutletClick = { outletId ->
+                        nav.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                    },
+                    onAddOutletClick = {
+                        onOwnerEvent(OwnerUiEvent.ResetAddOutletForm)
+                        nav.navigate(OwnerSubRoutes.AddOutlet)
+                    }
+                )
             },
             NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER, Role.DEV), TabRoutes.OwnerReport) { nav, _ ->
-                OwnerReportScreen(nav)
+                OwnerReportScreen(
+                    navController = nav,
+                    uiState = ownerUiState,
+                    reportSummary = reportSummary,
+                    onEvent = onOwnerEvent,
+                    isDevMode = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    onSeeDetailClick = { period ->
+                        nav.navigate(OwnerSubRoutes.DetailReport(period))
+                    }
+                )
             },
             NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER, Role.DEV), TabRoutes.Profile) { nav, onLogout ->
                 ProfileScreen(
@@ -96,7 +142,22 @@ fun getNavItemsForRole(
                     userRole = role,
                     userEmail = userEmail,
                     isDevAccount = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    ownerUiState = ownerUiState,
+                    onNavigateToNotifications = {
+                        nav.navigate(OwnerSubRoutes.Notification)
+                    },
+                    onNavigateToAddUser = {
+                        onOwnerEvent(OwnerUiEvent.InitAddUserForm(null))
+                        nav.navigate(OwnerSubRoutes.AddUser(null))
+                    },
+                    onNavigateToOutletList = {
+                        onOwnerEvent(OwnerUiEvent.SetOutletManagementMode(true))
+                        nav.navigate(OwnerSubRoutes.OutletList)
+                    },
+                    onNavigateToCatalog = {
+                        nav.navigate(OwnerSubRoutes.Catalog)
+                    }
                 )
             }
         )
@@ -105,7 +166,13 @@ fun getNavItemsForRole(
                 WarehouseHomeScreen(navController = nav, isDevMode = isDevAccount, onSwitchRoleClick = onOpenRoleSwitcher)
             },
             NavItem("Stok", R.drawable.ic_box, listOf(Role.WAREHOUSE), TabRoutes.GudangStock) { nav, _ ->
-                GudangStockScreen(nav)
+                GudangStockScreen(
+                    navController = nav,
+                    uiState = ownerUiState,
+                    onEvent = onOwnerEvent,
+                    roleEyebrow = "Admin Gudang",
+                    initials = if (isDevAccount) "DV" else "BS"
+                )
             },
             NavItem("Distribusi", R.drawable.ic_truck, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ ->
                 DistributionScreen(nav)
@@ -117,7 +184,11 @@ fun getNavItemsForRole(
                     userRole = role,
                     userEmail = userEmail,
                     isDevAccount = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    ownerUiState = ownerUiState,
+                    onNavigateToNotifications = {
+                        nav.navigate(OwnerSubRoutes.Notification)
+                    }
                 )
             }
         )
@@ -138,7 +209,11 @@ fun getNavItemsForRole(
                     userRole = role,
                     userEmail = userEmail,
                     isDevAccount = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    ownerUiState = ownerUiState,
+                    onNavigateToNotifications = {
+                        nav.navigate(OwnerSubRoutes.Notification)
+                    }
                 )
             }
         )

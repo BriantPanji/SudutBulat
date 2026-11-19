@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -31,14 +33,30 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
+
+@Composable
+fun OwnerDetailReportScreen(
+    navController: NavHostController,
+    modifier: Modifier = Modifier,
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary()
+) {
+    OutletDetailContent(
+        modifier = modifier,
+        reportSummary = reportSummary,
+        onBackClick = { navController.popBackStack() }
+    )
+}
 
 @Composable
 fun OutletDetailScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary()
 ) {
     OutletDetailContent(
         modifier = modifier,
+        reportSummary = reportSummary,
         onBackClick = { navController.popBackStack() }
     )
 }
@@ -46,15 +64,18 @@ fun OutletDetailScreen(
 @Composable
 fun OutletDetailContent(
     modifier: Modifier = Modifier,
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
     onBackClick: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 32.dp, bottom = 80.dp),
+            .padding(top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Header
@@ -78,7 +99,7 @@ fun OutletDetailContent(
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "Laporan • 30 hari",
+                    text = "Laporan • ${reportSummary.periodLabel}",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = SBColor.Grey_500
@@ -102,7 +123,7 @@ fun OutletDetailContent(
             )
 
             Text(
-                text = "Rp184.650.000",
+                text = reportSummary.netRevenueText,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = SBColor.Grey_700
@@ -119,7 +140,7 @@ fun OutletDetailContent(
                     modifier = Modifier.size(12.dp)
                 )
                 Text(
-                    text = "8,7% dibanding periode lalu",
+                    text = reportSummary.deltaText,
                     color = SBColor.Success_600,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -139,13 +160,13 @@ fun OutletDetailContent(
 
                 DetailRowItem(
                     label = "Penjualan tunai",
-                    value = "Rp102.340.000",
+                    value = reportSummary.cashSalesText,
                     labelColor = SBColor.Grey_600
                 )
 
                 DetailRowItem(
                     label = "Penjualan QRIS",
-                    value = "Rp82.310.000",
+                    value = reportSummary.qrisSalesText,
                     labelColor = SBColor.Grey_600
                 )
 
@@ -156,7 +177,7 @@ fun OutletDetailContent(
 
                 DetailRowItem(
                     label = "Total produk terjual",
-                    value = "36.930 pcs",
+                    value = reportSummary.totalProductsPcsText,
                     isBold = true,
                     valueFontSize = 16.sp,
                     valueFontWeight = FontWeight.ExtraBold
@@ -173,13 +194,13 @@ fun OutletDetailContent(
 
                 DetailRowItem(
                     label = "Gas & bahan bakar",
-                    value = "Rp9.480.000",
+                    value = reportSummary.gasExpenseText,
                     labelColor = SBColor.Grey_600
                 )
 
                 DetailRowItem(
                     label = "Plastik & tusuk",
-                    value = "Rp7.120.000",
+                    value = reportSummary.plasticExpenseText,
                     labelColor = SBColor.Grey_600
                 )
 
@@ -190,7 +211,7 @@ fun OutletDetailContent(
 
                 DetailRowItem(
                     label = "Total pengeluaran",
-                    value = "Rp23.700.000",
+                    value = reportSummary.totalExpenseText,
                     isBold = true,
                     valueFontSize = 16.sp,
                     valueFontWeight = FontWeight.ExtraBold
@@ -205,17 +226,13 @@ fun OutletDetailContent(
                     color = SBColor.Grey_700
                 )
 
-                DetailRowItem(
-                    label = "Tahu Original",
-                    value = "86 pcs",
-                    labelColor = SBColor.Grey_600
-                )
-
-                DetailRowItem(
-                    label = "Bumbu",
-                    value = "7 pak",
-                    labelColor = SBColor.Grey_600
-                )
+                reportSummary.damagedItems.forEach { dmg ->
+                    DetailRowItem(
+                        label = dmg.name,
+                        value = dmg.quantityText,
+                        labelColor = SBColor.Grey_600
+                    )
+                }
             }
         }
     }

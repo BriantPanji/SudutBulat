@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,32 +36,46 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.feature.owner.OwnerNotificationUi
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 
 @Composable
 fun OwnerNotificationScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    uiState: OwnerUiState = OwnerUiState(),
+    onEvent: (OwnerUiEvent) -> Unit = {},
+    onNotificationClick: (OwnerNotificationUi) -> Unit = {}
 ) {
     OwnerNotificationContent(
         modifier = modifier,
+        notifications = uiState.notifications,
         onBackClick = { navController.popBackStack() },
-        onMarkAllAsReadClick = {}
+        onMarkAllAsReadClick = { onEvent(OwnerUiEvent.MarkAllNotificationsRead) },
+        onNotificationClick = onNotificationClick
     )
 }
 
 @Composable
 fun OwnerNotificationContent(
     modifier: Modifier = Modifier,
+    notifications: List<OwnerNotificationUi> = OwnerUiState().notifications,
     onBackClick: () -> Unit = {},
-    onMarkAllAsReadClick: () -> Unit = {}
+    onMarkAllAsReadClick: () -> Unit = {},
+    onNotificationClick: (OwnerNotificationUi) -> Unit = {}
 ) {
+    val reviewItems = notifications.filter { it.isNeedsReview }
+    val previousItems = notifications.filterNot { it.isNeedsReview }
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 32.dp, bottom = 80.dp),
+            .padding(top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Header
@@ -98,42 +114,41 @@ fun OwnerNotificationContent(
         }
 
         // Section: Perlu ditinjau
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Perlu ditinjau",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-                TextButton(
-                    onClick = onMarkAllAsReadClick,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+        if (reviewItems.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Tandai dibaca",
-                        fontSize = 14.sp,
+                        text = "Perlu ditinjau",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = SBColor.Primary_550
+                        color = SBColor.Grey_700
+                    )
+                    TextButton(
+                        onClick = onMarkAllAsReadClick,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = "Tandai dibaca",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Primary_550
+                        )
+                    }
+                }
+
+                reviewItems.forEach { item ->
+                    ReviewNotificationCard(
+                        title = item.title,
+                        description = item.description,
+                        time = item.time,
+                        onClick = { onNotificationClick(item) }
                     )
                 }
             }
-
-            ReviewNotificationCard(
-                title = "Stok rusak — Outlet Cikini",
-                description = "12 pcs Tahu Pedas dilaporkan rusak (kemasan sobek).",
-                time = "5 menit lalu"
-            )
-
-            ReviewNotificationCard(
-                title = "Pengeluaran tidak biasa",
-                description = "Outlet Gajah Mada mencatat Rp420.000 untuk kategori Lainnya.",
-                time = "32 menit lalu"
-            )
         }
 
         // Section: Sebelumnya
@@ -145,17 +160,14 @@ fun OwnerNotificationContent(
                 color = SBColor.Grey_700
             )
 
-            PreviousNotificationCard(
-                title = "Laporan harian diterima",
-                description = "Outlet Sudirman mengirim laporan tutup kasir kemarin.",
-                time = "Kemarin, 21.40"
-            )
-
-            PreviousNotificationCard(
-                title = "Stok Tahu Original menipis",
-                description = "Sisa 620 pcs di gudang pusat.",
-                time = "Kemarin, 15.10"
-            )
+            previousItems.forEach { item ->
+                PreviousNotificationCard(
+                    title = item.title,
+                    description = item.description,
+                    time = item.time,
+                    onClick = { onNotificationClick(item) }
+                )
+            }
         }
     }
 }

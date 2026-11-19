@@ -52,6 +52,8 @@ class FakeUserRemoteDataSource : UserRemoteDataSource() {
 
     override fun getUserFlow(userId: String): Flow<User?> = flowOf(users[userId])
 
+    override fun getAllUsersFlow(): Flow<List<User>> = flowOf(users.values.toList())
+
     override suspend fun getAllUsers(): Result<List<User>> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         users.values.toList()
@@ -83,6 +85,14 @@ class FakeUserRemoteDataSource : UserRemoteDataSource() {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val existing = users[userId] ?: throw NoSuchElementException()
         users[userId] = existing.copy(isActive = isActive)
+    }
+
+    override suspend fun assignUsersToOutlet(userIds: List<String>, outletId: String): Result<Unit> = runCatching {
+        if (shouldFail) throw RuntimeException("Simulated network failure")
+        userIds.forEach { uid ->
+            val existing = users[uid] ?: return@forEach
+            users[uid] = existing.copy(outletId = outletId)
+        }
     }
 }
 
@@ -389,6 +399,12 @@ class FakeDailyReportRemoteDataSource : DailyReportRemoteDataSource() {
         list.add(damagedMaterial.copy(id = id))
         id
     }
+
+    override fun getAllExpensesFlow(): Flow<List<DailyReportExpense>> =
+        flowOf(reportExpenses.values.flatten())
+
+    override fun getAllDamagedMaterialsFlow(): Flow<List<DailyReportDamagedMaterial>> =
+        flowOf(reportDamaged.values.flatten())
 }
 
 // ==========================================
@@ -695,5 +711,44 @@ class RepositoryTest {
         assertEquals("sdb.gudang@gmail.com", Role.emailForLoginCode("admin"))
         assertEquals("sdb.staff@gmail.com", Role.emailForLoginCode("staff"))
         assertNull(Role.emailForLoginCode("unknown"))
+    }
+
+    @Test
+    fun testAssignUsersToOutletAndOutletExtendedFields() = runBlocking {
+        val fakeUserDs = FakeUserRemoteDataSource()
+        val userRepo = UserRepository(fakeUserDs)
+        val fakeOutletDs = FakeOutletRemoteDataSource()
+        val outletRepo = OutletRepository(fakeOutletDs)
+
+        userRepo.saveUser(
+            User(
+                id = "staff_kemang_1",
+                name = "Dimas Prasetyo",
+                email = "dimas@sudutbulat.id",
+                username = "dimas",
+                role = Role.OUTLET
+            )
+        )
+        val savedOutletId = outletRepo.saveOutlet(
+            Outlet(
+                id = "outlet_kemang",
+                name = "Kemang",
+                address = "Jl. Kemang Raya No. 12",
+                openTime = "08.00",
+                closeTime = "21.00",
+                dailyTarget = 2_000_000L
+            )
+        ).getOrThrow()
+
+        userRepo.assignUsersToOutlet(listOf("staff_kemang_1"), savedOutletId)
+
+        val assignedUser = userRepo.getUserById("staff_kemang_1").getOrNull()
+        assertEquals("outlet_kemang", assignedUser?.outletId)
+
+        val savedOutlet = outletRepo.getOutletById("outlet_kemang").getOrNull()
+        assertNotNull(savedOutlet)
+        assertEquals("08.00", savedOutlet?.openTime)
+        assertEquals("21.00", savedOutlet?.closeTime)
+        assertEquals(2_000_000L, savedOutlet?.dailyTarget)
     }
 }

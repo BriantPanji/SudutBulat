@@ -36,5 +36,17 @@ data class Outlet(
 
     @get:PropertyName("total_pieces_sold")
     @set:PropertyName("total_pieces_sold")
-    var totalPiecesSold: Int = 0
+    var totalPiecesSold: Int = 0,
+
+    @get:PropertyName("open_time")
+    @set:PropertyName("open_time")
+    var openTime: String = "08.00",
+
+    @get:PropertyName("close_time")
+    @set:PropertyName("close_time")
+    var closeTime: String = "21.00",
+
+    @get:PropertyName("daily_target")
+    @set:PropertyName("daily_target")
+    var dailyTarget: Long = 2_000_000L
 )

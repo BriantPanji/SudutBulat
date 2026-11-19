@@ -41,24 +41,40 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
+import com.sudutcorp.sudutbulat.feature.owner.formatRupiah
+import com.sudutcorp.sudutbulat.feature.owner.formatShortRupiah
+import java.text.NumberFormat
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    uiState: OwnerUiState = OwnerUiState(),
     isDevMode: Boolean = false,
-    onSwitchRoleClick: () -> Unit = {}
+    onSwitchRoleClick: () -> Unit = {},
+    onSeeAllOutletsClick: () -> Unit = {},
+    onOutletClick: (String) -> Unit = {},
+    onReviewReportsClick: () -> Unit = {}
 ) {
+    val numberFormatter = NumberFormat.getNumberInstance(Locale("id", "ID"))
+    val firstName = uiState.ownerName.trim().split(Regex("\\s+")).firstOrNull()?.takeIf { it.isNotBlank() } ?: "Arif"
+    val topOutlets = uiState.outletItems.sortedBy { it.rank }.take(3)
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 32.dp, bottom = 80.dp),
+            .padding(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         PageHeaderMain(
+            firstName = firstName,
+            initials = if (isDevMode) "DV" else uiState.ownerInitials,
+            dateLabel = uiState.todayDateLabel,
             isDevMode = isDevMode,
             onProfileClick = onSwitchRoleClick
         )
@@ -73,7 +89,12 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("Penjualan hari ini", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                Text("Rp8.420.000", fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text(
+                    text = formatRupiah(uiState.todayTotalRevenue),
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
                 HorizontalDivider(
                     thickness = 1.dp,
                     color = Color.White.copy(alpha = 0.25f),
@@ -94,9 +115,19 @@ fun HomeScreen(
                             tint = Color.White,
                             modifier = Modifier.size(12.dp)
                         )
-                        Text("12,4% dari kemarin", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                        Text(
+                            text = uiState.todayDeltaPercentText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
                     }
-                    Text("5 outlet aktif", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                    Text(
+                        text = "${uiState.activeOutletsCount} outlet aktif",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
                 }
             }
         }
@@ -131,7 +162,12 @@ fun HomeScreen(
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Produk terjual", fontSize = 13.sp, color = SBColor.Grey_500)
-                        Text("1.684", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = SBColor.Grey_700)
+                        Text(
+                            text = numberFormatter.format(uiState.todayTotalSold),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
+                            color = SBColor.Grey_700
+                        )
                         Text("pcs hari ini", fontSize = 12.sp, color = SBColor.Grey_400)
                     }
                 }
@@ -163,8 +199,17 @@ fun HomeScreen(
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Pengeluaran", fontSize = 13.sp, color = SBColor.Grey_500)
-                        Text("Rp940rb", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = SBColor.Grey_700)
-                        Text("11 transaksi", fontSize = 12.sp, color = SBColor.Grey_400)
+                        Text(
+                            text = formatShortRupiah(uiState.todayTotalExpenses),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
+                            color = SBColor.Grey_700
+                        )
+                        Text(
+                            text = "${uiState.todayExpenseTransactionsCount} transaksi",
+                            fontSize = 12.sp,
+                            color = SBColor.Grey_400
+                        )
                     }
                 }
             }
@@ -178,7 +223,7 @@ fun HomeScreen(
             ) {
                 Text("Performa outlet", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                 TextButton(
-                    onClick = { /* Navigasi ke daftar outlet */ },
+                    onClick = onSeeAllOutletsClick,
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
                     Text("Lihat semua", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
@@ -192,22 +237,34 @@ fun HomeScreen(
                 border = BorderStroke(1.dp, SBColor.Grey_100)
             ) {
                 Column {
-                    OutletItem("1", "Sudirman", "496 pcs", "Rp2.480.000", 0.7f)
-                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                    OutletItem("2", "Gajah Mada", "424 pcs", "Rp2.120.000", 0.6f)
-                    HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                    OutletItem("3", "Cikini", "356 pcs", "Rp1.780.000", 0.5f)
+                    topOutlets.forEachIndexed { index, outlet ->
+                        OutletItem(
+                            rank = outlet.rank.toString(),
+                            name = outlet.name,
+                            pcs = "${outlet.piecesSold} pcs",
+                            amount = formatRupiah(outlet.revenue),
+                            progress = outlet.targetProgress,
+                            onClick = { onOutletClick(outlet.id) }
+                        )
+                        if (index < topOutlets.lastIndex) {
+                            HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                        }
+                    }
                 }
             }
         }
 
-        WarningLaporan()
+        WarningLaporan(
+            count = uiState.reviewReportsCount,
+            onClick = onReviewReportsClick
+        )
     }
 }
 
 @Composable
 fun WarningLaporan(
     modifier: Modifier = Modifier,
+    count: Int = 2,
     onClick: () -> Unit = {}
 ) {
     OutlinedCard(
@@ -234,7 +291,7 @@ fun WarningLaporan(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Text("2 laporan perlu ditinjau", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                Text("$count laporan perlu ditinjau", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                 Text("Stok rusak dan pengeluaran tidak biasa", fontSize = 12.sp, color = SBColor.Grey_500)
             }
             Icon(
@@ -315,6 +372,9 @@ fun OutletItem(
 @Composable
 fun PageHeaderMain(
     modifier: Modifier = Modifier,
+    firstName: String = "Arif",
+    initials: String = "AR",
+    dateLabel: String = "Hari ini, 24 Mei 2025",
     isDevMode: Boolean = false,
     onProfileClick: () -> Unit = {}
 ) {
@@ -335,7 +395,7 @@ fun PageHeaderMain(
                     color = SBColor.Grey_500
                 )
                 Text(
-                    text = "Selamat pagi, Arif",
+                    text = "Selamat pagi, $firstName",
                     fontSize = 25.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = SBColor.Grey_700
@@ -361,7 +421,7 @@ fun PageHeaderMain(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = if (isDevMode) "DV" else "AR",
+                            text = initials,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = SBColor.Primary_500
@@ -386,7 +446,7 @@ fun PageHeaderMain(
                     tint = SBColor.Grey_500
                 )
                 Text(
-                    text = "Hari ini, 24 Mei 2025",
+                    text = dateLabel,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = SBColor.Grey_500

@@ -39,3 +39,30 @@ sealed class TabRoutes {
     @Serializable
     data object Profile : TabRoutes()
 }
+
+@Serializable
+sealed interface OwnerSubRoutes {
+    @Serializable
+    data object TabsRoot : OwnerSubRoutes
+
+    @Serializable
+    data object OutletList : OwnerSubRoutes
+
+    @Serializable
+    data class DetailOutlet(val outletId: String) : OwnerSubRoutes
+
+    @Serializable
+    data object AddOutlet : OwnerSubRoutes
+
+    @Serializable
+    data class AddUser(val preselectedOutletId: String? = null) : OwnerSubRoutes
+
+    @Serializable
+    data class DetailReport(val period: String = "30 Hari") : OwnerSubRoutes
+
+    @Serializable
+    data object Catalog : OwnerSubRoutes
+
+    @Serializable
+    data object Notification : OwnerSubRoutes
+}

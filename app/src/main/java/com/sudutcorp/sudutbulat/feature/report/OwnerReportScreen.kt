@@ -31,10 +31,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,27 +43,46 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.feature.owner.DamagedSummaryItemUi
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
+import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
 
 @Composable
 fun OwnerReportScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    uiState: OwnerUiState = OwnerUiState(),
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
+    onEvent: (OwnerUiEvent) -> Unit = {},
+    isDevMode: Boolean = false,
+    onSwitchRoleClick: () -> Unit = {},
+    onSeeDetailClick: (String) -> Unit = {}
 ) {
     OwnerReportContent(
         modifier = modifier,
-        onProfileClick = {},
-        onSeeDetailClick = {}
+        initials = if (isDevMode) "DV" else uiState.ownerInitials,
+        selectedPeriod = uiState.selectedReportPeriod,
+        reportSummary = reportSummary,
+        isDevMode = isDevMode,
+        onPeriodSelected = { onEvent(OwnerUiEvent.ReportPeriodSelected(it)) },
+        onProfileClick = onSwitchRoleClick,
+        onSeeDetailClick = { onSeeDetailClick(uiState.selectedReportPeriod) }
     )
 }
 
 @Composable
 fun OwnerReportContent(
     modifier: Modifier = Modifier,
+    initials: String = "AR",
+    selectedPeriod: String = "30 Hari",
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
+    isDevMode: Boolean = false,
+    onPeriodSelected: (String) -> Unit = {},
     onProfileClick: () -> Unit = {},
     onSeeDetailClick: () -> Unit = {}
 ) {
-    var selectedPeriod by rememberSaveable { mutableStateOf("30 Hari") }
-    val periods = listOf("7 Hari", "30 Hari", "3 Bulan")
+    val periods = listOf("7 Hari" to "7 hari", "30 Hari" to "30 hari", "3 Bulan" to "3 bulan")
 
     Column(
         modifier = modifier
@@ -75,7 +90,7 @@ fun OwnerReportContent(
             .background(Color.White)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 32.dp, bottom = 80.dp),
+            .padding(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Header
@@ -109,13 +124,16 @@ fun OwnerReportContent(
                 }
             ) {
                 Surface(
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable(enabled = isDevMode, onClick = onProfileClick),
                     shape = CircleShape,
                     color = SBColor.Secondary_100
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "AR",
+                            text = initials,
                             color = SBColor.Primary_500,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
@@ -134,22 +152,22 @@ fun OwnerReportContent(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            periods.forEach { period ->
-                val isSelected = period == selectedPeriod
+            periods.forEach { (periodKey, periodLabel) ->
+                val isSelected = periodKey.equals(selectedPeriod, ignoreCase = true)
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .height(38.dp)
                         .clip(RoundedCornerShape(9.dp))
                         .background(if (isSelected) Color.White else Color.Transparent)
-                        .clickable { selectedPeriod = period },
+                        .clickable { onPeriodSelected(periodKey) },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                         color = if (isSelected) SBColor.Grey_700 else SBColor.Grey_500,
-                        text = period
+                        text = periodLabel
                     )
                 }
             }
@@ -168,7 +186,7 @@ fun OwnerReportContent(
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = SBColor.Grey_700,
-                text = "Rp184.650.000"
+                text = reportSummary.netRevenueText
             )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -184,7 +202,7 @@ fun OwnerReportContent(
                     color = SBColor.Success_600,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    text = "8,7% dibanding periode lalu"
+                    text = reportSummary.deltaText
                 )
             }
         }
@@ -213,7 +231,7 @@ fun OwnerReportContent(
                             color = SBColor.Grey_700
                         )
                         Text(
-                            text = "24 Apr - 24 Mei",
+                            text = reportSummary.dateRangeText,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
                             color = SBColor.Grey_500
@@ -316,8 +334,8 @@ fun OwnerReportContent(
                     BusinessSummaryItem(
                         iconRes = R.drawable.ic_store,
                         title = "Total penjualan",
-                        subtitle = "36.930 produk",
-                        value = "Rp184,6jt",
+                        subtitle = reportSummary.totalProductsSoldText,
+                        value = reportSummary.totalSalesValueText,
                         valueColor = SBColor.Grey_700
                     )
 
@@ -330,8 +348,8 @@ fun OwnerReportContent(
                     BusinessSummaryItem(
                         iconRes = R.drawable.ic_wallet,
                         title = "Biaya operasional",
-                        subtitle = "12,8% dari omzet",
-                        value = "Rp23,7jt",
+                        subtitle = reportSummary.operationalCostPercentText,
+                        value = reportSummary.operationalCostValueText,
                         valueColor = SBColor.Grey_700
                     )
 
@@ -345,7 +363,7 @@ fun OwnerReportContent(
                         iconRes = R.drawable.ic_bar_chart,
                         title = "Estimasi laba",
                         subtitle = "Setelah biaya operasional",
-                        value = "Rp62,4jt",
+                        value = reportSummary.estimatedProfitValueText,
                         valueColor = SBColor.Success_600
                     )
                 }
@@ -410,6 +428,29 @@ private fun BusinessSummaryItem(
         )
     }
 }
+
+internal fun defaultReportPeriodSummary(): ReportPeriodSummaryUi = ReportPeriodSummaryUi(
+    periodLabel = "30 hari",
+    dateRangeText = "24 Apr – 24 Mei",
+    netRevenueText = "Rp184.650.000",
+    deltaText = "8,7% dibanding periode lalu",
+    totalSalesValueText = "Rp184,6jt",
+    totalProductsSoldText = "36.930 produk",
+    totalProductsPcsText = "36.930 pcs",
+    operationalCostValueText = "Rp23,7jt",
+    operationalCostPercentText = "12,8% dari omzet",
+    estimatedProfitValueText = "Rp62,4jt",
+    cashSalesText = "Rp102.340.000",
+    qrisSalesText = "Rp82.310.000",
+    gasExpenseText = "Rp9.480.000",
+    plasticExpenseText = "Rp7.120.000",
+    otherExpenseText = "Rp7.100.000",
+    totalExpenseText = "Rp23.700.000",
+    damagedItems = listOf(
+        DamagedSummaryItemUi("mat_tahu_original", "Tahu Original", "86 pcs"),
+        DamagedSummaryItemUi("mat_bumbu_balado", "Bumbu", "7 pak")
+    )
+)
 
 @Preview(showBackground = true)
 @Composable

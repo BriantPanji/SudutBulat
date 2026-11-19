@@ -93,4 +93,12 @@ class DailyReportRepository(
     suspend fun addDamagedMaterial(damagedMaterial: DailyReportDamagedMaterial): Result<String> {
         return remoteDataSource.addDamagedMaterial(damagedMaterial)
     }
+
+    fun getAllExpensesFlow(): Flow<List<DailyReportExpense>> {
+        return remoteDataSource.getAllExpensesFlow()
+    }
+
+    fun getAllDamagedMaterialsFlow(): Flow<List<DailyReportDamagedMaterial>> {
+        return remoteDataSource.getAllDamagedMaterialsFlow()
+    }
 }

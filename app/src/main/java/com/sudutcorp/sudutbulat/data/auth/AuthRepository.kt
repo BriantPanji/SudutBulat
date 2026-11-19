@@ -1,5 +1,6 @@
 package com.sudutcorp.sudutbulat.data.auth
 
+import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
@@ -7,6 +8,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.remote.FirestoreCollections
+import kotlinx.coroutines.tasks.await
 
 class AuthRepository(
     firebaseAuth: FirebaseAuth? = null,
@@ -316,5 +318,30 @@ class AuthRepository(
                     onError("Email/Kode Login atau password salah.")
                 }
             }
+    }
+
+    /**
+     * Creates a new Firebase Auth account using a secondary FirebaseApp instance so the
+     * currently signed-in Owner session is never replaced or signed out.
+     */
+    suspend fun registerUserAccount(email: String, password: String): Result<String?> = runCatching {
+        val cleanEmail = email.trim().lowercase()
+        if (!isEmail(cleanEmail)) return@runCatching null
+        val primaryApp = runCatching { FirebaseApp.getInstance() }.getOrNull() ?: return@runCatching null
+        val secondaryAppName = "SecondaryRegistrationApp"
+        val secondaryApp = runCatching { FirebaseApp.getInstance(secondaryAppName) }.getOrElse {
+            FirebaseApp.initializeApp(primaryApp.applicationContext, primaryApp.options, secondaryAppName)
+        }
+        val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
+        try {
+            val result = secondaryAuth.createUserWithEmailAndPassword(cleanEmail, password).await()
+            val uid = result.user?.uid
+            secondaryAuth.signOut()
+            uid
+        } catch (e: Exception) {
+            // shortcut: if offline or email already exists in Firebase Auth, still allow saving the Firestore user record
+            secondaryAuth.signOut()
+            null
+        }
     }
 }

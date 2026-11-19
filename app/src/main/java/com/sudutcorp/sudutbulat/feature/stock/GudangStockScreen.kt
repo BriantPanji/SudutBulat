@@ -1,61 +1,117 @@
 package com.sudutcorp.sudutbulat.feature.stock
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.core.util.ThousandSeparatorVisualTransformation
+import com.sudutcorp.sudutbulat.data.model.UnitType
+import com.sudutcorp.sudutbulat.feature.outlet.FormLabeledTextField
+import com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GudangStockScreen(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    uiState: OwnerUiState = OwnerUiState(),
+    onEvent: (OwnerUiEvent) -> Unit = {},
+    roleEyebrow: String = "Admin Gudang",
+    initials: String = "AR",
+    isStandaloneScreen: Boolean = false,
+    onBackClick: () -> Unit = {}
 ) {
     val focusManager = LocalFocusManager.current
-    var searchQuery by rememberSaveable { mutableStateOf("") }
-    var selectedFilter by rememberSaveable { mutableStateOf("Semua") }
-    val filterOptions = listOf("Semua", "Aman", "Menipis")
+    var showAddSheet by rememberSaveable { mutableStateOf(false) }
+    val thousandTransformation = remember { ThousandSeparatorVisualTransformation() }
+    val filterOptions = listOf("Semua", "Tahu", "Saus", "Bumbu", "Produk Jual")
+
+    val query = uiState.catalogSearchQuery.trim().lowercase()
+    val filteredItems = remember(uiState.catalogItems, query, uiState.catalogCategoryFilter) {
+        uiState.catalogItems.filter { item ->
+            val matchesCategory = uiState.catalogCategoryFilter == "Semua" ||
+                item.category.equals(uiState.catalogCategoryFilter, ignoreCase = true)
+            val matchesQuery = query.isBlank() ||
+                item.name.lowercase().contains(query) ||
+                item.category.lowercase().contains(query)
+            matchesCategory && matchesQuery
+        }
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color.White)
+            .then(
+                if (isStandaloneScreen) {
+                    Modifier.statusBarsPadding().navigationBarsPadding()
+                } else {
+                    Modifier
+                }
+            )
             .pointerInput(Unit) {
                 detectTapGestures(onTap = {
                     focusManager.clearFocus()
@@ -63,28 +119,48 @@ fun GudangStockScreen(
             }
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 32.dp, bottom = 80.dp),
+            .padding(top = 16.dp, bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header Profile Avatar dengan BadgedBox & Surface M3
+        // Page Header (204:6037)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    "Admin Gudang",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_500
-                )
-                Text(
-                    "Stok",
-                    fontSize = 25.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = SBColor.Grey_700
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (isStandaloneScreen) {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(color = SBColor.Grey_100, shape = CircleShape)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_chevron_left),
+                            contentDescription = "Kembali",
+                            tint = SBColor.Grey_700,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = roleEyebrow,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SBColor.Grey_600
+                    )
+                    Text(
+                        text = "Daftar barang",
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = SBColor.Grey_700
+                    )
+                }
             }
             BadgedBox(
                 badge = {
@@ -103,7 +179,7 @@ fun GudangStockScreen(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            "BS",
+                            text = initials,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = SBColor.Primary_500
@@ -115,12 +191,12 @@ fun GudangStockScreen(
 
         // Search Bar
         OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
+            value = uiState.catalogSearchQuery,
+            onValueChange = { onEvent(OwnerUiEvent.CatalogSearchChanged(it)) },
             modifier = Modifier.fillMaxWidth(),
             placeholder = {
                 Text(
-                    "Cari produk atau bahan...",
+                    "Cari barang atau kategori...",
                     fontSize = 14.sp,
                     color = SBColor.Grey_500
                 )
@@ -143,17 +219,19 @@ fun GudangStockScreen(
             )
         )
 
-        // Filter Chips & Info Header
+        // Filter Chips & Section Title ("X barang terdaftar" + "+ Tambah barang")
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 filterOptions.forEach { option ->
-                    val isSelected = option == selectedFilter
+                    val isSelected = option == uiState.catalogCategoryFilter
                     FilterChip(
                         selected = isSelected,
-                        onClick = { selectedFilter = option },
+                        onClick = { onEvent(OwnerUiEvent.CatalogFilterSelected(option)) },
                         label = {
                             Text(
                                 text = option,
@@ -161,60 +239,289 @@ fun GudangStockScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                         },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(9.dp),
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = SBColor.Grey_700,
                             selectedLabelColor = Color.White,
                             containerColor = SBColor.Grey_100,
-                            labelColor = SBColor.Grey_700
+                            labelColor = SBColor.Grey_600
                         ),
                         border = null
                     )
                 }
             }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("4 Item di gudang", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
-                Text("Terakhir diperbarui 09.17", fontSize = 12.sp, color = SBColor.Grey_500)
+                Text(
+                    text = "${filteredItems.size} barang terdaftar",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_700
+                )
+                TextButton(
+                    onClick = {
+                        onEvent(OwnerUiEvent.ResetCatalogForm)
+                        showAddSheet = true
+                    },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text(
+                        text = "+ Tambah barang",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_550
+                    )
+                }
             }
         }
 
-        // Cards List
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            StockItemCard(
-                title = "Tahu Original",
-                subtitle = "9.191 pcs",
-                status = StockStatus.SAFE,
-                progress = 0.86f,
-                onCardClick = {}
-            )
+        // Inventory List Container (204:6037)
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SBColor.Grey_100)
+        ) {
+            Column {
+                filteredItems.forEachIndexed { index, item ->
+                    CatalogInventoryRow(item = item)
+                    if (index < filteredItems.lastIndex) {
+                        HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                    }
+                }
+            }
+        }
+    }
 
-            StockItemCard(
-                title = "Tahu Pedas",
-                subtitle = "3.980 pcs",
-                status = StockStatus.LOW,
-                progress = 0.70f,
-                onCardClick = {}
-            )
+    if (showAddSheet) {
+        val form = uiState.addCatalogForm
+        ModalBottomSheet(
+            onDismissRequest = { showAddSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Color.White,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Tambah barang katalog",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_700
+                )
 
-            StockItemCard(
-                title = "Tahu Bakso",
-                subtitle = "5.000 pcs",
-                status = StockStatus.SAFE,
-                progress = 1f,
-                onCardClick = {}
-            )
+                // Segmented Type: Bahan Mentah (Stok) vs Produk Siap Jual
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(color = SBColor.Grey_100, shape = RoundedCornerShape(12.dp))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    listOf(false to "Bahan Mentah (Stok)", true to "Produk Jual").forEach { (isProd, label) ->
+                        val isSelected = form.isProduct == isProd
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(if (isSelected) Color.White else Color.Transparent)
+                                .clickable { onEvent(OwnerUiEvent.CatalogTypeChanged(isProd)) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (isSelected) SBColor.Grey_700 else SBColor.Grey_500
+                            )
+                        }
+                    }
+                }
 
-            StockItemCard(
-                title = "Bumbu Original",
-                subtitle = "48 pak",
-                status = StockStatus.OUT_OF_STOCK,
-                progress = 0.10f,
-                onCardClick = {}
+                FormLabeledTextField(
+                    label = "Nama barang",
+                    value = form.name,
+                    placeholder = if (form.isProduct) "Tahu Bulat Keju (Bungkus 5 pcs)" else "Tahu Bulat Original",
+                    leadingIconRes = R.drawable.ic_box,
+                    imeAction = ImeAction.Next,
+                    onImeAction = { focusManager.moveFocus(FocusDirection.Next) },
+                    onValueChange = { onEvent(OwnerUiEvent.CatalogNameChanged(it)) }
+                )
+
+                FormLabeledTextField(
+                    label = if (form.isProduct) "Harga jual" else "Harga modal per satuan",
+                    value = form.priceOrCostInput,
+                    placeholder = if (form.isProduct) "5.000" else "500",
+                    leadingIconRes = R.drawable.ic_wallet,
+                    prefixText = "Rp",
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done,
+                    visualTransformation = thousandTransformation,
+                    onImeAction = { focusManager.clearFocus() },
+                    onValueChange = { onEvent(OwnerUiEvent.CatalogPriceChanged(it)) }
+                )
+
+                if (!form.isProduct) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Satuan bahan mentah",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SBColor.Grey_700
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                UnitType.PCS to "pcs",
+                                UnitType.UNIT to "botol/pak",
+                                UnitType.GR to "gr",
+                                UnitType.ML to "ml"
+                            ).forEach { (unitType, unitLabel) ->
+                                val isSelected = form.unit == unitType
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onEvent(OwnerUiEvent.CatalogUnitChanged(unitType)) },
+                                    label = { Text(unitLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(9.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SBColor.Grey_700,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = SBColor.Grey_100,
+                                        labelColor = SBColor.Grey_600
+                                    ),
+                                    border = null
+                                )
+                            }
+                        }
+                    }
+                }
+
+                form.errorMessage?.let { err ->
+                    Text(
+                        text = err,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SBColor.Primary_550
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        onEvent(OwnerUiEvent.SubmitCatalogItem)
+                        if (form.name.isNotBlank()) {
+                            showAddSheet = false
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SBColor.Primary_550)
+                ) {
+                    Text(
+                        text = "Simpan barang",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogInventoryRow(
+    item: CatalogItemUi
+) {
+    val tileBg = if (item.category == "Tahu") SBColor.Secondary_100 else SBColor.Primary_100
+    val badgeBg = if (item.isWarning) SBColor.Secondary_100 else SBColor.Success_100
+    val badgeTextColor = if (item.isWarning) SBColor.Secondary_500 else SBColor.Success_600
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            modifier = Modifier.size(40.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = tileBg
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(
+                        if (item.isProduct) R.drawable.ic_store else R.drawable.ic_box
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = SBColor.Tertiary_400
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                text = item.name,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = SBColor.Grey_700
+            )
+            Text(
+                text = item.subtitleText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = SBColor.Grey_700
+            )
+            LinearProgressIndicator(
+                progress = { 0.72f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp)
+                    .height(4.dp)
+                    .clip(CircleShape),
+                color = SBColor.Primary_550,
+                trackColor = SBColor.Grey_100,
+                strokeCap = StrokeCap.Round,
+                gapSize = 0.dp,
+                drawStopIndicator = {}
             )
         }
+
+        Surface(
+            shape = RoundedCornerShape(6.dp),
+            color = badgeBg
+        ) {
+            Text(
+                text = item.statusBadge,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = badgeTextColor,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+        }
+
+        Icon(
+            painter = painterResource(R.drawable.ic_chevron_right),
+            contentDescription = null,
+            tint = SBColor.Grey_400,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
