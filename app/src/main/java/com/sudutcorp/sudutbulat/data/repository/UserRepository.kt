@@ -51,4 +51,8 @@ class UserRepository(
     suspend fun assignUsersToOutlet(userIds: List<String>, outletId: String): Result<Unit> {
         return remoteDataSource.assignUsersToOutlet(userIds, outletId)
     }
+
+    suspend fun setUserOutlet(userId: String, outletId: String?): Result<Unit> {
+        return remoteDataSource.setUserOutlet(userId, outletId)
+    }
 }

@@ -2,16 +2,24 @@ package com.sudutcorp.sudutbulat.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,7 +29,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -30,6 +41,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.sudutcorp.sudutbulat.SudutBulatApplication
 import com.sudutcorp.sudutbulat.core.components.AIFab
+import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.DefaultAppContainer
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
@@ -44,6 +56,7 @@ import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
 import com.sudutcorp.sudutbulat.feature.report.OwnerDetailReportScreen
 import com.sudutcorp.sudutbulat.feature.stock.GudangStockScreen
 import com.sudutcorp.sudutbulat.feature.user.AddUserScreen
+import com.sudutcorp.sudutbulat.feature.user.OwnerDetailStaffScreen
 import kotlinx.coroutines.launch
 
 private val SmoothSlideEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -52,6 +65,34 @@ private fun Role.workspaceOrder(): Int = when (this) {
     Role.DEV, Role.OWNER -> 0
     Role.WAREHOUSE -> 1
     Role.OUTLET -> 2
+}
+
+/**
+ * Wraps sub-screen destinations so Predictive Back & transition animations continuously
+ * round screen corners (0.dp -> 32.dp) and apply a soft shadow/border in lockstep with
+ * the gesture progress, eliminating harsh 90-degree sharp corners on white-over-white screens.
+ */
+@Composable
+private fun AnimatedContentScope.PredictiveBackScreenContainer(
+    content: @Composable () -> Unit
+) {
+    val cornerRadius by transition.animateDp(label = "ScreenCornerRadius") { state ->
+        if (state == EnterExitState.Visible) 0.dp else 32.dp
+    }
+    val shadowElevation by transition.animateDp(label = "ScreenShadowElevation") { state ->
+        if (state == EnterExitState.Visible) 0.dp else 18.dp
+    }
+    val borderStroke = if (cornerRadius > 0.5.dp) BorderStroke(1.dp, SBColor.Grey_100) else null
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        shape = RoundedCornerShape(cornerRadius),
+        color = Color.White,
+        shadowElevation = shadowElevation,
+        border = borderStroke
+    ) {
+        content()
+    }
 }
 
 @Composable
@@ -98,6 +139,16 @@ fun AppNavigation(
         },
         popExitTransition = {
             slideOutHorizontally(tween(280, easing = SmoothSlideEasing)) { it }
+        },
+        predictivePopEnterTransition = { swipeEdge ->
+            slideInHorizontally { if (swipeEdge == 0) -it / 8 else it / 8 } +
+                scaleIn(initialScale = 0.96f)
+        },
+        predictivePopExitTransition = { swipeEdge ->
+            scaleOut(
+                targetScale = 0.88f,
+                transformOrigin = TransformOrigin(if (swipeEdge == 0) 0.72f else 0.28f, 0.5f)
+            ) + slideOutHorizontally { if (swipeEdge == 0) it / 8 else -it / 8 }
         }
     ) {
         composable<AppRoutes.Login> {
@@ -220,6 +271,16 @@ fun MainScreen(
         },
         popExitTransition = {
             slideOutHorizontally(tween(280, easing = SmoothSlideEasing)) { it }
+        },
+        predictivePopEnterTransition = { swipeEdge ->
+            slideInHorizontally { if (swipeEdge == 0) -it / 8 else it / 8 } +
+                scaleIn(initialScale = 0.96f)
+        },
+        predictivePopExitTransition = { swipeEdge ->
+            scaleOut(
+                targetScale = 0.88f,
+                transformOrigin = TransformOrigin(if (swipeEdge == 0) 0.72f else 0.28f, 0.5f)
+            ) + slideOutHorizontally { if (swipeEdge == 0) it / 8 else -it / 8 }
         }
     ) {
         composable<OwnerSubRoutes.TabsRoot> {
@@ -289,104 +350,131 @@ fun MainScreen(
             }
         }
 
-        // Figma 204:5797 — Owner — Daftar Outlet
         composable<OwnerSubRoutes.OutletList> {
-            OutletScreen(
-                navController = nestedNavController,
-                uiState = ownerUiState,
-                onEvent = ownerViewModel::onEvent,
-                isDevMode = isDevAccount,
-                onSwitchRoleClick = { if (isDevAccount) showRoleBottomSheet = true },
-                onOutletClick = { outletId ->
-                    nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(outletId))
-                },
-                onAddOutletClick = {
-                    ownerViewModel.onEvent(OwnerUiEvent.ResetAddOutletForm)
-                    nestedNavController.navigate(OwnerSubRoutes.AddOutlet)
-                },
-                isStandaloneListScreen = true,
-                onBackClick = { nestedNavController.popBackStack() }
-            )
+            PredictiveBackScreenContainer {
+                OutletScreen(
+                    navController = nestedNavController,
+                    uiState = ownerUiState,
+                    onEvent = ownerViewModel::onEvent,
+                    isDevMode = isDevAccount,
+                    onSwitchRoleClick = { if (isDevAccount) showRoleBottomSheet = true },
+                    onOutletClick = { outletId ->
+                        nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                    },
+                    onAddOutletClick = {
+                        ownerViewModel.onEvent(OwnerUiEvent.ResetAddOutletForm)
+                        nestedNavController.navigate(OwnerSubRoutes.AddOutlet)
+                    },
+                    onStaffClick = { userId ->
+                        nestedNavController.navigate(OwnerSubRoutes.DetailStaff(userId))
+                    },
+                    onAddStaffAccountClick = {
+                        ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null))
+                        nestedNavController.navigate(OwnerSubRoutes.AddUser(null))
+                    },
+                    isStandaloneListScreen = true,
+                    onBackClick = { nestedNavController.popBackStack() }
+                )
+            }
         }
 
-        // Figma 27:2447 — Owner — Detail Outlet
         composable<OwnerSubRoutes.DetailOutlet> { backStackEntry ->
             val route = backStackEntry.toRoute<OwnerSubRoutes.DetailOutlet>()
-            OwnerDetailOutletScreen(
-                navController = nestedNavController,
-                outletId = route.outletId,
-                uiState = ownerUiState,
-                onEvent = ownerViewModel::onEvent,
-                onAddStaffClick = { outletId ->
-                    ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(outletId))
-                    nestedNavController.navigate(OwnerSubRoutes.AddUser(outletId))
-                }
-            )
+            PredictiveBackScreenContainer {
+                OwnerDetailOutletScreen(
+                    navController = nestedNavController,
+                    outletId = route.outletId,
+                    uiState = ownerUiState,
+                    onEvent = ownerViewModel::onEvent
+                )
+            }
         }
 
-        // Figma 204:6480 — Owner — Tambah Outlet
+        composable<OwnerSubRoutes.DetailStaff> { backStackEntry ->
+            val route = backStackEntry.toRoute<OwnerSubRoutes.DetailStaff>()
+            PredictiveBackScreenContainer {
+                OwnerDetailStaffScreen(
+                    navController = nestedNavController,
+                    userId = route.userId,
+                    uiState = ownerUiState,
+                    onEvent = ownerViewModel::onEvent,
+                    onOutletClick = { outletId ->
+                        nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(outletId))
+                    }
+                )
+            }
+        }
+
         composable<OwnerSubRoutes.AddOutlet> {
-            AddOutletScreen(
-                navController = nestedNavController,
-                uiState = ownerUiState,
-                effects = ownerViewModel.effects,
-                onEvent = ownerViewModel::onEvent,
-                onAddNewUserClick = {
-                    ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null))
-                    nestedNavController.navigate(OwnerSubRoutes.AddUser(null))
-                }
-            )
+            PredictiveBackScreenContainer {
+                AddOutletScreen(
+                    navController = nestedNavController,
+                    uiState = ownerUiState,
+                    effects = ownerViewModel.effects,
+                    onEvent = ownerViewModel::onEvent,
+                    onAddNewUserClick = {
+                        ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null))
+                        nestedNavController.navigate(OwnerSubRoutes.AddUser(null))
+                    }
+                )
+            }
         }
 
-        // Figma 204:6610 — Owner — Tambah Pengguna
         composable<OwnerSubRoutes.AddUser> { backStackEntry ->
             val route = backStackEntry.toRoute<OwnerSubRoutes.AddUser>()
-            AddUserScreen(
-                navController = nestedNavController,
-                preselectedOutletId = route.preselectedOutletId,
-                uiState = ownerUiState,
-                effects = ownerViewModel.effects,
-                onEvent = ownerViewModel::onEvent
-            )
+            PredictiveBackScreenContainer {
+                AddUserScreen(
+                    navController = nestedNavController,
+                    preselectedOutletId = route.preselectedOutletId,
+                    uiState = ownerUiState,
+                    effects = ownerViewModel.effects,
+                    onEvent = ownerViewModel::onEvent
+                )
+            }
         }
 
-        // Figma 27:2847 — Owner — Detail Laporan
         composable<OwnerSubRoutes.DetailReport> { backStackEntry ->
             val route = backStackEntry.toRoute<OwnerSubRoutes.DetailReport>()
             val periodSummary = ownerViewModel.getReportPeriodSummary(route.period)
-            OwnerDetailReportScreen(
-                navController = nestedNavController,
-                reportSummary = periodSummary
-            )
+            val singleReport = route.reportId?.let { ownerViewModel.getSingleReportDetail(it) }
+            PredictiveBackScreenContainer {
+                OwnerDetailReportScreen(
+                    navController = nestedNavController,
+                    reportSummary = periodSummary,
+                    singleReport = singleReport
+                )
+            }
         }
 
-        // Figma 204:6037 — Daftar Barang (Katalog)
         composable<OwnerSubRoutes.Catalog> {
-            GudangStockScreen(
-                navController = nestedNavController,
-                uiState = ownerUiState,
-                onEvent = ownerViewModel::onEvent,
-                roleEyebrow = if (activeViewRole == Role.WAREHOUSE) "Admin Gudang" else "Owner",
-                initials = if (isDevAccount) "DV" else ownerUiState.ownerInitials,
-                isStandaloneScreen = true,
-                onBackClick = { nestedNavController.popBackStack() }
-            )
+            PredictiveBackScreenContainer {
+                GudangStockScreen(
+                    navController = nestedNavController,
+                    uiState = ownerUiState,
+                    onEvent = ownerViewModel::onEvent,
+                    roleEyebrow = if (activeViewRole == Role.WAREHOUSE) "Admin Gudang" else "Owner",
+                    initials = if (isDevAccount) "DV" else ownerUiState.ownerInitials,
+                    isStandaloneScreen = true,
+                    onBackClick = { nestedNavController.popBackStack() }
+                )
+            }
         }
 
-        // Figma 27:2291 — Owner — Notifikasi
         composable<OwnerSubRoutes.Notification> {
-            OwnerNotificationScreen(
-                navController = nestedNavController,
-                uiState = ownerUiState,
-                onEvent = ownerViewModel::onEvent,
-                onNotificationClick = { notif ->
-                    if (!notif.targetOutletId.isNullOrBlank()) {
-                        nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(notif.targetOutletId))
-                    } else {
-                        nestedNavController.navigate(OwnerSubRoutes.DetailReport(ownerUiState.selectedReportPeriod))
+            PredictiveBackScreenContainer {
+                OwnerNotificationScreen(
+                    navController = nestedNavController,
+                    uiState = ownerUiState,
+                    onEvent = ownerViewModel::onEvent,
+                    onNotificationClick = { notif ->
+                        if (!notif.targetOutletId.isNullOrBlank()) {
+                            nestedNavController.navigate(OwnerSubRoutes.DetailOutlet(notif.targetOutletId))
+                        } else {
+                            nestedNavController.navigate(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
 

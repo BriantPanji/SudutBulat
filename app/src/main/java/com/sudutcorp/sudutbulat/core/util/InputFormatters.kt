@@ -79,6 +79,32 @@ class TimeVisualTransformation : VisualTransformation {
     }
 }
 
+/**
+ * Filters raw time input digit-by-digit as the user types so invalid 24h clock values
+ * (like "0889" or "2500") are rejected immediately:
+ * - Pos 0 (hour tens): 0..2
+ * - Pos 1 (hour ones): 0..3 when pos 0 == '2', else 0..9
+ * - Pos 2 (minute tens): 0..5
+ * - Pos 3 (minute ones): 0..9
+ */
+fun sanitizeTimeDigits(raw: String): String {
+    val result = StringBuilder(4)
+    for (ch in raw) {
+        if (!ch.isDigit()) continue
+        when (result.length) {
+            0 -> if (ch in '0'..'2') result.append(ch)
+            1 -> {
+                val maxHourUnit = if (result[0] == '2') '3' else '9'
+                if (ch in '0'..maxHourUnit) result.append(ch)
+            }
+            2 -> if (ch in '0'..'5') result.append(ch)
+            3 -> if (ch in '0'..'9') result.append(ch)
+            else -> break
+        }
+    }
+    return result.toString()
+}
+
 fun isValidRawTime(rawDigits: String): Boolean {
     val digits = rawDigits.filter(Char::isDigit)
     if (digits.length != 4) return false

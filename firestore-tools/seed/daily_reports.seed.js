@@ -10,9 +10,28 @@ const { COLLECTIONS, batchUpsert } = require("../scripts/helpers");
 function buildDailyReports(admin) {
   const Timestamp = admin.firestore.Timestamp;
   const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 30, 0);
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 21, 0, 0);
+  const threeDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3, 21, 0, 0);
+  const tenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 10, 21, 0, 0);
 
   const reports = [
+    {
+      id: "report_sudirman_today",
+      outlet_id: "outlet_sudirman",
+      date: Timestamp.fromDate(today),
+      cash_revenue: 1520000,
+      qris_revenue: 960000,
+      total_sold: 496,
+    },
+    {
+      id: "report_cikini_today",
+      outlet_id: "outlet_cikini",
+      date: Timestamp.fromDate(today),
+      cash_revenue: 1020000,
+      qris_revenue: 760000,
+      total_sold: 356,
+    },
     {
       id: "report_sudirman_yesterday",
       outlet_id: "outlet_sudirman",
@@ -28,6 +47,22 @@ function buildDailyReports(admin) {
       cash_revenue: 1320000,
       qris_revenue: 800000,
       total_sold: 424,
+    },
+    {
+      id: "report_tebet_3d",
+      outlet_id: "outlet_tebet",
+      date: Timestamp.fromDate(threeDaysAgo),
+      cash_revenue: 750000,
+      qris_revenue: 500000,
+      total_sold: 250,
+    },
+    {
+      id: "report_gajah_mada_10d",
+      outlet_id: "outlet_gajah_mada",
+      date: Timestamp.fromDate(tenDaysAgo),
+      cash_revenue: 1180000,
+      qris_revenue: 870000,
+      total_sold: 410,
     },
   ];
 

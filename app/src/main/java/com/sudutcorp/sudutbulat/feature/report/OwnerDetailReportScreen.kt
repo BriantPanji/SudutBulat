@@ -34,16 +34,20 @@ import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
+import com.sudutcorp.sudutbulat.feature.owner.SingleReportDetailUi
+import com.sudutcorp.sudutbulat.feature.owner.formatRupiah
 
 @Composable
 fun OwnerDetailReportScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary()
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
+    singleReport: SingleReportDetailUi? = null
 ) {
     OutletDetailContent(
         modifier = modifier,
         reportSummary = reportSummary,
+        singleReport = singleReport,
         onBackClick = { navController.popBackStack() }
     )
 }
@@ -52,11 +56,13 @@ fun OwnerDetailReportScreen(
 fun OutletDetailScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary()
+    reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
+    singleReport: SingleReportDetailUi? = null
 ) {
     OutletDetailContent(
         modifier = modifier,
         reportSummary = reportSummary,
+        singleReport = singleReport,
         onBackClick = { navController.popBackStack() }
     )
 }
@@ -65,6 +71,7 @@ fun OutletDetailScreen(
 fun OutletDetailContent(
     modifier: Modifier = Modifier,
     reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
+    singleReport: SingleReportDetailUi? = null,
     onBackClick: () -> Unit = {}
 ) {
     Column(
@@ -99,13 +106,17 @@ fun OutletDetailContent(
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "Laporan • ${reportSummary.periodLabel}",
-                    fontSize = 14.sp,
+                    text = if (singleReport != null) {
+                        "${singleReport.outletName} • ${singleReport.dateLabel}"
+                    } else {
+                        "Laporan • ${reportSummary.periodLabel}"
+                    },
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = SBColor.Grey_500
                 )
                 Text(
-                    text = "Detail laporan",
+                    text = if (singleReport != null) "Detail laporan harian" else "Detail laporan",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = SBColor.Grey_700
@@ -113,125 +124,252 @@ fun OutletDetailContent(
             }
         }
 
-        // Section Omzet Bersih
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = "Omzet bersih",
-                color = SBColor.Grey_600,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium
-            )
-
-            Text(
-                text = reportSummary.netRevenueText,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = SBColor.Grey_700
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.arrow_up),
-                    contentDescription = "Panah Ke Atas",
-                    tint = SBColor.Success_600,
-                    modifier = Modifier.size(12.dp)
+        if (singleReport != null) {
+            // === MODE 1: DETAIL LAPORAN HARIAN SPESIFIK ===
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Total omzet laporan",
+                    color = SBColor.Grey_600,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = reportSummary.deltaText,
+                    text = formatRupiah(singleReport.totalRevenue),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = SBColor.Grey_700
+                )
+                Text(
+                    text = "${singleReport.totalSold} pcs terjual",
                     color = SBColor.Success_600,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
-        }
 
-        // Section Rincian
-        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Ringkasan penjualan",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-
-                DetailRowItem(
-                    label = "Penjualan tunai",
-                    value = reportSummary.cashSalesText,
-                    labelColor = SBColor.Grey_600
-                )
-
-                DetailRowItem(
-                    label = "Penjualan QRIS",
-                    value = reportSummary.qrisSalesText,
-                    labelColor = SBColor.Grey_600
-                )
-
-                DottedDivider(
-                    color = SBColor.Grey_200,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-
-                DetailRowItem(
-                    label = "Total produk terjual",
-                    value = reportSummary.totalProductsPcsText,
-                    isBold = true,
-                    valueFontSize = 16.sp,
-                    valueFontWeight = FontWeight.ExtraBold
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Pengeluaran",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-
-                DetailRowItem(
-                    label = "Gas & bahan bakar",
-                    value = reportSummary.gasExpenseText,
-                    labelColor = SBColor.Grey_600
-                )
-
-                DetailRowItem(
-                    label = "Plastik & tusuk",
-                    value = reportSummary.plasticExpenseText,
-                    labelColor = SBColor.Grey_600
-                )
-
-                DottedDivider(
-                    color = SBColor.Grey_200,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-
-                DetailRowItem(
-                    label = "Total pengeluaran",
-                    value = reportSummary.totalExpenseText,
-                    isBold = true,
-                    valueFontSize = 16.sp,
-                    valueFontWeight = FontWeight.ExtraBold
-                )
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Stok rusak",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Grey_700
-                )
-
-                reportSummary.damagedItems.forEach { dmg ->
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Ringkasan penjualan",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
                     DetailRowItem(
-                        label = dmg.name,
-                        value = dmg.quantityText,
+                        label = "Penjualan tunai",
+                        value = formatRupiah(singleReport.cashRevenue),
                         labelColor = SBColor.Grey_600
                     )
+                    DetailRowItem(
+                        label = "Penjualan QRIS",
+                        value = formatRupiah(singleReport.qrisRevenue),
+                        labelColor = SBColor.Grey_600
+                    )
+                    DottedDivider(color = SBColor.Grey_200, modifier = Modifier.padding(vertical = 4.dp))
+                    DetailRowItem(
+                        label = "Total produk terjual",
+                        value = "${singleReport.totalSold} pcs",
+                        isBold = true,
+                        valueFontSize = 16.sp,
+                        valueFontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                if (singleReport.productLines.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Rincian produk terjual",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Grey_700
+                        )
+                        singleReport.productLines.forEach { prod ->
+                            DetailRowItem(
+                                label = "${prod.productName} (${prod.quantity}x)",
+                                value = formatRupiah(prod.subtotal),
+                                labelColor = SBColor.Grey_600
+                            )
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pengeluaran operasional",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                    if (singleReport.expenseLines.isEmpty()) {
+                        Text(
+                            text = "Tidak ada catatan pengeluaran pada laporan ini.",
+                            fontSize = 13.sp,
+                            color = SBColor.Grey_500
+                        )
+                    } else {
+                        singleReport.expenseLines.forEach { exp ->
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                DetailRowItem(
+                                    label = exp.categoryLabel,
+                                    value = formatRupiah(exp.amount),
+                                    labelColor = SBColor.Grey_600
+                                )
+                                if (!exp.note.isNullOrBlank()) {
+                                    Text(
+                                        text = exp.note,
+                                        fontSize = 12.sp,
+                                        color = SBColor.Grey_500
+                                    )
+                                }
+                            }
+                        }
+                        DottedDivider(color = SBColor.Grey_200, modifier = Modifier.padding(vertical = 4.dp))
+                        DetailRowItem(
+                            label = "Total pengeluaran",
+                            value = formatRupiah(singleReport.totalExpense),
+                            isBold = true,
+                            valueFontSize = 16.sp,
+                            valueFontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Bahan mentah rusak",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                    if (singleReport.damagedLines.isEmpty()) {
+                        Text(
+                            text = "Tidak ada bahan rusak yang dilaporkan.",
+                            fontSize = 13.sp,
+                            color = SBColor.Grey_500
+                        )
+                    } else {
+                        singleReport.damagedLines.forEach { dmg ->
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                DetailRowItem(
+                                    label = dmg.materialName,
+                                    value = dmg.quantityText,
+                                    labelColor = SBColor.Grey_600
+                                )
+                                if (!dmg.note.isNullOrBlank()) {
+                                    Text(
+                                        text = dmg.note,
+                                        fontSize = 12.sp,
+                                        color = SBColor.Grey_500
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // === MODE 2: DETAIL RINGKASAN PERIODE ===
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Omzet bersih",
+                    color = SBColor.Grey_600,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = reportSummary.netRevenueText,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = SBColor.Grey_700
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.arrow_up),
+                        contentDescription = "Panah Ke Atas",
+                        tint = SBColor.Success_600,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = reportSummary.deltaText,
+                        color = SBColor.Success_600,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Ringkasan penjualan",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                    DetailRowItem(
+                        label = "Penjualan tunai",
+                        value = reportSummary.cashSalesText,
+                        labelColor = SBColor.Grey_600
+                    )
+                    DetailRowItem(
+                        label = "Penjualan QRIS",
+                        value = reportSummary.qrisSalesText,
+                        labelColor = SBColor.Grey_600
+                    )
+                    DottedDivider(color = SBColor.Grey_200, modifier = Modifier.padding(vertical = 4.dp))
+                    DetailRowItem(
+                        label = "Total produk terjual",
+                        value = reportSummary.totalProductsPcsText,
+                        isBold = true,
+                        valueFontSize = 16.sp,
+                        valueFontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pengeluaran",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                    DetailRowItem(
+                        label = "Gas & bahan bakar",
+                        value = reportSummary.gasExpenseText,
+                        labelColor = SBColor.Grey_600
+                    )
+                    DetailRowItem(
+                        label = "Plastik & tusuk",
+                        value = reportSummary.plasticExpenseText,
+                        labelColor = SBColor.Grey_600
+                    )
+                    DottedDivider(color = SBColor.Grey_200, modifier = Modifier.padding(vertical = 4.dp))
+                    DetailRowItem(
+                        label = "Total pengeluaran",
+                        value = reportSummary.totalExpenseText,
+                        isBold = true,
+                        valueFontSize = 16.sp,
+                        valueFontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Stok rusak",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                    reportSummary.damagedItems.forEach { dmg ->
+                        DetailRowItem(
+                            label = dmg.name,
+                            value = dmg.quantityText,
+                            labelColor = SBColor.Grey_600
+                        )
+                    }
                 }
             }
         }
@@ -277,7 +415,8 @@ private fun DetailRowItem(
             text = label,
             fontSize = 14.sp,
             fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
-            color = if (isBold) SBColor.Grey_700 else labelColor
+            color = if (isBold) SBColor.Grey_700 else labelColor,
+            modifier = Modifier.weight(1f).padding(end = 12.dp)
         )
         Text(
             text = value,

@@ -115,4 +115,9 @@ open class UserRemoteDataSource(
         }
         batch.commit().await()
     }
+
+    open suspend fun setUserOutlet(userId: String, outletId: String?): Result<Unit> = runCatching {
+        val col = usersCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
+        col.document(userId).update("outlet_id", outletId).await()
+    }
 }

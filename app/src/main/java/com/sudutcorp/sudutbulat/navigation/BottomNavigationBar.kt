@@ -57,6 +57,7 @@ import com.sudutcorp.sudutbulat.feature.home.HomeScreen
 import com.sudutcorp.sudutbulat.feature.home.OutletHomeScreen
 import com.sudutcorp.sudutbulat.feature.home.WarehouseHomeScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
+import com.sudutcorp.sudutbulat.feature.owner.OutletTabMode
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
@@ -95,14 +96,14 @@ fun getNavItemsForRole(
                     isDevMode = isDevAccount,
                     onSwitchRoleClick = onOpenRoleSwitcher,
                     onSeeAllOutletsClick = {
-                        onOwnerEvent(OwnerUiEvent.SetOutletManagementMode(false))
+                        onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.PERFORMANCE))
                         onSelectTab(1)
                     },
                     onOutletClick = { outletId ->
                         nav.navigate(OwnerSubRoutes.DetailOutlet(outletId))
                     },
                     onReviewReportsClick = {
-                        nav.navigate(OwnerSubRoutes.DetailReport(ownerUiState.selectedReportPeriod))
+                        nav.navigate(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
                     }
                 )
             },
@@ -119,6 +120,13 @@ fun getNavItemsForRole(
                     onAddOutletClick = {
                         onOwnerEvent(OwnerUiEvent.ResetAddOutletForm)
                         nav.navigate(OwnerSubRoutes.AddOutlet)
+                    },
+                    onStaffClick = { userId ->
+                        nav.navigate(OwnerSubRoutes.DetailStaff(userId))
+                    },
+                    onAddStaffAccountClick = {
+                        onOwnerEvent(OwnerUiEvent.InitAddUserForm(null))
+                        nav.navigate(OwnerSubRoutes.AddUser(null))
                     }
                 )
             },
@@ -131,7 +139,10 @@ fun getNavItemsForRole(
                     isDevMode = isDevAccount,
                     onSwitchRoleClick = onOpenRoleSwitcher,
                     onSeeDetailClick = { period ->
-                        nav.navigate(OwnerSubRoutes.DetailReport(period))
+                        nav.navigate(OwnerSubRoutes.DetailReport(period = period, reportId = null))
+                    },
+                    onReportItemClick = { reportId ->
+                        nav.navigate(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod, reportId = reportId))
                     }
                 )
             },
@@ -152,7 +163,7 @@ fun getNavItemsForRole(
                         nav.navigate(OwnerSubRoutes.AddUser(null))
                     },
                     onNavigateToOutletList = {
-                        onOwnerEvent(OwnerUiEvent.SetOutletManagementMode(true))
+                        onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.OUTLET_LIST))
                         nav.navigate(OwnerSubRoutes.OutletList)
                     },
                     onNavigateToCatalog = {

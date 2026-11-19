@@ -52,13 +52,19 @@ sealed interface OwnerSubRoutes {
     data class DetailOutlet(val outletId: String) : OwnerSubRoutes
 
     @Serializable
+    data class DetailStaff(val userId: String) : OwnerSubRoutes
+
+    @Serializable
     data object AddOutlet : OwnerSubRoutes
 
     @Serializable
     data class AddUser(val preselectedOutletId: String? = null) : OwnerSubRoutes
 
     @Serializable
-    data class DetailReport(val period: String = "30 Hari") : OwnerSubRoutes
+    data class DetailReport(
+        val period: String = "30 Hari",
+        val reportId: String? = null
+    ) : OwnerSubRoutes
 
     @Serializable
     data object Catalog : OwnerSubRoutes

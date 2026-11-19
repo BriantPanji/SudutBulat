@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,15 +27,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,9 +60,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
+import com.sudutcorp.sudutbulat.feature.owner.StaffItemUi
 import com.sudutcorp.sudutbulat.feature.owner.formatRupiah
 
 @Composable
@@ -62,36 +73,41 @@ fun OwnerDetailOutletScreen(
     modifier: Modifier = Modifier,
     outletId: String = "outlet_sudirman",
     uiState: OwnerUiState = OwnerUiState(),
-    onEvent: (OwnerUiEvent) -> Unit = {},
-    onAddStaffClick: (String) -> Unit = {}
+    onEvent: (OwnerUiEvent) -> Unit = {}
 ) {
     val outlet = uiState.outletItems.firstOrNull { it.id == outletId }
         ?: uiState.outletItems.firstOrNull()
+    val allOutletStaff = remember(uiState.staffItems) {
+        uiState.staffItems.filter { it.role == Role.OUTLET && it.isActive }
+    }
 
     OwnerDetailOutletContent(
         modifier = modifier,
         outlet = outlet,
+        allOutletStaff = allOutletStaff,
         onBackClick = { navController.popBackStack() },
         onToggleOpenStatus = {
             if (outlet != null) {
                 onEvent(OwnerUiEvent.ToggleOutletOpenStatus(outlet.id))
             }
         },
-        onAddStaffClick = {
+        onSaveStaffAssignment = { selectedIds ->
             if (outlet != null) {
-                onAddStaffClick(outlet.id)
+                onEvent(OwnerUiEvent.AssignStaffToOutlet(outlet.id, selectedIds))
             }
         }
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OwnerDetailOutletContent(
     modifier: Modifier = Modifier,
     outlet: OutletPerformanceUi? = null,
+    allOutletStaff: List<StaffItemUi> = emptyList(),
     onBackClick: () -> Unit = {},
     onToggleOpenStatus: () -> Unit = {},
-    onAddStaffClick: () -> Unit = {}
+    onSaveStaffAssignment: (Set<String>) -> Unit = {}
 ) {
     val outletName = outlet?.name ?: "Sudirman"
     val outletAddress = outlet?.address ?: "Jl. Jenderal Sudirman No. 18"
@@ -103,9 +119,15 @@ fun OwnerDetailOutletContent(
     val damagedText = "${outlet?.damagedCount ?: 12} pcs"
     val damagedReportText = "${outlet?.damagedReportCount ?: 1} laporan"
     val operatingHours = "${outlet?.openTime ?: "09.00"} – ${outlet?.closeTime ?: "21.00"}"
-    val staffDisplay = outlet?.staffNames?.joinToString(", ")?.takeIf { it.isNotBlank() } ?: "Dimas Pratama"
+    val staffDisplay = outlet?.staffNames?.joinToString(", ")?.takeIf { it.isNotBlank() } ?: "Belum ada staf"
     val netDepositText = outlet?.let { formatRupiah(it.netDepositEstimate) } ?: "Rp1.675.000"
+
     var showOverrideStatusDialog by rememberSaveable { mutableStateOf(false) }
+    var showStaffPickerSheet by rememberSaveable { mutableStateOf(false) }
+    var draftSelectedStaffIds by remember(outlet?.id, outlet?.staffIds) {
+        mutableStateOf(outlet?.staffIds?.toSet() ?: emptySet())
+    }
+    val staffSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Column(
         modifier = modifier
@@ -294,11 +316,14 @@ fun OwnerDetailOutletContent(
                     color = SBColor.Grey_700
                 )
                 TextButton(
-                    onClick = onAddStaffClick,
+                    onClick = {
+                        draftSelectedStaffIds = outlet?.staffIds?.toSet() ?: emptySet()
+                        showStaffPickerSheet = true
+                    },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
                     Text(
-                        text = "+ Tambah staf",
+                        text = "+ Pilih staf",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = SBColor.Primary_550
@@ -340,7 +365,9 @@ fun OwnerDetailOutletContent(
                     text = staffDisplay,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_700
+                    color = SBColor.Grey_700,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f).padding(start = 16.dp)
                 )
             }
 
@@ -381,6 +408,114 @@ fun OwnerDetailOutletContent(
                 onToggleOpenStatus()
             }
         )
+    }
+
+    if (showStaffPickerSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showStaffPickerSheet = false },
+            sheetState = staffSheetState,
+            containerColor = Color.White,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Pilih staf untuk $outletName",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_700
+                )
+                Text(
+                    text = "Centang staf outlet yang bertugas di lokasi ini.",
+                    fontSize = 13.sp,
+                    color = SBColor.Grey_500
+                )
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(
+                        items = allOutletStaff,
+                        key = { it.id },
+                        contentType = { "outlet_staff_picker" }
+                    ) { staff ->
+                        val isChecked = staff.id in draftSelectedStaffIds
+                        val otherOutletHint = if (staff.outletId != null && staff.outletId != outlet?.id) {
+                            "Saat ini di ${staff.outletName ?: staff.outletId}"
+                        } else if (staff.outletId == outlet?.id) {
+                            "Bertugas di outlet ini"
+                        } else {
+                            "Belum ditugaskan"
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    draftSelectedStaffIds = if (isChecked) {
+                                        draftSelectedStaffIds - staff.id
+                                    } else {
+                                        draftSelectedStaffIds + staff.id
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = staff.name,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = SBColor.Grey_700
+                                )
+                                Text(
+                                    text = otherOutletHint,
+                                    fontSize = 12.sp,
+                                    color = SBColor.Grey_500
+                                )
+                            }
+                            Checkbox(
+                                checked = isChecked,
+                                onCheckedChange = { checked ->
+                                    draftSelectedStaffIds = if (checked) {
+                                        draftSelectedStaffIds + staff.id
+                                    } else {
+                                        draftSelectedStaffIds - staff.id
+                                    }
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = SBColor.Primary_550)
+                            )
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        onSaveStaffAssignment(draftSelectedStaffIds)
+                        showStaffPickerSheet = false
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SBColor.Primary_550)
+                ) {
+                    Text("Simpan penugasan", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 

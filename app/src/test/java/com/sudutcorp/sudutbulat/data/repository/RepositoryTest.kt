@@ -94,6 +94,12 @@ class FakeUserRemoteDataSource : UserRemoteDataSource() {
             users[uid] = existing.copy(outletId = outletId)
         }
     }
+
+    override suspend fun setUserOutlet(userId: String, outletId: String?): Result<Unit> = runCatching {
+        if (shouldFail) throw RuntimeException("Simulated network failure")
+        val existing = users[userId] ?: throw NoSuchElementException()
+        users[userId] = existing.copy(outletId = outletId)
+    }
 }
 
 class FakeOutletRemoteDataSource : OutletRemoteDataSource() {
@@ -399,6 +405,9 @@ class FakeDailyReportRemoteDataSource : DailyReportRemoteDataSource() {
         list.add(damagedMaterial.copy(id = id))
         id
     }
+
+    override fun getAllReportProductsFlow(): Flow<List<DailyReportProduct>> =
+        flowOf(reportProducts.values.flatten())
 
     override fun getAllExpensesFlow(): Flow<List<DailyReportExpense>> =
         flowOf(reportExpenses.values.flatten())
@@ -750,5 +759,67 @@ class RepositoryTest {
         assertEquals("08.00", savedOutlet?.openTime)
         assertEquals("21.00", savedOutlet?.closeTime)
         assertEquals(2_000_000L, savedOutlet?.dailyTarget)
+
+        // Verify unassigning / reassigning single staff outlet
+        userRepo.setUserOutlet("staff_kemang_1", null)
+        assertNull(userRepo.getUserById("staff_kemang_1").getOrNull()?.outletId)
+    }
+
+    @Test
+    fun testSortOutletItemsByProfitNameTargetAscDesc() {
+        val sample = listOf(
+            com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi(
+                id = "a", rank = 1, name = "Cikini", displayName = "Outlet Cikini", address = "",
+                isOpen = true, isActive = true, openTime = "08.00", closeTime = "21.00", dailyTarget = 2_000_000L,
+                revenue = 1_780_000L, cashRevenue = 1_000_000L, qrisRevenue = 780_000L, piecesSold = 356,
+                targetProgress = 0.72f, targetPercentText = "72% target", activeStaffCount = 1,
+                staffIds = emptyList(), staffNames = emptyList(), expenseTotal = 165_000L, expenseCount = 2,
+                damagedCount = 0, damagedReportCount = 0, netDepositEstimate = 1_615_000L
+            ),
+            com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi(
+                id = "b", rank = 2, name = "Sudirman", displayName = "Outlet Sudirman", address = "",
+                isOpen = true, isActive = true, openTime = "09.00", closeTime = "21.00", dailyTarget = 2_900_000L,
+                revenue = 2_480_000L, cashRevenue = 1_480_000L, qrisRevenue = 1_000_000L, piecesSold = 496,
+                targetProgress = 0.85f, targetPercentText = "85% target", activeStaffCount = 2,
+                staffIds = emptyList(), staffNames = emptyList(), expenseTotal = 185_000L, expenseCount = 3,
+                damagedCount = 0, damagedReportCount = 0, netDepositEstimate = 2_295_000L
+            ),
+            com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi(
+                id = "c", rank = 3, name = "Blok M", displayName = "Outlet Blok M", address = "",
+                isOpen = false, isActive = true, openTime = "09.00", closeTime = "21.00", dailyTarget = 2_000_000L,
+                revenue = 720_000L, cashRevenue = 420_000L, qrisRevenue = 300_000L, piecesSold = 144,
+                targetProgress = 0.36f, targetPercentText = "36% target", activeStaffCount = 1,
+                staffIds = emptyList(), staffNames = emptyList(), expenseTotal = 140_000L, expenseCount = 1,
+                damagedCount = 0, damagedReportCount = 0, netDepositEstimate = 580_000L
+            )
+        )
+
+        val byProfitDesc = com.sudutcorp.sudutbulat.feature.owner.sortOutletItems(
+            sample,
+            com.sudutcorp.sudutbulat.feature.owner.OutletSortField.PROFIT,
+            com.sudutcorp.sudutbulat.feature.owner.SortDirection.DESC
+        )
+        assertEquals(listOf("Sudirman", "Cikini", "Blok M"), byProfitDesc.map { it.name })
+
+        val byProfitAsc = com.sudutcorp.sudutbulat.feature.owner.sortOutletItems(
+            sample,
+            com.sudutcorp.sudutbulat.feature.owner.OutletSortField.PROFIT,
+            com.sudutcorp.sudutbulat.feature.owner.SortDirection.ASC
+        )
+        assertEquals(listOf("Blok M", "Cikini", "Sudirman"), byProfitAsc.map { it.name })
+
+        val byNameAsc = com.sudutcorp.sudutbulat.feature.owner.sortOutletItems(
+            sample,
+            com.sudutcorp.sudutbulat.feature.owner.OutletSortField.NAME,
+            com.sudutcorp.sudutbulat.feature.owner.SortDirection.ASC
+        )
+        assertEquals(listOf("Blok M", "Cikini", "Sudirman"), byNameAsc.map { it.name })
+
+        val byTargetDesc = com.sudutcorp.sudutbulat.feature.owner.sortOutletItems(
+            sample,
+            com.sudutcorp.sudutbulat.feature.owner.OutletSortField.TARGET,
+            com.sudutcorp.sudutbulat.feature.owner.SortDirection.DESC
+        )
+        assertEquals(listOf("Sudirman", "Cikini", "Blok M"), byTargetDesc.map { it.name })
     }
 }

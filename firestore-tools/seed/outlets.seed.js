@@ -15,6 +15,9 @@ function buildOutlets(admin) {
       target_percentage: 0.85,
       total_revenue: 2480000,
       total_pieces_sold: 496,
+      open_time: "09.00",
+      close_time: "21.00",
+      daily_target: 2900000,
     },
     {
       id: "outlet_gajah_mada",
@@ -26,6 +29,9 @@ function buildOutlets(admin) {
       target_percentage: 0.72,
       total_revenue: 2120000,
       total_pieces_sold: 424,
+      open_time: "08.00",
+      close_time: "21.00",
+      daily_target: 2500000,
     },
     {
       // Outlet ini sengaja belum memiliki distribusi pagi hari ini di distributions.seed.js
@@ -39,6 +45,9 @@ function buildOutlets(admin) {
       target_percentage: 0.5,
       total_revenue: 1780000,
       total_pieces_sold: 356,
+      open_time: "08.00",
+      close_time: "21.00",
+      daily_target: 2400000,
     },
     {
       // Outlet ini juga belum diberikan distribusi rutin pagi hari ini
@@ -51,6 +60,9 @@ function buildOutlets(admin) {
       target_percentage: 0.4,
       total_revenue: 1250000,
       total_pieces_sold: 250,
+      open_time: "09.00",
+      close_time: "21.00",
+      daily_target: 2000000,
     },
   ];
 }

@@ -47,5 +47,13 @@ class InputFormattersTest {
         assertFalse(isValidRawTime("08"))
         assertEquals("08.00", formatRawTimeToDisplay("0800", "09.00"))
         assertEquals("09.00", formatRawTimeToDisplay("08", "09.00"))
+
+        // Real-time digit-by-digit sanitization rejects invalid hours (>23) and minutes (>59)
+        assertEquals("08", sanitizeTimeDigits("0889"))
+        assertEquals("0859", sanitizeTimeDigits("0859"))
+        assertEquals("2359", sanitizeTimeDigits("2359"))
+        assertEquals("200", sanitizeTimeDigits("2400"))
+        assertEquals("", sanitizeTimeDigits("99"))
+        assertEquals("0830", sanitizeTimeDigits("08:30abc"))
     }
 }

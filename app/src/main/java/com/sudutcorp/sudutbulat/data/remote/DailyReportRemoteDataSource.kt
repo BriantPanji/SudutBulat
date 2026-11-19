@@ -189,6 +189,23 @@ open class DailyReportRemoteDataSource(
         doc.id
     }
 
+    open fun getAllReportProductsFlow(): Flow<List<DailyReportProduct>> = callbackFlow {
+        val col = reportProductsCollection
+        if (col == null) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val registration = col.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                close(error)
+                return@addSnapshotListener
+            }
+            trySend(snapshot?.toObjects(DailyReportProduct::class.java) ?: emptyList())
+        }
+        awaitClose { registration.remove() }
+    }
+
     open fun getAllExpensesFlow(): Flow<List<DailyReportExpense>> = callbackFlow {
         val col = reportExpensesCollection
         if (col == null) {
