@@ -21,7 +21,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,21 +30,38 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.core.util.buildInitials
+import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.data.model.DistributionStatus
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEvent
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiState
 
 @Composable
 fun OutletHomeScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
+    uiState: OutletUiState = OutletUiState(),
+    onEvent: (OutletUiEvent) -> Unit = {},
     isDevMode: Boolean = false,
-    onSwitchRoleClick: () -> Unit = {}
+    onSwitchRoleClick: () -> Unit = {},
+    onOpenStockTab: () -> Unit = {},
+    onOpenReportTab: () -> Unit = {}
 ) {
+    val outlet = uiState.assignedOutlet
+    val firstName = uiState.staffName.trim().split(Regex("\\s+")).firstOrNull()?.takeIf { it.isNotBlank() } ?: "Staf"
+    val initials = if (isDevMode) "DV" else buildInitials(uiState.staffName)
+    val latestReport = uiState.recentReports.firstOrNull()
+    val revenue = outlet?.totalRevenue?.takeIf { it > 0L } ?: latestReport?.totalRevenue ?: 0L
+    val pieces = outlet?.totalPiecesSold?.takeIf { it > 0 } ?: latestReport?.totalSold ?: 0
+    val dailyTarget = (outlet?.dailyTarget ?: 2_000_000L).coerceAtLeast(1L)
+    val targetPct = ((revenue.toFloat() / dailyTarget.toFloat()) * 100f).toInt().coerceIn(0, 100)
+    val pendingConfirmCount = uiState.distributions.count { it.status == DistributionStatus.SENT }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -56,13 +72,25 @@ fun OutletHomeScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         OutletHeaderMain(
+            staffFirstName = firstName,
+            initials = initials,
             isDevMode = isDevMode,
             onProfileClick = onSwitchRoleClick
         )
 
-        AssignedOutletCard()
+        AssignedOutletCard(
+            outletName = outlet?.name ?: "Belum ditugaskan",
+            address = outlet?.address ?: "Hubungi Owner untuk penugasan outlet",
+            isOpen = outlet?.isOpen ?: true,
+            isToggleEnabled = outlet != null && !uiState.isActionLoading,
+            onToggleOpenClick = { onEvent(OutletUiEvent.ToggleAssignedOutletOpen) }
+        )
 
-        SalesTargetCard()
+        SalesTargetCard(
+            revenueText = formatRupiah(revenue),
+            piecesText = "$pieces produk terjual",
+            targetPercentText = "$targetPct%"
+        )
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
@@ -80,27 +108,24 @@ fun OutletHomeScreen(
                     iconRes = R.drawable.ic_wallet,
                     iconTint = SBColor.Primary_550,
                     iconBg = SBColor.Primary_100,
-                    title = "Input penjualan",
-                    subtitle = "Catat penjualan hari ini"
+                    title = "Input laporan harian",
+                    subtitle = "Catat penjualan, pengeluaran & bahan rusak",
+                    onClick = onOpenReportTab
                 )
 
                 OutletActionItem(
-                    iconRes = R.drawable.ic_wallet,
-                    iconTint = SBColor.Primary_550,
-                    iconBg = SBColor.Primary_100,
-                    title = "Catat pengeluaran",
-                    subtitle = "Operasional dan kebutuhan outlet"
-                )
-
-                OutletActionItem(
-                    iconRes = R.drawable.ic_warning,
+                    iconRes = R.drawable.ic_box,
                     iconTint = SBColor.Warning_600,
                     iconBg = SBColor.Warning_100,
-                    title = "Laporkan stok rusak",
-                    subtitle = "Belum ada laporan hari ini"
+                    title = "Request tambahan stok",
+                    subtitle = "Ajukan permintaan stok ke Gudang Pusat",
+                    onClick = onOpenStockTab
                 )
 
-                OutletConfirmedStockItem()
+                OutletConfirmedStockItem(
+                    pendingCount = pendingConfirmCount,
+                    onClick = onOpenStockTab
+                )
             }
         }
     }
@@ -108,6 +133,8 @@ fun OutletHomeScreen(
 
 @Composable
 fun OutletHeaderMain(
+    staffFirstName: String,
+    initials: String,
     modifier: Modifier = Modifier,
     isDevMode: Boolean = false,
     onProfileClick: () -> Unit = {}
@@ -119,13 +146,13 @@ fun OutletHeaderMain(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = if (isDevMode) "Sabtu, 24 Mei • Mode DEV" else "Sabtu, 24 Mei",
+                text = if (isDevMode) "Staf Outlet • Mode DEV" else "Staf Outlet",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = SBColor.Grey_500
             )
             Text(
-                text = "Selamat bekerja, Dimas",
+                text = "Selamat bekerja, $staffFirstName",
                 fontSize = 25.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = SBColor.Grey_700
@@ -151,7 +178,7 @@ fun OutletHeaderMain(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (isDevMode) "DV" else "DP",
+                        text = initials,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = SBColor.Primary_500
@@ -163,7 +190,14 @@ fun OutletHeaderMain(
 }
 
 @Composable
-fun AssignedOutletCard(modifier: Modifier = Modifier) {
+fun AssignedOutletCard(
+    outletName: String,
+    address: String,
+    isOpen: Boolean,
+    isToggleEnabled: Boolean,
+    onToggleOpenClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     OutlinedCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -196,19 +230,22 @@ fun AssignedOutletCard(modifier: Modifier = Modifier) {
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(text = "Outlet ditugaskan", fontSize = 12.sp, color = SBColor.Grey_500)
-                Text(text = "Sudirman", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
-                Text(text = "Jl. Jenderal Sudirman No. 18", fontSize = 12.sp, color = SBColor.Grey_500)
+                Text(text = outletName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                Text(text = address, fontSize = 12.sp, color = SBColor.Grey_500)
             }
             Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = SBColor.Success_100
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = isToggleEnabled, onClick = onToggleOpenClick),
+                shape = RoundedCornerShape(8.dp),
+                color = if (isOpen) SBColor.Success_100 else SBColor.Grey_100
             ) {
                 Text(
-                    text = "Buka",
+                    text = if (isOpen) "Buka ▾" else "Tutup ▾",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SBColor.Success_600,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    color = if (isOpen) SBColor.Success_600 else SBColor.Grey_600,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
         }
@@ -216,7 +253,12 @@ fun AssignedOutletCard(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun SalesTargetCard(modifier: Modifier = Modifier) {
+fun SalesTargetCard(
+    revenueText: String,
+    piecesText: String,
+    targetPercentText: String,
+    modifier: Modifier = Modifier
+) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -233,9 +275,9 @@ fun SalesTargetCard(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(text = "Penjualan sementara", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
-                Text(text = "Rp1.860.000", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                Text(text = "372 produk terjual", fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
+                Text(text = "Penjualan terakhir", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                Text(text = revenueText, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text(text = piecesText, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
             }
 
             Box(
@@ -253,7 +295,7 @@ fun SalesTargetCard(modifier: Modifier = Modifier) {
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "74%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = targetPercentText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         Text(text = "target", fontSize = 9.sp, color = Color.White.copy(alpha = 0.85f))
                     }
                 }
@@ -318,15 +360,19 @@ fun OutletActionItem(
 
 @Composable
 fun OutletConfirmedStockItem(
+    pendingCount: Int,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
+    val hasPending = pendingCount > 0
     OutlinedCard(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = SBColor.Success_100),
-        border = BorderStroke(1.dp, SBColor.Success_300)
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (hasPending) SBColor.Warning_100 else SBColor.Success_100
+        ),
+        border = BorderStroke(1.dp, if (hasPending) SBColor.Warning_600.copy(alpha = 0.3f) else SBColor.Success_300)
     ) {
         Row(
             modifier = Modifier
@@ -342,9 +388,9 @@ fun OutletConfirmedStockItem(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        painter = painterResource(R.drawable.arrow_up),
+                        painter = painterResource(if (hasPending) R.drawable.ic_truck else R.drawable.arrow_up),
                         contentDescription = null,
-                        tint = SBColor.Success_600,
+                        tint = if (hasPending) SBColor.Warning_600 else SBColor.Success_600,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -354,37 +400,23 @@ fun OutletConfirmedStockItem(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = "Stok awal sudah dikonfirmasi",
+                    text = if (hasPending) "$pendingCount pengiriman menunggu konfirmasi" else "Semua pengiriman sudah dikonfirmasi",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = SBColor.Success_600
+                    color = if (hasPending) SBColor.Warning_600 else SBColor.Success_600
                 )
                 Text(
-                    text = "1.250 pcs • dikonfirmasi 07.12",
+                    text = if (hasPending) "Ketuk untuk konfirmasi penerimaan stok" else "Lihat riwayat distribusi & request stok",
                     fontSize = 12.sp,
-                    color = SBColor.Success_500
+                    color = if (hasPending) SBColor.Warning_600.copy(alpha = 0.85f) else SBColor.Success_500
                 )
             }
             Icon(
                 painter = painterResource(R.drawable.ic_chevron_right),
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
-                tint = SBColor.Success_600
+                tint = if (hasPending) SBColor.Warning_600 else SBColor.Success_600
             )
         }
-    }
-}
-
-@Preview(showSystemUi = true, showBackground = true)
-@Composable
-private fun PreviewOutletHome() {
-    val navController = rememberNavController()
-    Scaffold(
-        modifier = Modifier.fillMaxSize()
-    ) { innerPadding ->
-        OutletHomeScreen(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding)
-        )
     }
 }

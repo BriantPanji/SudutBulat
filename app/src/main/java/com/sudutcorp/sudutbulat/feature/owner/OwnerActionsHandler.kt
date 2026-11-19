@@ -18,9 +18,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.Locale
 
+private fun Throwable.readableMessage(): String =
+    localizedMessage?.takeIf { it.isNotBlank() } ?: javaClass.simpleName
+
 /**
- * Handles validation, optimistic state updates, and Firestore/Auth write operations
- * for Owner CRUD flows (outlets, users/staff, and catalog items).
+ * Handles validation and verified Firestore/Auth write operations for Owner CRUD flows
+ * (outlets, users/staff, and catalog items). Never fakes local success when backend writes fail.
  */
 class OwnerActionsHandler(
     private val outletRepository: OutletRepository,
@@ -34,17 +37,25 @@ class OwnerActionsHandler(
     suspend fun toggleOutletOpenStatus(outletId: String) {
         val currentOutlet = state.value.outletItems.firstOrNull { it.id == outletId } ?: return
         val newOpen = !currentOutlet.isOpen
-        state.update { current ->
-            val updated = current.outlets.ifEmpty { defaultSeededOutlets() }.map {
-                if (it.id == outletId) it.copy(isOpen = newOpen) else it
-            }
-            computeOwnerDerivedState(current.copy(outlets = updated))
-        }
+
         outletRepository.setOutletOpen(outletId, newOpen)
+            .onSuccess {
+                state.update { current ->
+                    val updated = current.outlets.map {
+                        if (it.id == outletId) it.copy(isOpen = newOpen) else it
+                    }
+                    computeOwnerDerivedState(current.copy(outlets = updated))
+                }
+                val label = if (newOpen) "Buka" else "Tutup"
+                effects.send(OwnerUiEffect.ShowSnackbar("Status ${currentOutlet.displayName} diubah ke $label."))
+            }
+            .onFailure { e ->
+                effects.send(OwnerUiEffect.ShowSnackbar("Gagal mengubah status outlet: ${e.readableMessage()}"))
+            }
     }
 
     suspend fun assignStaffToOutlet(outletId: String, selectedStaffIds: Set<String>) {
-        val baseUsers = state.value.users.ifEmpty { defaultSeededUsers() }
+        val baseUsers = state.value.users
         val previouslyAssigned = baseUsers
             .filter { it.role == Role.OUTLET && it.outletId == outletId }
             .map { it.id }
@@ -53,43 +64,61 @@ class OwnerActionsHandler(
         val newlyAdded = selectedStaffIds - previouslyAssigned
         val removed = previouslyAssigned - selectedStaffIds
 
-        state.update { current ->
-            val updatedUsers = current.users.ifEmpty { defaultSeededUsers() }.map { user ->
-                when (user.id) {
-                    in newlyAdded -> user.copy(outletId = outletId)
-                    in removed -> user.copy(outletId = null)
-                    else -> user
+        userRepository.updateOutletStaffAssignments(
+            outletId = outletId,
+            addUserIds = newlyAdded.toList(),
+            removeUserIds = removed.toList()
+        ).onSuccess {
+            state.update { current ->
+                val updatedUsers = current.users.map { user ->
+                    when (user.id) {
+                        in newlyAdded -> user.copy(outletId = outletId)
+                        in removed -> user.copy(outletId = null)
+                        else -> user
+                    }
                 }
+                computeOwnerDerivedState(current.copy(users = updatedUsers))
             }
-            computeOwnerDerivedState(current.copy(users = updatedUsers))
+            effects.send(OwnerUiEffect.ShowSnackbar("Penugasan staf berhasil disimpan."))
+        }.onFailure { e ->
+            effects.send(OwnerUiEffect.ShowSnackbar("Gagal menyimpan penugasan staf: ${e.readableMessage()}"))
         }
-
-        if (newlyAdded.isNotEmpty()) {
-            userRepository.assignUsersToOutlet(newlyAdded.toList(), outletId)
-        }
-        removed.forEach { uid -> userRepository.setUserOutlet(uid, null) }
     }
 
     suspend fun reassignSingleStaffOutlet(userId: String, outletId: String?) {
-        state.update { current ->
-            val updated = current.users.ifEmpty { defaultSeededUsers() }.map {
-                if (it.id == userId) it.copy(outletId = outletId) else it
-            }
-            computeOwnerDerivedState(current.copy(users = updated))
-        }
         userRepository.setUserOutlet(userId, outletId)
+            .onSuccess {
+                state.update { current ->
+                    val updated = current.users.map {
+                        if (it.id == userId) it.copy(outletId = outletId) else it
+                    }
+                    computeOwnerDerivedState(current.copy(users = updated))
+                }
+                effects.send(OwnerUiEffect.ShowSnackbar("Outlet penugasan staf berhasil diperbarui."))
+            }
+            .onFailure { e ->
+                effects.send(OwnerUiEffect.ShowSnackbar("Gagal memperbarui outlet staf: ${e.readableMessage()}"))
+            }
     }
 
     suspend fun toggleUserActive(userId: String) {
-        val target = state.value.users.ifEmpty { defaultSeededUsers() }.firstOrNull { it.id == userId } ?: return
+        val target = state.value.users.firstOrNull { it.id == userId } ?: return
         val newActive = !target.isActive
-        state.update { current ->
-            val updated = current.users.ifEmpty { defaultSeededUsers() }.map {
-                if (it.id == userId) it.copy(isActive = newActive) else it
-            }
-            computeOwnerDerivedState(current.copy(users = updated))
-        }
+
         userRepository.setUserActive(userId, newActive)
+            .onSuccess {
+                state.update { current ->
+                    val updated = current.users.map {
+                        if (it.id == userId) it.copy(isActive = newActive) else it
+                    }
+                    computeOwnerDerivedState(current.copy(users = updated))
+                }
+                val statusText = if (newActive) "diaktifkan" else "dinonaktifkan"
+                effects.send(OwnerUiEffect.ShowSnackbar("Akun ${target.name} berhasil $statusText."))
+            }
+            .onFailure { e ->
+                effects.send(OwnerUiEffect.ShowSnackbar("Gagal mengubah status akun: ${e.readableMessage()}"))
+            }
     }
 
     suspend fun submitNewOutlet() {
@@ -126,22 +155,38 @@ class OwnerActionsHandler(
             dailyTarget = form.dailyTargetInput.toLongOrNull() ?: 2_000_000L
         )
 
+        val saveResult = outletRepository.saveOutlet(newOutlet)
+        if (saveResult.isFailure) {
+            val msg = "Gagal menyimpan outlet ke Firestore: ${saveResult.exceptionOrNull()?.readableMessage()}"
+            state.update { it.copy(addOutletForm = form.copy(isSaving = false, errorMessage = msg)) }
+            effects.send(OwnerUiEffect.ShowSnackbar(msg))
+            return
+        }
+
+        val savedId = saveResult.getOrNull().orEmpty().ifBlank { newOutlet.id }
+        val persistedOutlet = newOutlet.copy(id = savedId)
+
+        if (form.selectedStaffIds.isNotEmpty()) {
+            val assignResult = userRepository.assignUsersToOutlet(form.selectedStaffIds.toList(), savedId)
+            if (assignResult.isFailure) {
+                val msg = "Outlet tersimpan, tetapi penugasan staf gagal: ${assignResult.exceptionOrNull()?.readableMessage()}"
+                state.update { it.copy(addOutletForm = form.copy(isSaving = false, errorMessage = msg)) }
+                effects.send(OwnerUiEffect.ShowSnackbar(msg))
+                return
+            }
+        }
+
         state.update { current ->
-            val baseOutlets = current.outlets.ifEmpty { defaultSeededOutlets() }
-            val updatedOutlets = baseOutlets.filterNot { it.id == newOutlet.id } + newOutlet
-            val updatedUsers = current.users.ifEmpty { defaultSeededUsers() }.map { u ->
-                if (u.id in form.selectedStaffIds) u.copy(outletId = newOutlet.id) else u
+            val updatedOutlets = current.outlets.filterNot { it.id == persistedOutlet.id } + persistedOutlet
+            val updatedUsers = current.users.map { u ->
+                if (u.id in form.selectedStaffIds) u.copy(outletId = persistedOutlet.id) else u
             }
             computeOwnerDerivedState(
                 current.copy(outlets = updatedOutlets, users = updatedUsers, addOutletForm = AddOutletFormState())
             )
         }
 
-        val savedId = outletRepository.saveOutlet(newOutlet).getOrNull() ?: newOutlet.id
-        if (form.selectedStaffIds.isNotEmpty()) {
-            userRepository.assignUsersToOutlet(form.selectedStaffIds.toList(), savedId)
-        }
-        effects.send(OwnerUiEffect.ShowSnackbar("Outlet ${newOutlet.name} berhasil disimpan."))
+        effects.send(OwnerUiEffect.ShowSnackbar("Outlet ${persistedOutlet.name} berhasil disimpan."))
         effects.send(OwnerUiEffect.NavigateBack)
     }
 
@@ -172,6 +217,15 @@ class OwnerActionsHandler(
             .ifBlank { "user_${System.currentTimeMillis()}" }
         val prefix = if (form.selectedRole == Role.WAREHOUSE) "gudang" else "staff"
 
+        val authResult = authRepository.registerUserAccount(normalizedEmail, form.password)
+        if (authResult.isFailure) {
+            val msg = "Gagal membuat akun Auth: ${authResult.exceptionOrNull()?.readableMessage()}"
+            state.update { it.copy(addUserForm = form.copy(isSaving = false, errorMessage = msg)) }
+            effects.send(OwnerUiEffect.ShowSnackbar(msg))
+            return
+        }
+
+        val authUid = authResult.getOrNull()
         val newUser = User(
             id = "${prefix}_$slug",
             name = cleanName,
@@ -179,11 +233,20 @@ class OwnerActionsHandler(
             username = slug,
             role = form.selectedRole,
             outletId = if (form.selectedRole == Role.OUTLET) form.selectedOutletId else null,
-            isActive = true
+            isActive = true,
+            authUid = authUid
         )
 
+        val saveResult = userRepository.saveUser(newUser)
+        if (saveResult.isFailure) {
+            val msg = "Akun Auth dibuat, tetapi gagal simpan profil ke Firestore: ${saveResult.exceptionOrNull()?.readableMessage()}"
+            state.update { it.copy(addUserForm = form.copy(isSaving = false, errorMessage = msg)) }
+            effects.send(OwnerUiEffect.ShowSnackbar(msg))
+            return
+        }
+
         state.update { current ->
-            val updated = current.users.ifEmpty { defaultSeededUsers() }.filterNot { it.id == newUser.id } + newUser
+            val updated = current.users.filterNot { it.id == newUser.id } + newUser
             computeOwnerDerivedState(
                 current.copy(
                     users = updated,
@@ -192,9 +255,7 @@ class OwnerActionsHandler(
             )
         }
 
-        authRepository.registerUserAccount(normalizedEmail, form.password)
-        userRepository.saveUser(newUser)
-        effects.send(OwnerUiEffect.ShowSnackbar("Akun ${newUser.name} berhasil dibuat."))
+        effects.send(OwnerUiEffect.ShowSnackbar("Akun ${newUser.name} berhasil dibuat (kode: ${newUser.id})."))
         effects.send(OwnerUiEffect.NavigateBack)
     }
 
@@ -209,22 +270,96 @@ class OwnerActionsHandler(
         state.update { it.copy(addCatalogForm = form.copy(isSaving = true, errorMessage = null)) }
         val priceOrCost = form.priceOrCostInput.toLongOrNull() ?: 0L
         val slug = cleanName.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "_").trim('_')
+            .ifBlank { "${System.currentTimeMillis()}" }
+        val isEdit = !form.editingItemId.isNullOrBlank()
 
         if (form.isProduct) {
-            val newProduct = Product("prod_$slug", cleanName, priceOrCost, true)
-            state.update { current ->
-                val updated = current.products.ifEmpty { defaultSeededProducts() }.filterNot { it.id == newProduct.id } + newProduct
-                computeOwnerDerivedState(current.copy(products = updated, addCatalogForm = AddCatalogItemFormState(isProduct = true)))
+            val product = Product(
+                id = form.editingItemId ?: "prod_$slug",
+                name = cleanName,
+                price = priceOrCost,
+                isActive = form.isActive
+            )
+            val result: Result<Any> = if (isEdit) {
+                productRepository.updateProduct(product)
+            } else {
+                productRepository.saveProduct(product)
             }
-            productRepository.saveProduct(newProduct)
+            if (result.isFailure) {
+                val msg = "Gagal menyimpan produk: ${result.exceptionOrNull()?.readableMessage()}"
+                state.update { it.copy(addCatalogForm = form.copy(isSaving = false, errorMessage = msg)) }
+                effects.send(OwnerUiEffect.ShowSnackbar(msg))
+                return
+            }
+            state.update { current ->
+                val updated = current.products.filterNot { it.id == product.id } + product
+                computeOwnerDerivedState(
+                    current.copy(products = updated, addCatalogForm = AddCatalogItemFormState(isProduct = true))
+                )
+            }
         } else {
-            val newMaterial = Material("mat_$slug", cleanName, priceOrCost, form.unit)
-            state.update { current ->
-                val updated = current.materials.ifEmpty { defaultSeededMaterials() }.filterNot { it.id == newMaterial.id } + newMaterial
-                computeOwnerDerivedState(current.copy(materials = updated, addCatalogForm = AddCatalogItemFormState(isProduct = false)))
+            val material = Material(
+                id = form.editingItemId ?: "mat_$slug",
+                name = cleanName,
+                cost = priceOrCost,
+                unit = form.unit,
+                isActive = form.isActive
+            )
+            val result: Result<Any> = if (isEdit) {
+                materialRepository.updateMaterial(material)
+            } else {
+                materialRepository.saveMaterial(material)
             }
-            materialRepository.saveMaterial(newMaterial)
+            if (result.isFailure) {
+                val msg = "Gagal menyimpan material: ${result.exceptionOrNull()?.readableMessage()}"
+                state.update { it.copy(addCatalogForm = form.copy(isSaving = false, errorMessage = msg)) }
+                effects.send(OwnerUiEffect.ShowSnackbar(msg))
+                return
+            }
+            state.update { current ->
+                val updated = current.materials.filterNot { it.id == material.id } + material
+                computeOwnerDerivedState(
+                    current.copy(materials = updated, addCatalogForm = AddCatalogItemFormState(isProduct = false))
+                )
+            }
         }
-        effects.send(OwnerUiEffect.ShowSnackbar("Barang $cleanName berhasil ditambahkan ke katalog."))
+
+        val actionWord = if (isEdit) "diperbarui" else "ditambahkan ke katalog"
+        effects.send(OwnerUiEffect.ShowSnackbar("Barang $cleanName berhasil $actionWord."))
+        effects.send(OwnerUiEffect.CatalogSaved)
+    }
+
+    suspend fun toggleCatalogItemActive(item: CatalogItemUi) {
+        val nextActive = !item.isActive
+        val result = if (item.isProduct) {
+            productRepository.setProductActive(item.id, nextActive)
+        } else {
+            materialRepository.setMaterialActive(item.id, nextActive)
+        }
+
+        result.onSuccess {
+            state.update { current ->
+                if (item.isProduct) {
+                    val updated = current.products.map {
+                        if (it.id == item.id) it.copy(isActive = nextActive) else it
+                    }
+                    computeOwnerDerivedState(current.copy(products = updated))
+                } else {
+                    val updated = current.materials.map {
+                        if (it.id == item.id) it.copy(isActive = nextActive) else it
+                    }
+                    computeOwnerDerivedState(current.copy(materials = updated))
+                }
+            }
+            val label = when {
+                item.isProduct && nextActive -> "kembali dijual"
+                item.isProduct -> "dihentikan penjualannya"
+                nextActive -> "kembali dipakai"
+                else -> "dihentikan pemakaiannya"
+            }
+            effects.send(OwnerUiEffect.ShowSnackbar("${item.name} $label."))
+        }.onFailure { e ->
+            effects.send(OwnerUiEffect.ShowSnackbar("Gagal mengubah status ${item.name}: ${e.readableMessage()}"))
+        }
     }
 }

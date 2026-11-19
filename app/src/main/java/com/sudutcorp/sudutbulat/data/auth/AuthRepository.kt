@@ -2,7 +2,10 @@ package com.sudutcorp.sudutbulat.data.auth
 
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Source
@@ -10,7 +13,7 @@ import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.remote.FirestoreCollections
 import kotlinx.coroutines.tasks.await
 
-class AuthRepository(
+open class AuthRepository(
     firebaseAuth: FirebaseAuth? = null,
     firestore: FirebaseFirestore? = null
 ) {
@@ -38,6 +41,10 @@ class AuthRepository(
 
     fun getCurrentUserEmail(): String? {
         return activeSessionEmail ?: auth?.currentUser?.email
+    }
+
+    fun getCurrentUserUid(): String? {
+        return auth?.currentUser?.uid
     }
 
     fun getInitialRole(): Role {
@@ -324,10 +331,11 @@ class AuthRepository(
      * Creates a new Firebase Auth account using a secondary FirebaseApp instance so the
      * currently signed-in Owner session is never replaced or signed out.
      */
-    suspend fun registerUserAccount(email: String, password: String): Result<String?> = runCatching {
+    open suspend fun registerUserAccount(email: String, password: String): Result<String> = runCatching {
         val cleanEmail = email.trim().lowercase()
-        if (!isEmail(cleanEmail)) return@runCatching null
-        val primaryApp = runCatching { FirebaseApp.getInstance() }.getOrNull() ?: return@runCatching null
+        require(isEmail(cleanEmail)) { "Format email tidak valid: $cleanEmail" }
+        val primaryApp = runCatching { FirebaseApp.getInstance() }.getOrNull()
+            ?: throw IllegalStateException("Firebase belum terinisialisasi.")
         val secondaryAppName = "SecondaryRegistrationApp"
         val secondaryApp = runCatching { FirebaseApp.getInstance(secondaryAppName) }.getOrElse {
             FirebaseApp.initializeApp(primaryApp.applicationContext, primaryApp.options, secondaryAppName)
@@ -335,13 +343,35 @@ class AuthRepository(
         val secondaryAuth = FirebaseAuth.getInstance(secondaryApp)
         try {
             val result = secondaryAuth.createUserWithEmailAndPassword(cleanEmail, password).await()
-            val uid = result.user?.uid
-            secondaryAuth.signOut()
+            val uid = result.user?.uid ?: throw IllegalStateException("UID akun baru tidak diterima dari Firebase Auth.")
             uid
-        } catch (e: Exception) {
-            // shortcut: if offline or email already exists in Firebase Auth, still allow saving the Firestore user record
-            secondaryAuth.signOut()
-            null
+        } catch (e: FirebaseAuthUserCollisionException) {
+            throw IllegalStateException("Email $cleanEmail sudah terdaftar di Firebase Auth.", e)
+        } catch (e: FirebaseAuthWeakPasswordException) {
+            throw IllegalArgumentException("Kata sandi terlalu lemah (minimal 6 karakter).", e)
+        } catch (e: FirebaseNetworkException) {
+            throw IllegalStateException("Gagal menghubungi Firebase Auth. Periksa koneksi internet Anda.", e)
+        } finally {
+            runCatching { secondaryAuth.signOut() }
         }
+    }
+
+    open suspend fun sendPasswordResetEmail(email: String): Result<Unit> = runCatching {
+        val cleanEmail = email.trim().lowercase()
+        require(isEmail(cleanEmail)) { "Masukkan alamat email yang valid." }
+        val currentAuth = auth ?: throw IllegalStateException("Layanan autentikasi tidak tersedia.")
+        currentAuth.sendPasswordResetEmail(cleanEmail).await()
+    }
+
+    open suspend fun updatePassword(currentPassword: String, newPassword: String): Result<Unit> = runCatching {
+        require(currentPassword.isNotBlank()) { "Kata sandi saat ini wajib diisi." }
+        require(newPassword.length >= 6) { "Kata sandi baru minimal 6 karakter." }
+        val currentUser = auth?.currentUser
+            ?: throw IllegalStateException("Sesi Firebase Auth tidak aktif. Silakan login ulang.")
+        val email = currentUser.email
+            ?: throw IllegalStateException("Email akun tidak ditemukan.")
+        val credential = EmailAuthProvider.getCredential(email, currentPassword)
+        currentUser.reauthenticate(credential).await()
+        currentUser.updatePassword(newPassword).await()
     }
 }

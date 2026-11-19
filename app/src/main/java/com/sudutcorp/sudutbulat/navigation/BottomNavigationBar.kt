@@ -53,11 +53,18 @@ import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.ui.theme.SudutBulatTheme
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionScreen
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEffect
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEvent
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiState
 import com.sudutcorp.sudutbulat.feature.home.HomeScreen
 import com.sudutcorp.sudutbulat.feature.home.OutletHomeScreen
 import com.sudutcorp.sudutbulat.feature.home.WarehouseHomeScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEffect
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEvent
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiState
 import com.sudutcorp.sudutbulat.feature.owner.OutletTabMode
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
@@ -67,6 +74,8 @@ import com.sudutcorp.sudutbulat.feature.report.OwnerReportScreen
 import com.sudutcorp.sudutbulat.feature.report.defaultReportPeriodSummary
 import com.sudutcorp.sudutbulat.feature.stock.GudangStockScreen
 import com.sudutcorp.sudutbulat.feature.stock.OutletStockScreen
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 data class NavItem(
     val title: String,
@@ -82,8 +91,17 @@ fun getNavItemsForRole(
     isDevAccount: Boolean = false,
     onOpenRoleSwitcher: () -> Unit = {},
     ownerUiState: OwnerUiState = OwnerUiState(),
+    ownerEffects: Flow<OwnerUiEffect> = emptyFlow(),
     reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
     onOwnerEvent: (OwnerUiEvent) -> Unit = {},
+    warehouseUiState: WarehouseUiState = WarehouseUiState(),
+    warehouseEffects: Flow<WarehouseUiEffect> = emptyFlow(),
+    onWarehouseEvent: (WarehouseUiEvent) -> Unit = {},
+    outletUiState: OutletUiState = OutletUiState(),
+    outletEffects: Flow<OutletUiEffect> = emptyFlow(),
+    onOutletEvent: (OutletUiEvent) -> Unit = {},
+    onUpdatePassword: suspend (String, String) -> Result<Unit> = { _, _ -> Result.failure(IllegalStateException("Tidak tersedia")) },
+    onShowMessage: (String) -> Unit = {},
     onSelectTab: (Int) -> Unit = {}
 ): List<NavItem> {
     return when (role) {
@@ -176,25 +194,43 @@ fun getNavItemsForRole(
                     },
                     onNavigateToCatalog = {
                         nav.navigateSingle(OwnerSubRoutes.Catalog)
-                    }
+                    },
+                    onUpdatePassword = onUpdatePassword,
+                    onPasswordUpdated = onShowMessage
                 )
             }
         )
         Role.WAREHOUSE -> listOf(
             NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home) { nav, _ ->
-                WarehouseHomeScreen(navController = nav, isDevMode = isDevAccount, onSwitchRoleClick = onOpenRoleSwitcher)
+                WarehouseHomeScreen(
+                    navController = nav,
+                    uiState = warehouseUiState,
+                    effects = warehouseEffects,
+                    onEvent = onWarehouseEvent,
+                    isDevMode = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    onOpenCatalogTab = { onSelectTab(1) },
+                    onOpenDistributionTab = { onSelectTab(2) }
+                )
             },
             NavItem("Stok", R.drawable.ic_box, listOf(Role.WAREHOUSE), TabRoutes.GudangStock) { nav, _ ->
                 GudangStockScreen(
                     navController = nav,
                     uiState = ownerUiState,
+                    effects = ownerEffects,
                     onEvent = onOwnerEvent,
                     roleEyebrow = "Admin Gudang",
                     initials = if (isDevAccount) "DV" else "BS"
                 )
             },
             NavItem("Distribusi", R.drawable.ic_truck, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ ->
-                DistributionScreen(nav)
+                DistributionScreen(
+                    navController = nav,
+                    uiState = warehouseUiState,
+                    effects = warehouseEffects,
+                    onEvent = onWarehouseEvent,
+                    initials = if (isDevAccount) "DV" else "BS"
+                )
             },
             NavItem("Profil", R.drawable.ic_user, listOf(Role.WAREHOUSE), TabRoutes.Profile) { nav, onLogout ->
                 ProfileScreen(
@@ -207,19 +243,38 @@ fun getNavItemsForRole(
                     ownerUiState = ownerUiState,
                     onNavigateToNotifications = {
                         nav.navigateSingle(OwnerSubRoutes.Notification)
-                    }
+                    },
+                    onUpdatePassword = onUpdatePassword,
+                    onPasswordUpdated = onShowMessage
                 )
             }
         )
         Role.OUTLET -> listOf(
             NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home) { nav, _ ->
-                OutletHomeScreen(navController = nav, isDevMode = isDevAccount, onSwitchRoleClick = onOpenRoleSwitcher)
+                OutletHomeScreen(
+                    navController = nav,
+                    uiState = outletUiState,
+                    onEvent = onOutletEvent,
+                    isDevMode = isDevAccount,
+                    onSwitchRoleClick = onOpenRoleSwitcher,
+                    onOpenStockTab = { onSelectTab(1) },
+                    onOpenReportTab = { onSelectTab(2) }
+                )
             },
             NavItem("Stok", R.drawable.ic_box, listOf(Role.OUTLET), TabRoutes.OutletStock) { nav, _ ->
-                OutletStockScreen(nav)
+                OutletStockScreen(
+                    navController = nav,
+                    uiState = outletUiState,
+                    effects = outletEffects,
+                    onEvent = onOutletEvent
+                )
             },
             NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OUTLET), TabRoutes.OutletReport) { nav, _ ->
-                OutletReportScreen(nav)
+                OutletReportScreen(
+                    navController = nav,
+                    uiState = outletUiState,
+                    onEvent = onOutletEvent
+                )
             },
             NavItem("Profil", R.drawable.ic_user, listOf(Role.OUTLET), TabRoutes.Profile) { nav, onLogout ->
                 ProfileScreen(
@@ -232,7 +287,9 @@ fun getNavItemsForRole(
                     ownerUiState = ownerUiState,
                     onNavigateToNotifications = {
                         nav.navigateSingle(OwnerSubRoutes.Notification)
-                    }
+                    },
+                    onUpdatePassword = onUpdatePassword,
+                    onPasswordUpdated = onShowMessage
                 )
             }
         )

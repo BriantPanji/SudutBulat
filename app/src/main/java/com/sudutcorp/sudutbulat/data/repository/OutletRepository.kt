@@ -42,4 +42,18 @@ class OutletRepository(
     suspend fun setOutletOpen(outletId: String, isOpen: Boolean): Result<Unit> {
         return remoteDataSource.setOutletOpen(outletId, isOpen)
     }
+
+    suspend fun updateOutletDailySummary(
+        outletId: String,
+        totalRevenue: Long,
+        totalPiecesSold: Int,
+        targetPercentage: Float
+    ): Result<Unit> {
+        return remoteDataSource.updateOutletDailySummary(
+            outletId = outletId,
+            totalRevenue = totalRevenue,
+            totalPiecesSold = totalPiecesSold,
+            targetPercentage = targetPercentage
+        )
+    }
 }

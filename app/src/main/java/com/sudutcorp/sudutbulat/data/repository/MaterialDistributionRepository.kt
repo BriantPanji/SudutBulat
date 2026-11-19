@@ -42,6 +42,10 @@ class MaterialDistributionRepository(
         return remoteDataSource.getDistributionItemsFlow(distributionId)
     }
 
+    fun getAllDistributionItemsFlow(): Flow<List<MaterialDistributionItem>> {
+        return remoteDataSource.getAllDistributionItemsFlow()
+    }
+
     /**
      * Retrieves distribution header and its line items together.
      * Returns null if distribution with [distributionId] does not exist.

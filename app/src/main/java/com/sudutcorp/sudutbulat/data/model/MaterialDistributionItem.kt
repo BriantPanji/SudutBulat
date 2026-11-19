@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.data.model
 
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
 /**
@@ -44,6 +45,7 @@ data class MaterialDistributionItem(
      * Returns null if quantityReceived has not been set yet.
      * Can be negative if outlet received more than sent, or positive if received less.
      */
+    @get:Exclude
     val quantityDifference: Int?
         get() = quantityReceived?.let { quantitySent - it }
 }

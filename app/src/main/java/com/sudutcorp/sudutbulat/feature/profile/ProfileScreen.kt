@@ -15,15 +15,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,9 +61,15 @@ fun ProfileScreen(
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToAddUser: () -> Unit = {},
     onNavigateToOutletList: () -> Unit = {},
-    onNavigateToCatalog: () -> Unit = {}
+    onNavigateToCatalog: () -> Unit = {},
+    onUpdatePassword: suspend (currentPassword: String, newPassword: String) -> Result<Unit> = { _, _ ->
+        Result.failure(IllegalStateException("Layanan tidak tersedia."))
+    },
+    onPasswordUpdated: (String) -> Unit = {}
 ) {
     var showLogoutDialog by rememberSaveable { mutableStateOf(false) }
+    var showPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val roleLabel = if (isDevAccount) "Developer (${userRole.displayName})" else userRole.displayName
     val displayName = if (isDevAccount) {
@@ -197,7 +211,7 @@ fun ProfileScreen(
             ProfileMenuItem(
                 iconRes = R.drawable.ic_lock,
                 title = "Keamanan & kata sandi",
-                onClick = {}
+                onClick = { showPasswordDialog = true }
             )
             ProfileMenuItem(
                 iconRes = R.drawable.ic_logout,
@@ -223,6 +237,72 @@ fun ProfileScreen(
             onConfirm = {
                 showLogoutDialog = false
                 onLogout()
+            }
+        )
+    }
+
+    if (showPasswordDialog) {
+        var currentPw by remember { mutableStateOf("") }
+        var newPw by remember { mutableStateOf("") }
+        var isUpdating by remember { mutableStateOf(false) }
+        var errorMsg by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isUpdating) showPasswordDialog = false },
+            containerColor = Color.White,
+            title = { Text("Ubah kata sandi", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = currentPw,
+                        onValueChange = { currentPw = it; errorMsg = null },
+                        label = { Text("Kata sandi saat ini") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    OutlinedTextField(
+                        value = newPw,
+                        onValueChange = { newPw = it; errorMsg = null },
+                        label = { Text("Kata sandi baru (min. 6 karakter)") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    errorMsg?.let { err ->
+                        Text(err, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isUpdating,
+                    onClick = {
+                        coroutineScope.launch {
+                            isUpdating = true
+                            errorMsg = null
+                            onUpdatePassword(currentPw, newPw)
+                                .onSuccess {
+                                    isUpdating = false
+                                    showPasswordDialog = false
+                                    onPasswordUpdated("Kata sandi berhasil diperbarui.")
+                                }
+                                .onFailure { e ->
+                                    isUpdating = false
+                                    errorMsg = e.localizedMessage ?: "Gagal memperbarui kata sandi."
+                                }
+                        }
+                    }
+                ) {
+                    if (isUpdating) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Simpan", fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !isUpdating, onClick = { showPasswordDialog = false }) {
+                    Text("Batal")
+                }
             }
         )
     }

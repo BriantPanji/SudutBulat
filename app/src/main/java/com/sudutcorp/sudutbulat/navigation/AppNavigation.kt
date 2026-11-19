@@ -13,13 +13,19 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,22 +47,30 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.sudutcorp.sudutbulat.SudutBulatApplication
 import com.sudutcorp.sudutbulat.core.components.AIFab
+import com.sudutcorp.sudutbulat.core.components.SBSnackbar
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.DefaultAppContainer
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.auth.LoginScreen
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEffect
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
 import com.sudutcorp.sudutbulat.feature.home.WarehouseRoleBottomSheet
 import com.sudutcorp.sudutbulat.feature.notification.OwnerNotificationScreen
 import com.sudutcorp.sudutbulat.feature.outlet.AddOutletScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEffect
+import com.sudutcorp.sudutbulat.feature.outlet.OutletViewModel
 import com.sudutcorp.sudutbulat.feature.outlet.OwnerDetailOutletScreen
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
 import com.sudutcorp.sudutbulat.feature.report.OwnerDetailReportScreen
 import com.sudutcorp.sudutbulat.feature.stock.GudangStockScreen
 import com.sudutcorp.sudutbulat.feature.user.AddUserScreen
 import com.sudutcorp.sudutbulat.feature.user.OwnerDetailStaffScreen
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val SmoothSlideEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -207,7 +221,75 @@ fun MainScreen(
             authRepository = appContainer.authRepository
         )
     }
+    val warehouseViewModel = remember(appContainer) {
+        WarehouseViewModel(
+            outletRepository = appContainer.outletRepository,
+            materialRepository = appContainer.materialRepository,
+            distributionRepository = appContainer.materialDistributionRepository,
+            userRepository = appContainer.userRepository,
+            authRepository = appContainer.authRepository
+        )
+    }
+    val outletViewModel = remember(appContainer) {
+        OutletViewModel(
+            outletRepository = appContainer.outletRepository,
+            userRepository = appContainer.userRepository,
+            materialRepository = appContainer.materialRepository,
+            productRepository = appContainer.productRepository,
+            distributionRepository = appContainer.materialDistributionRepository,
+            dailyReportRepository = appContainer.dailyReportRepository,
+            authRepository = appContainer.authRepository
+        )
+    }
     val ownerUiState by ownerViewModel.state.collectAsStateWithLifecycle()
+    val warehouseUiState by warehouseViewModel.state.collectAsStateWithLifecycle()
+    val outletUiState by outletViewModel.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    var snackbarJob by remember { mutableStateOf<Job?>(null) }
+
+    val showQuickSnackbar: (String) -> Unit = { message ->
+        snackbarJob?.cancel()
+        snackbarHostState.currentSnackbarData?.dismiss()
+        val isError = message.startsWith("Gagal", ignoreCase = true) ||
+            message.contains("error", ignoreCase = true) ||
+            message.contains("PERMISSION_DENIED", ignoreCase = true)
+        val autoDismissMs = if (isError) 3_800L else 2_200L
+        snackbarJob = coroutineScope.launch {
+            launch {
+                delay(autoDismissMs)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Indefinite
+            )
+        }
+    }
+
+    LaunchedEffect(ownerViewModel, warehouseViewModel, outletViewModel) {
+        launch {
+            ownerViewModel.effects.collect { effect ->
+                if (effect is OwnerUiEffect.ShowSnackbar) {
+                    showQuickSnackbar(effect.message)
+                }
+            }
+        }
+        launch {
+            warehouseViewModel.effects.collect { effect ->
+                if (effect is WarehouseUiEffect.ShowSnackbar) {
+                    showQuickSnackbar(effect.message)
+                }
+            }
+        }
+        launch {
+            outletViewModel.effects.collect { effect ->
+                if (effect is OutletUiEffect.ShowSnackbar) {
+                    showQuickSnackbar(effect.message)
+                }
+            }
+        }
+    }
     val currentReportSummary = remember(
         ownerUiState.selectedReportPeriod,
         ownerUiState.expenses,
@@ -225,7 +307,6 @@ fun MainScreen(
 
     val nestedNavController = rememberNavController()
     val pagerState = rememberPagerState(initialPage = 0) { 4 }
-    val coroutineScope = rememberCoroutineScope()
 
     val onSelectTab: (Int) -> Unit = { tabIndex ->
         coroutineScope.launch {
@@ -233,11 +314,17 @@ fun MainScreen(
         }
     }
 
+    val onShowMessage: (String) -> Unit = { msg ->
+        showQuickSnackbar(msg)
+    }
+
     val navItems = remember(
         activeViewRole,
         userEmail,
         isDevAccount,
         ownerUiState,
+        warehouseUiState,
+        outletUiState,
         currentReportSummary
     ) {
         getNavItemsForRole(
@@ -248,16 +335,26 @@ fun MainScreen(
                 if (isDevAccount) showRoleBottomSheet = true
             },
             ownerUiState = ownerUiState,
+            ownerEffects = ownerViewModel.effects,
             reportSummary = currentReportSummary,
             onOwnerEvent = ownerViewModel::onEvent,
+            warehouseUiState = warehouseUiState,
+            warehouseEffects = warehouseViewModel.effects,
+            onWarehouseEvent = warehouseViewModel::onEvent,
+            outletUiState = outletUiState,
+            outletEffects = outletViewModel.effects,
+            onOutletEvent = outletViewModel::onEvent,
+            onUpdatePassword = appContainer.authRepository::updatePassword,
+            onShowMessage = onShowMessage,
             onSelectTab = onSelectTab
         )
     }
 
+    Box(modifier = modifier.fillMaxSize()) {
     NavHost(
         navController = nestedNavController,
         startDestination = OwnerSubRoutes.TabsRoot,
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         enterTransition = {
             slideInHorizontally(tween(300, easing = SmoothSlideEasing)) { it }
         },
@@ -333,8 +430,17 @@ fun MainScreen(
                             if (isDevAccount) showRoleBottomSheet = true
                         },
                         ownerUiState = ownerUiState,
+                        ownerEffects = ownerViewModel.effects,
                         reportSummary = currentReportSummary,
                         onOwnerEvent = ownerViewModel::onEvent,
+                        warehouseUiState = warehouseUiState,
+                        warehouseEffects = warehouseViewModel.effects,
+                        onWarehouseEvent = warehouseViewModel::onEvent,
+                        outletUiState = outletUiState,
+                        outletEffects = outletViewModel.effects,
+                        onOutletEvent = outletViewModel::onEvent,
+                        onUpdatePassword = appContainer.authRepository::updatePassword,
+                        onShowMessage = onShowMessage,
                         onSelectTab = onSelectTab
                     )
                     HorizontalPager(
@@ -463,6 +569,7 @@ fun MainScreen(
                 GudangStockScreen(
                     navController = nestedNavController,
                     uiState = ownerUiState,
+                    effects = ownerViewModel.effects,
                     onEvent = ownerViewModel::onEvent,
                     roleEyebrow = if (activeViewRole == Role.WAREHOUSE) "Admin Gudang" else "Owner",
                     initials = if (isDevAccount) "DV" else ownerUiState.ownerInitials,
@@ -499,5 +606,16 @@ fun MainScreen(
                 showRoleBottomSheet = false
             }
         )
+    }
+
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 76.dp)
+    ) { data ->
+        SBSnackbar(data = data)
+    }
     }
 }

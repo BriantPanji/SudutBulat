@@ -80,4 +80,8 @@ class AuthViewModel(
     fun resetState() {
         _uiState.update { AuthUiState() }
     }
+
+    suspend fun sendPasswordResetEmail(email: String): Result<Unit> {
+        return repository.sendPasswordResetEmail(email)
+    }
 }

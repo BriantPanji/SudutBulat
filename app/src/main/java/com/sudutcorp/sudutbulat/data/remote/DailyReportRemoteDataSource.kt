@@ -7,6 +7,11 @@ import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toDailyReport
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toDailyReportDamagedMaterial
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toDailyReportExpense
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toDailyReportProduct
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreMap
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -34,23 +39,26 @@ open class DailyReportRemoteDataSource(
     open fun getDailyReportsFlow(outletId: String? = null): Flow<List<DailyReport>> = callbackFlow {
         val col = dailyReportsCollection
         if (col == null) {
-            trySend(emptyList())
-            close()
+            close(IllegalStateException("Layanan Firestore tidak tersedia."))
             return@callbackFlow
         }
 
-        var query: Query = col
-        if (!outletId.isNullOrBlank()) {
-            query = query.whereEqualTo("outlet_id", outletId)
+        // Avoid requiring a composite index when filtering by outlet_id; sort client-side when filtered
+        val query: Query = if (!outletId.isNullOrBlank()) {
+            col.whereEqualTo("outlet_id", outletId)
+        } else {
+            col.orderBy("date", Query.Direction.DESCENDING)
         }
-        query = query.orderBy("date", Query.Direction.DESCENDING)
 
         val registration = query.addSnapshotListener { snapshot, error ->
             if (error != null) {
                 close(error)
                 return@addSnapshotListener
             }
-            val reports = snapshot?.toObjects(DailyReport::class.java) ?: emptyList()
+            val reports = snapshot?.documents
+                ?.map { it.toDailyReport() }
+                ?.sortedByDescending { it.date.seconds }
+                ?: emptyList()
             trySend(reports)
         }
 
@@ -59,27 +67,25 @@ open class DailyReportRemoteDataSource(
 
     open suspend fun getDailyReports(outletId: String? = null): Result<List<DailyReport>> = runCatching {
         val col = dailyReportsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
-        var query: Query = col
-        if (!outletId.isNullOrBlank()) {
-            query = query.whereEqualTo("outlet_id", outletId)
+        val query: Query = if (!outletId.isNullOrBlank()) {
+            col.whereEqualTo("outlet_id", outletId)
+        } else {
+            col.orderBy("date", Query.Direction.DESCENDING)
         }
-        query = query.orderBy("date", Query.Direction.DESCENDING)
-
         val snapshot = query.get().await()
-        snapshot.toObjects(DailyReport::class.java)
+        snapshot.documents.map { it.toDailyReport() }.sortedByDescending { it.date.seconds }
     }
 
     open suspend fun getDailyReportById(id: String): Result<DailyReport?> = runCatching {
         val col = dailyReportsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.document(id).get().await()
-        if (snapshot.exists()) snapshot.toObject(DailyReport::class.java) else null
+        if (snapshot.exists()) snapshot.toDailyReport() else null
     }
 
     open fun getDailyReportFlow(id: String): Flow<DailyReport?> = callbackFlow {
         val col = dailyReportsCollection
         if (col == null) {
-            trySend(null)
-            close()
+            close(IllegalStateException("Layanan Firestore tidak tersedia."))
             return@callbackFlow
         }
 
@@ -88,7 +94,7 @@ open class DailyReportRemoteDataSource(
                 close(error)
                 return@addSnapshotListener
             }
-            trySend(snapshot?.toObject(DailyReport::class.java))
+            trySend(snapshot?.takeIf { it.exists() }?.toDailyReport())
         }
 
         awaitClose { registration.remove() }
@@ -107,8 +113,7 @@ open class DailyReportRemoteDataSource(
             .get()
             .await()
 
-        val documents = snapshot.toObjects(DailyReport::class.java)
-        documents.firstOrNull()
+        snapshot.documents.firstOrNull()?.toDailyReport()
     }
 
     /**
@@ -128,27 +133,23 @@ open class DailyReportRemoteDataSource(
 
         val batch = firestore.batch()
 
-        val reportDoc = if (report.id.isNotBlank()) {
-            reportCol.document(report.id)
-        } else {
-            reportCol.document()
-        }
+        val reportDoc = if (report.id.isNotBlank()) reportCol.document(report.id) else reportCol.document()
         val reportToSave = if (report.id.isBlank()) report.copy(id = reportDoc.id) else report
-        batch.set(reportDoc, reportToSave)
+        batch.set(reportDoc, reportToSave.toFirestoreMap())
 
         products.forEach { prod ->
             val doc = if (prod.id.isNotBlank()) prodCol.document(prod.id) else prodCol.document()
-            batch.set(doc, prod.copy(id = doc.id, dailyReportId = reportDoc.id))
+            batch.set(doc, prod.copy(id = doc.id, dailyReportId = reportDoc.id).toFirestoreMap())
         }
 
         expenses.forEach { exp ->
             val doc = if (exp.id.isNotBlank()) expCol.document(exp.id) else expCol.document()
-            batch.set(doc, exp.copy(id = doc.id, dailyReportId = reportDoc.id))
+            batch.set(doc, exp.copy(id = doc.id, dailyReportId = reportDoc.id).toFirestoreMap())
         }
 
         damagedMaterials.forEach { dmg ->
             val doc = if (dmg.id.isNotBlank()) dmgCol.document(dmg.id) else dmgCol.document()
-            batch.set(doc, dmg.copy(id = doc.id, dailyReportId = reportDoc.id))
+            batch.set(doc, dmg.copy(id = doc.id, dailyReportId = reportDoc.id).toFirestoreMap())
         }
 
         batch.commit().await()
@@ -158,26 +159,26 @@ open class DailyReportRemoteDataSource(
     open suspend fun getDailyReportProducts(dailyReportId: String): Result<List<DailyReportProduct>> = runCatching {
         val col = reportProductsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.whereEqualTo("daily_report_id", dailyReportId).get().await()
-        snapshot.toObjects(DailyReportProduct::class.java)
+        snapshot.documents.map { it.toDailyReportProduct() }
     }
 
     open suspend fun getDailyReportExpenses(dailyReportId: String): Result<List<DailyReportExpense>> = runCatching {
         val col = reportExpensesCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.whereEqualTo("daily_report_id", dailyReportId).get().await()
-        snapshot.toObjects(DailyReportExpense::class.java)
+        snapshot.documents.map { it.toDailyReportExpense() }
     }
 
     open suspend fun getDailyReportDamagedMaterials(dailyReportId: String): Result<List<DailyReportDamagedMaterial>> = runCatching {
         val col = reportDamagedMaterialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val snapshot = col.whereEqualTo("daily_report_id", dailyReportId).get().await()
-        snapshot.toObjects(DailyReportDamagedMaterial::class.java)
+        snapshot.documents.map { it.toDailyReportDamagedMaterial() }
     }
 
     open suspend fun addExpense(expense: DailyReportExpense): Result<String> = runCatching {
         val col = reportExpensesCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val doc = if (expense.id.isNotBlank()) col.document(expense.id) else col.document()
         val dataToSave = if (expense.id.isBlank()) expense.copy(id = doc.id) else expense
-        doc.set(dataToSave).await()
+        doc.set(dataToSave.toFirestoreMap()).await()
         doc.id
     }
 
@@ -185,15 +186,14 @@ open class DailyReportRemoteDataSource(
         val col = reportDamagedMaterialsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val doc = if (damagedMaterial.id.isNotBlank()) col.document(damagedMaterial.id) else col.document()
         val dataToSave = if (damagedMaterial.id.isBlank()) damagedMaterial.copy(id = doc.id) else damagedMaterial
-        doc.set(dataToSave).await()
+        doc.set(dataToSave.toFirestoreMap()).await()
         doc.id
     }
 
     open fun getAllReportProductsFlow(): Flow<List<DailyReportProduct>> = callbackFlow {
         val col = reportProductsCollection
         if (col == null) {
-            trySend(emptyList())
-            close()
+            close(IllegalStateException("Layanan Firestore tidak tersedia."))
             return@callbackFlow
         }
         val registration = col.addSnapshotListener { snapshot, error ->
@@ -201,7 +201,7 @@ open class DailyReportRemoteDataSource(
                 close(error)
                 return@addSnapshotListener
             }
-            trySend(snapshot?.toObjects(DailyReportProduct::class.java) ?: emptyList())
+            trySend(snapshot?.documents?.map { it.toDailyReportProduct() } ?: emptyList())
         }
         awaitClose { registration.remove() }
     }
@@ -209,8 +209,7 @@ open class DailyReportRemoteDataSource(
     open fun getAllExpensesFlow(): Flow<List<DailyReportExpense>> = callbackFlow {
         val col = reportExpensesCollection
         if (col == null) {
-            trySend(emptyList())
-            close()
+            close(IllegalStateException("Layanan Firestore tidak tersedia."))
             return@callbackFlow
         }
         val registration = col.addSnapshotListener { snapshot, error ->
@@ -218,7 +217,7 @@ open class DailyReportRemoteDataSource(
                 close(error)
                 return@addSnapshotListener
             }
-            trySend(snapshot?.toObjects(DailyReportExpense::class.java) ?: emptyList())
+            trySend(snapshot?.documents?.map { it.toDailyReportExpense() } ?: emptyList())
         }
         awaitClose { registration.remove() }
     }
@@ -226,8 +225,7 @@ open class DailyReportRemoteDataSource(
     open fun getAllDamagedMaterialsFlow(): Flow<List<DailyReportDamagedMaterial>> = callbackFlow {
         val col = reportDamagedMaterialsCollection
         if (col == null) {
-            trySend(emptyList())
-            close()
+            close(IllegalStateException("Layanan Firestore tidak tersedia."))
             return@callbackFlow
         }
         val registration = col.addSnapshotListener { snapshot, error ->
@@ -235,7 +233,7 @@ open class DailyReportRemoteDataSource(
                 close(error)
                 return@addSnapshotListener
             }
-            trySend(snapshot?.toObjects(DailyReportDamagedMaterial::class.java) ?: emptyList())
+            trySend(snapshot?.documents?.map { it.toDailyReportDamagedMaterial() } ?: emptyList())
         }
         awaitClose { registration.remove() }
     }

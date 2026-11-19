@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -37,8 +38,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.withFrameNanos
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sudutcorp.sudutbulat.data.model.Role
@@ -95,6 +98,8 @@ fun LoginScreen(
     var loginFieldCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var passwordFieldCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var focusedField by remember { mutableStateOf<FocusedLoginField?>(null) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val imeBottomPx = WindowInsets.ime.getBottom(density)
     val latestImeBottomPx by rememberUpdatedState(imeBottomPx)
@@ -164,6 +169,7 @@ fun LoginScreen(
                         onLoginChange = viewModel::onLoginChanged,
                         onPasswordChange = viewModel::onPasswordChanged,
                         onSubmit = { viewModel.login(onSuccess = onLoginSuccess) },
+                        onForgotPasswordClick = { showResetDialog = true },
                         onLoginPositioned = { loginFieldCoords = it },
                         onPasswordPositioned = { passwordFieldCoords = it },
                         onLoginFocusChanged = { isFocused ->
@@ -190,6 +196,70 @@ fun LoginScreen(
             }
             LoginHeader(collapseFraction = collapseFraction)
         }
+    }
+
+    if (showResetDialog) {
+        var resetEmail by remember { mutableStateOf(uiState.loginInput.takeIf { it.contains("@") }.orEmpty()) }
+        var isSending by remember { mutableStateOf(false) }
+        var statusMessage by remember { mutableStateOf<String?>(null) }
+        var isError by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isSending) showResetDialog = false },
+            containerColor = Color.White,
+            title = { Text("Reset kata sandi", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Masukkan email akun untuk menerima tautan reset kata sandi.", fontSize = 13.sp, color = SBColor.Grey_600)
+                    OutlinedTextField(
+                        value = resetEmail,
+                        onValueChange = { resetEmail = it; statusMessage = null },
+                        label = { Text("Email") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                    )
+                    statusMessage?.let { msg ->
+                        Text(
+                            text = msg,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isError) MaterialTheme.colorScheme.error else SBColor.Success_600
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isSending,
+                    onClick = {
+                        coroutineScope.launch {
+                            isSending = true
+                            statusMessage = null
+                            viewModel.sendPasswordResetEmail(resetEmail)
+                                .onSuccess {
+                                    isSending = false
+                                    isError = false
+                                    statusMessage = "Tautan reset kata sandi telah dikirim ke $resetEmail."
+                                }
+                                .onFailure { e ->
+                                    isSending = false
+                                    isError = true
+                                    statusMessage = e.localizedMessage ?: "Gagal mengirim email reset."
+                                }
+                        }
+                    }
+                ) {
+                    if (isSending) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Kirim", fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !isSending, onClick = { showResetDialog = false }) { Text("Tutup") }
+            }
+        )
     }
 }
 
@@ -245,6 +315,7 @@ fun LoginFormSection(
     onPasswordChange: (String) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
+    onForgotPasswordClick: () -> Unit = {},
     onLoginPositioned: (LayoutCoordinates) -> Unit = {},
     onPasswordPositioned: (LayoutCoordinates) -> Unit = {},
     onLoginFocusChanged: (Boolean) -> Unit = {},
@@ -325,7 +396,7 @@ fun LoginFormSection(
                 )
             }
             Row(Modifier.fillMaxWidth().padding(0.dp), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = {}, contentPadding = PaddingValues(vertical = 0.dp, horizontal = 4.dp)) {
+                TextButton(onClick = onForgotPasswordClick, contentPadding = PaddingValues(vertical = 0.dp, horizontal = 4.dp)) {
                     Text("Lupa kata sandi?", color = SBColor.Primary_550, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }

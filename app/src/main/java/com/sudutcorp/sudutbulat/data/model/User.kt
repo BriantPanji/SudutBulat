@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.data.model
 
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
 /**
@@ -25,8 +26,11 @@ data class User(
 
     @get:PropertyName("is_active")
     @set:PropertyName("is_active")
-    var isActive: Boolean = true
+    var isActive: Boolean = true,
+
+    val authUid: String? = null
 ) {
     // Backwards-compatibility getter for uid
-    val uid: String get() = id
+    @get:Exclude
+    val uid: String get() = authUid ?: id
 }

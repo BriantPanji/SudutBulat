@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,12 +70,15 @@ import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi
 import com.sudutcorp.sudutbulat.feature.owner.CatalogTabMode
 import com.sudutcorp.sudutbulat.feature.owner.MaterialSortField
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ProductSortField
 import com.sudutcorp.sudutbulat.feature.owner.SortDirection
 import com.sudutcorp.sudutbulat.feature.owner.sortMaterialCatalogItems
 import com.sudutcorp.sudutbulat.feature.owner.sortProductCatalogItems
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,6 +86,7 @@ fun GudangStockScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     uiState: OwnerUiState = OwnerUiState(),
+    effects: Flow<OwnerUiEffect> = emptyFlow(),
     onEvent: (OwnerUiEvent) -> Unit = {},
     roleEyebrow: String = "Admin Gudang",
     initials: String = "AR",
@@ -90,6 +96,14 @@ fun GudangStockScreen(
     val focusManager = LocalFocusManager.current
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
     val thousandTransformation = remember { ThousandSeparatorVisualTransformation() }
+
+    LaunchedEffect(effects) {
+        effects.collect { effect ->
+            if (effect is OwnerUiEffect.CatalogSaved) {
+                showAddSheet = false
+            }
+        }
+    }
 
     val isProductTab = uiState.catalogTabMode == CatalogTabMode.PRODUCT
     val query = uiState.catalogSearchQuery.trim().lowercase()
@@ -272,7 +286,16 @@ fun GudangStockScreen(
             } else {
                 Column {
                     displayedItems.forEachIndexed { index, item ->
-                        CatalogInventoryRow(item = item)
+                        CatalogInventoryRow(
+                            item = item,
+                            onEditClick = {
+                                onEvent(OwnerUiEvent.StartEditCatalogItem(item))
+                                showAddSheet = true
+                            },
+                            onToggleActiveClick = {
+                                onEvent(OwnerUiEvent.ToggleCatalogItemActive(item))
+                            }
+                        )
                         if (index < displayedItems.lastIndex) {
                             HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
                         }
@@ -284,8 +307,9 @@ fun GudangStockScreen(
 
     if (showAddSheet) {
         val form = uiState.addCatalogForm
+        val isEditing = !form.editingItemId.isNullOrBlank()
         ModalBottomSheet(
-            onDismissRequest = { showAddSheet = false },
+            onDismissRequest = { if (!form.isSaving) showAddSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = Color.White,
             shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
@@ -298,14 +322,21 @@ fun GudangStockScreen(
                     .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text("Tambah barang katalog", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
-
-                SBSegmentedTabs(
-                    options = listOf(false, true),
-                    selected = form.isProduct,
-                    labelOf = { if (it) "Produk Jual" else "Material" },
-                    onSelected = { onEvent(OwnerUiEvent.CatalogTypeChanged(it)) }
+                Text(
+                    text = if (isEditing) "Edit barang katalog" else "Tambah barang katalog",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_700
                 )
+
+                if (!isEditing) {
+                    SBSegmentedTabs(
+                        options = listOf(false, true),
+                        selected = form.isProduct,
+                        labelOf = { if (it) "Produk Jual" else "Material" },
+                        onSelected = { onEvent(OwnerUiEvent.CatalogTypeChanged(it)) }
+                    )
+                }
 
                 SBLabeledTextField(
                     label = if (form.isProduct) "Nama produk" else "Nama material",
@@ -367,17 +398,27 @@ fun GudangStockScreen(
                 }
 
                 Button(
-                    onClick = {
-                        onEvent(OwnerUiEvent.SubmitCatalogItem)
-                        if (form.name.isNotBlank()) showAddSheet = false
-                    },
+                    onClick = { onEvent(OwnerUiEvent.SubmitCatalogItem) },
+                    enabled = !form.isSaving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SBColor.Primary_550)
                 ) {
-                    Text(text = "Simpan barang", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    if (form.isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text(
+                            text = if (isEditing) "Simpan perubahan" else "Simpan barang",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -385,7 +426,11 @@ fun GudangStockScreen(
 }
 
 @Composable
-private fun CatalogInventoryRow(item: CatalogItemUi) {
+private fun CatalogInventoryRow(
+    item: CatalogItemUi,
+    onEditClick: () -> Unit,
+    onToggleActiveClick: () -> Unit
+) {
     var menuExpanded by remember { mutableStateOf(false) }
     val tileBg = if (item.category == "Tahu") SBColor.Secondary_100 else SBColor.Primary_100
 
@@ -449,18 +494,30 @@ private fun CatalogInventoryRow(item: CatalogItemUi) {
                             color = SBColor.Grey_700
                         )
                     },
-                    onClick = { menuExpanded = false }
+                    onClick = {
+                        menuExpanded = false
+                        onEditClick()
+                    }
                 )
                 DropdownMenuItem(
                     text = {
+                        val toggleLabel = when {
+                            item.isProduct && item.isActive -> "Hentikan jual"
+                            item.isProduct -> "Aktifkan jual"
+                            item.isActive -> "Hentikan pakai"
+                            else -> "Aktifkan pakai"
+                        }
                         Text(
-                            text = if (item.isProduct) "Hentikan jual" else "Hentikan pakai",
+                            text = toggleLabel,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = SBColor.Primary_550
+                            color = if (item.isActive) SBColor.Primary_550 else SBColor.Success_600
                         )
                     },
-                    onClick = { menuExpanded = false }
+                    onClick = {
+                        menuExpanded = false
+                        onToggleActiveClick()
+                    }
                 )
             }
         }

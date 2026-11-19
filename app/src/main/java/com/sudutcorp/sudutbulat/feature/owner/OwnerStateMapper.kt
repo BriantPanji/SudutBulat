@@ -189,19 +189,23 @@ private fun buildCatalogItems(materials: List<Material>, products: List<Product>
         }
         CatalogItemUi(
             id = mat.id, name = mat.name, category = category, isProduct = false,
-            priceOrCost = mat.cost, unitLabel = unitText,
+            priceOrCost = mat.cost, unit = mat.unit, unitLabel = unitText,
             subtitleText = "Modal ${formatRupiah(mat.cost)} / $unitText",
-            statusBadge = category, isWarning = false
+            statusBadge = if (mat.isActive) category else "Nonaktif",
+            isWarning = !mat.isActive,
+            isActive = mat.isActive
         )
     }
     val prodItems = products.map { prod ->
         CatalogItemUi(
             id = prod.id, name = prod.name, category = "Produk Jual", isProduct = true,
             priceOrCost = prod.price,
+            unit = UnitType.PCS,
             unitLabel = if (prod.name.contains("Bungkus", ignoreCase = true)) "bungkus" else "pcs",
             subtitleText = "Harga jual ${formatRupiah(prod.price)}",
             statusBadge = if (prod.isActive) "Dijual" else "Tidak dijual",
-            isWarning = !prod.isActive
+            isWarning = !prod.isActive,
+            isActive = prod.isActive
         )
     }
     return matItems + prodItems

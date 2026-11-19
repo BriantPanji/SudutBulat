@@ -1,5 +1,6 @@
 package com.sudutcorp.sudutbulat.feature.owner
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sudutcorp.sudutbulat.core.util.buildInitials
@@ -14,10 +15,12 @@ import com.sudutcorp.sudutbulat.data.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -34,7 +37,7 @@ class OwnerViewModel(
     val state: StateFlow<OwnerUiState> = _state.asStateFlow()
 
     private val _effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
-    val effects: Flow<OwnerUiEffect> = _effects.receiveAsFlow()
+    val effects: Flow<OwnerUiEffect> = _effects.receiveAsFlow().shareIn(viewModelScope, SharingStarted.Eagerly)
 
     private val actions = OwnerActionsHandler(
         outletRepository = outletRepository,
@@ -50,65 +53,89 @@ class OwnerViewModel(
         observeFirestoreStreams()
     }
 
+    private fun reportStreamError(source: String, error: Throwable) {
+        Log.e("OwnerViewModel", "Firestore stream error ($source)", error)
+        val detail = error.localizedMessage?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+        val message = "Gagal memuat $source: $detail"
+        _state.update { it.copy(backendError = message) }
+        viewModelScope.launch { _effects.send(OwnerUiEffect.ShowSnackbar(message)) }
+    }
+
     private fun observeFirestoreStreams() {
         authRepository.getCurrentUserEmail()?.takeIf { it.isNotBlank() }?.let { email ->
             _state.update { it.copy(ownerEmail = email) }
         }
 
         viewModelScope.launch {
-            outletRepository.getOutletsFlow(onlyActive = false).catch { }.collect { list ->
-                _state.update { computeOwnerDerivedState(it.copy(outlets = list)) }
-            }
-        }
-        viewModelScope.launch {
-            userRepository.getAllUsersFlow().catch { }.collect { list ->
-                _state.update { current ->
-                    val email = authRepository.getCurrentUserEmail()
-                    val matchedOwner = list.firstOrNull {
-                        (!email.isNullOrBlank() && it.email.equals(email, ignoreCase = true)) || it.role == Role.OWNER
-                    }
-                    val ownerName = matchedOwner?.name?.replace(" (Owner)", "")?.takeIf { it.isNotBlank() }
-                        ?: current.ownerName
-                    computeOwnerDerivedState(
-                        current.copy(
-                            users = list,
-                            ownerName = ownerName,
-                            ownerInitials = buildInitials(ownerName),
-                            ownerEmail = email ?: matchedOwner?.email ?: current.ownerEmail
-                        )
-                    )
+            outletRepository.getOutletsFlow(onlyActive = false)
+                .catch { e -> reportStreamError("outlets", e) }
+                .collect { list ->
+                    _state.update { computeOwnerDerivedState(it.copy(outlets = list)) }
                 }
-            }
         }
         viewModelScope.launch {
-            dailyReportRepository.getDailyReportsFlow().catch { }.collect { list ->
-                _state.update { computeOwnerDerivedState(it.copy(reports = list)) }
-            }
+            userRepository.getAllUsersFlow()
+                .catch { e -> reportStreamError("users", e) }
+                .collect { list ->
+                    _state.update { current ->
+                        val email = authRepository.getCurrentUserEmail()
+                        val matchedOwner = list.firstOrNull {
+                            (!email.isNullOrBlank() && it.email.equals(email, ignoreCase = true)) || it.role == Role.OWNER
+                        }
+                        val ownerName = matchedOwner?.name?.replace(" (Owner)", "")?.takeIf { it.isNotBlank() }
+                            ?: current.ownerName
+                        computeOwnerDerivedState(
+                            current.copy(
+                                users = list,
+                                ownerName = ownerName,
+                                ownerInitials = buildInitials(ownerName),
+                                ownerEmail = email ?: matchedOwner?.email ?: current.ownerEmail
+                            )
+                        )
+                    }
+                }
         }
         viewModelScope.launch {
-            dailyReportRepository.getAllReportProductsFlow().catch { }.collect { list ->
-                _state.update { computeOwnerDerivedState(it.copy(reportProducts = list)) }
-            }
+            dailyReportRepository.getDailyReportsFlow()
+                .catch { e -> reportStreamError("daily_reports", e) }
+                .collect { list ->
+                    _state.update { computeOwnerDerivedState(it.copy(reports = list)) }
+                }
         }
         viewModelScope.launch {
-            dailyReportRepository.getAllExpensesFlow().catch { }.collect { list ->
-                _state.update { computeOwnerDerivedState(it.copy(expenses = list)) }
-            }
+            dailyReportRepository.getAllReportProductsFlow()
+                .catch { e -> reportStreamError("daily_report_products", e) }
+                .collect { list ->
+                    _state.update { computeOwnerDerivedState(it.copy(reportProducts = list)) }
+                }
         }
         viewModelScope.launch {
-            dailyReportRepository.getAllDamagedMaterialsFlow().catch { }.collect { list ->
-                _state.update { computeOwnerDerivedState(it.copy(damagedMaterials = list)) }
-            }
+            dailyReportRepository.getAllExpensesFlow()
+                .catch { e -> reportStreamError("daily_report_expenses", e) }
+                .collect { list ->
+                    _state.update { computeOwnerDerivedState(it.copy(expenses = list)) }
+                }
         }
         viewModelScope.launch {
-            materialRepository.getMaterialsFlow().catch { }.collect { list ->
-                _state.update { computeOwnerDerivedState(it.copy(materials = list)) }
-            }
+            dailyReportRepository.getAllDamagedMaterialsFlow()
+                .catch { e -> reportStreamError("daily_report_damaged_materials", e) }
+                .collect { list ->
+                    _state.update { computeOwnerDerivedState(it.copy(damagedMaterials = list)) }
+                }
         }
         viewModelScope.launch {
-            productRepository.getProductsFlow(onlyActive = false).catch { }.collect { list ->
-                _state.update { computeOwnerDerivedState(it.copy(products = list)) }
-            }
+            materialRepository.getMaterialsFlow()
+                .catch { e -> reportStreamError("materials", e) }
+                .collect { list ->
+                    _state.update { computeOwnerDerivedState(it.copy(materials = list)) }
+                }
+        }
+        viewModelScope.launch {
+            productRepository.getProductsFlow(onlyActive = false)
+                .catch { e -> reportStreamError("products", e) }
+                .collect { list ->
+                    _state.update { computeOwnerDerivedState(it.copy(products = list)) }
+                }
         }
     }
 
@@ -165,6 +192,21 @@ class OwnerViewModel(
             is OwnerUiEvent.ResetCatalogForm -> _state.update {
                 it.copy(addCatalogForm = AddCatalogItemFormState(isProduct = event.defaultIsProduct))
             }
+            is OwnerUiEvent.StartEditCatalogItem -> _state.update {
+                it.copy(
+                    addCatalogForm = AddCatalogItemFormState(
+                        editingItemId = event.item.id,
+                        name = event.item.name,
+                        isProduct = event.item.isProduct,
+                        priceOrCostInput = event.item.priceOrCost.toString(),
+                        unit = event.item.unit,
+                        isActive = event.item.isActive
+                    )
+                )
+            }
+            is OwnerUiEvent.ToggleCatalogItemActive -> viewModelScope.launch {
+                actions.toggleCatalogItemActive(event.item)
+            }
             OwnerUiEvent.SubmitCatalogItem -> viewModelScope.launch { actions.submitCatalogItem() }
 
             is OwnerUiEvent.AddOutletNameChanged -> _state.update {
@@ -218,6 +260,7 @@ class OwnerViewModel(
             OwnerUiEvent.MarkAllNotificationsRead -> _state.update { current ->
                 current.copy(notifications = current.notifications.map { it.copy(isNeedsReview = false) })
             }
+            OwnerUiEvent.DismissBackendError -> _state.update { it.copy(backendError = null) }
         }
     }
 }

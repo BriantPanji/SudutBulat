@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Legacy login code lookup
+    match /logincode/{username} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // Users collection: allow single-doc lookup by loginCode before sign-in,
+    // require Firebase Auth for listing and mutations.
+    match /users/{userId} {
+      allow get: if true;
+      allow list, create, update: if isSignedIn();
+      allow delete: if false;
+    }
+
+    // Operational collections: require authenticated Firebase Auth session.
+    match /outlets/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /materials/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /products/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /material_distributions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /material_distribution_items/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /daily_reports/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /daily_report_products/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /daily_report_expenses/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /daily_report_damaged_materials/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Internal migration metadata: Admin SDK only
+    match /_migrations/{docId} {
+      allow read, write: if false;
+    }
+  }
+}

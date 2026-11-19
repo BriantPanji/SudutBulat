@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.data.model
 
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
 /**
@@ -33,5 +34,6 @@ data class DailyReportProduct(
     /**
      * Subtotal amount for this product item
      */
+    @get:Exclude
     val subtotal: Long get() = quantity.toLong() * price
 }

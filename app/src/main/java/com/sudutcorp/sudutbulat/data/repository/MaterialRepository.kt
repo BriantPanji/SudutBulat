@@ -31,6 +31,10 @@ class MaterialRepository(
         return remoteDataSource.updateMaterial(material)
     }
 
+    suspend fun setMaterialActive(materialId: String, isActive: Boolean): Result<Unit> {
+        return remoteDataSource.setMaterialActive(materialId, isActive)
+    }
+
     suspend fun deleteMaterial(materialId: String): Result<Unit> {
         return remoteDataSource.deleteMaterial(materialId)
     }

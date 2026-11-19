@@ -2,16 +2,26 @@ package com.sudutcorp.sudutbulat.data.model
 
 import com.google.firebase.firestore.PropertyName
 
-enum class UnitType {
+enum class UnitType(val firestoreValue: String) {
     @PropertyName("pcs")
-    PCS,
+    PCS("pcs"),
 
     @PropertyName("gr")
-    GR,
+    GR("gr"),
 
     @PropertyName("ml")
-    ML,
+    ML("ml"),
 
     @PropertyName("unit")
-    UNIT
+    UNIT("unit");
+
+    companion object {
+        fun fromString(raw: String?): UnitType? = when (raw?.trim()?.lowercase()) {
+            "pcs" -> PCS
+            "gr", "gram" -> GR
+            "ml" -> ML
+            "unit", "pak", "botol" -> UNIT
+            else -> null
+        }
+    }
 }

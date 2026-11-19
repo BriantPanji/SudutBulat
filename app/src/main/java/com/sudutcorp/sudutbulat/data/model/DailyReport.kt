@@ -2,6 +2,7 @@ package com.sudutcorp.sudutbulat.data.model
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
 /**
@@ -42,5 +43,6 @@ data class DailyReport(
     /**
      * Total combined revenue (cash + QRIS)
      */
+    @get:Exclude
     val totalRevenue: Long get() = cashRevenue + qrisRevenue
 }

@@ -175,10 +175,12 @@ data class CatalogItemUi(
     val category: String,
     val isProduct: Boolean,
     val priceOrCost: Long,
+    val unit: UnitType = UnitType.PCS,
     val unitLabel: String,
     val subtitleText: String,
     val statusBadge: String,
-    val isWarning: Boolean
+    val isWarning: Boolean,
+    val isActive: Boolean = true
 )
 
 data class OwnerNotificationUi(
@@ -213,10 +215,12 @@ data class AddUserFormState(
 )
 
 data class AddCatalogItemFormState(
+    val editingItemId: String? = null,
     val name: String = "",
     val isProduct: Boolean = false,
     val priceOrCostInput: String = "",
     val unit: UnitType = UnitType.PCS,
+    val isActive: Boolean = true,
     val isSaving: Boolean = false,
     val errorMessage: String? = null
 )
@@ -281,7 +285,8 @@ data class OwnerUiState(
     val addUserForm: AddUserFormState = AddUserFormState(),
     val addCatalogForm: AddCatalogItemFormState = AddCatalogItemFormState(),
 
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val backendError: String? = null
 )
 
 sealed interface OwnerUiEvent {
@@ -314,6 +319,8 @@ sealed interface OwnerUiEvent {
     data class CatalogPriceChanged(val priceInput: String) : OwnerUiEvent
     data class CatalogUnitChanged(val unit: UnitType) : OwnerUiEvent
     data class ResetCatalogForm(val defaultIsProduct: Boolean = false) : OwnerUiEvent
+    data class StartEditCatalogItem(val item: CatalogItemUi) : OwnerUiEvent
+    data class ToggleCatalogItemActive(val item: CatalogItemUi) : OwnerUiEvent
     data object SubmitCatalogItem : OwnerUiEvent
 
     data class AddOutletNameChanged(val name: String) : OwnerUiEvent
@@ -335,9 +342,11 @@ sealed interface OwnerUiEvent {
     data object SubmitNewUser : OwnerUiEvent
 
     data object MarkAllNotificationsRead : OwnerUiEvent
+    data object DismissBackendError : OwnerUiEvent
 }
 
 sealed interface OwnerUiEffect {
     data class ShowSnackbar(val message: String) : OwnerUiEffect
     data object NavigateBack : OwnerUiEffect
+    data object CatalogSaved : OwnerUiEffect
 }
