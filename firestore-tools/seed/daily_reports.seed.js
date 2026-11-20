@@ -1,197 +1,321 @@
 const { COLLECTIONS, batchUpsert } = require("../scripts/helpers");
+const { data: PRODUCTS } = require("./products.seed");
+
+const PRODUCT_PRICE = Object.fromEntries(PRODUCTS.map((p) => [p.id, p.price]));
+
+// Deterministic PRNG (Mulberry32) agar hasil seed selalu konsisten & idempotent tanpa dependency eksternal
+function createRng(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function randInt(rng, min, max) {
+  return min + Math.floor(rng() * (max - min + 1));
+}
+
+function pick(rng, list) {
+  return list[Math.floor(rng() * list.length)];
+}
+
+const OUTLET_PROFILES = [
+  {
+    id: "outlet_sudirman",
+    slug: "sudirman",
+    baseScale: 1.08,
+    qrisRatio: 0.48,
+    closeHour: 21,
+    hasTodayReport: true,
+    todayHour: 18,
+    todayMinute: 45,
+    gasNotes: [
+      "Beli Gas LPG 3kg di pangkalan Jl. Imam Bonjol",
+      "Isi ulang tabung Gas LPG 3kg dekat Simpang Juanda",
+      "Beli Gas LPG 3kg di warung dekat Medan Maimun",
+    ],
+    plasticNotes: [
+      "Plastik kresek & kertas minyak bungkus beli di Pajak Petisah",
+      "Beli plastik bungkus tahu & 2 pak lidi tusuk di Pajak Petisah",
+      "Plastik kantong ukuran sedang & tusuk lidi",
+    ],
+    otherNotes: [
+      "Minyak goreng curah 2 liter & saus sambal bantal di Pajak Petisah",
+      "Minyak goreng 2 liter, lap dapur & retribusi parkir gerobak",
+      "Beli minyak goreng 2 liter & es batu untuk minuman staf",
+    ],
+    damagedNotes: [
+      "Tahu pecah saat penggorengan jam ramai pulang kantor",
+      "Tahu kempes karena hujan deras sore di area Sudirman",
+      "Tahu sisa gorengan mengeras menjelang tutup",
+    ],
+  },
+  {
+    id: "outlet_gajah_mada",
+    slug: "gm",
+    baseScale: 0.88,
+    qrisRatio: 0.42,
+    closeHour: 21,
+    hasTodayReport: true,
+    todayHour: 18,
+    todayMinute: 20,
+    gasNotes: [
+      "Beli Gas LPG 3kg di pangkalan Jl. Iskandar Muda",
+      "Isi ulang Gas LPG 3kg dekat Petisah Hulu",
+      "Beli tabung Gas LPG 3kg di warung Jl. Gajah Mada",
+    ],
+    plasticNotes: [
+      "Plastik kresek, kertas minyak & tusuk lidi di Pajak Pringgan",
+      "Beli plastik pembungkus & kantong kresek di Pajak Pringgan",
+      "Plastik cup sambal & tusuk lidi 2 pak",
+    ],
+    otherNotes: [
+      "Minyak goreng 2 liter & saus sambal umum bantal di Pajak Pringgan",
+      "Minyak goreng 2 liter & retribusi kebersihan lapak",
+      "Beli minyak goreng 2 liter & sabun cuci kuali",
+    ],
+    damagedNotes: [
+      "Tahu asam/basi saat sore hari karena cuaca panas Medan",
+      "Tahu pecah waktu dibalik di penggorengan",
+      "Tahu lembek kena tampias hujan sore di Jl. Gajah Mada",
+    ],
+  },
+  {
+    // ID tetap `outlet_cikini` (Dr. Mansyur / area USU) agar FK users.seed.js tetap valid
+    id: "outlet_cikini",
+    slug: "mansyur",
+    baseScale: 0.96,
+    qrisRatio: 0.56,
+    closeHour: 22,
+    hasTodayReport: true,
+    todayHour: 19,
+    todayMinute: 15,
+    gasNotes: [
+      "Beli Gas LPG 3kg di pangkalan Padang Bulan",
+      "Isi ulang Gas LPG 3kg dekat Jl. Dr. Mansyur",
+      "Beli Gas LPG 3kg di warung simpang Pintu 1 USU",
+    ],
+    plasticNotes: [
+      "Plastik bungkus, kresek & lidi tusuk beli di Pajak USU (Pajus)",
+      "Beli kertas bungkus & plastik kresek di Pajak Sore Padang Bulan",
+      "Plastik cup chilly oil & tusuk lidi 3 pak",
+    ],
+    otherNotes: [
+      "Minyak goreng 2 liter & tisu makan di Pajak USU",
+      "Minyak goreng 2 liter & retribusi parkir gerobak Dr. Mansyur",
+      "Beli minyak goreng 2 liter, saus sambal bantal & sabun cuci",
+    ],
+    damagedNotes: [
+      "Tahu pecah saat antrean ramai mahasiswa USU sore hari",
+      "Tahu kempes karena hujan lebat daerah Padang Bulan",
+      "Sisa tahu mentah agak asam menjelang tutup jam 22.00",
+    ],
+  },
+  {
+    // ID tetap `outlet_tebet` (Ringroad Setia Budi) agar FK users.seed.js tetap valid
+    id: "outlet_tebet",
+    slug: "ringroad",
+    baseScale: 0.78,
+    qrisRatio: 0.38,
+    closeHour: 22,
+    hasTodayReport: false,
+    todayHour: 19,
+    todayMinute: 0,
+    gasNotes: [
+      "Beli Gas LPG 3kg di pangkalan Jl. Setia Budi",
+      "Isi ulang Gas LPG 3kg dekat Simpang Ringroad",
+      "Beli Gas LPG 3kg di warung Tanjung Rejo",
+    ],
+    plasticNotes: [
+      "Plastik kresek & kertas bungkus di Pajak Melati / Simpang Selayang",
+      "Beli plastik bungkus tahu & tusuk lidi di Jl. Setia Budi",
+      "Kantong plastik 2 ukuran & lidi tusuk",
+    ],
+    otherNotes: [
+      "Minyak goreng 2 liter & saus sambal di Simpang Selayang",
+      "Minyak goreng 2 liter & iuran lampu/keamanan lapak Ringroad",
+      "Beli minyak goreng 2 liter & saringan minyak baru",
+    ],
+    damagedNotes: [
+      "Tahu kempes kena angin kencang & hujan di area Ringroad",
+      "Tahu pecah saat penggorengan kloter malam",
+      "Tahu sisa tidak layak jual menjelang tutup",
+    ],
+  },
+];
+
+// Kasus khusus pengeluaran besar (>= Rp200.000) agar indikator alert di Owner Dashboard teruji nyata
+const SPECIAL_EXPENSES = {
+  "sudirman_4": {
+    amount: 235000,
+    note: "Servis kompor mawar & ganti selang regulator di bengkel Jl. Juanda",
+  },
+  "mansyur_9": {
+    amount: 215000,
+    note: "Ganti terpal tenda gerobak sobek kena angin hujan deras di Dr. Mansyur",
+  },
+};
 
 /**
- * Sesuai PRD.md:
- * Setiap hari berakhir / outlet tutup, staf outlet melakukan laporan harian yang mencatat:
- * 1. Penjualan Produk (cash_revenue, qris_revenue, total_sold, & rincian daily_report_products)
- * 2. Pengeluaran Mandiri Outlet (daily_report_expenses: gas LPG, plastik pembungkus/kantong, lidi tusuk, minyak goreng, saus sambal umum)
- * 3. Kerugian / Bahan Mentah Rusak (daily_report_damaged_materials)
+ * Sesuai PRD.md & OutletViewModel.kt:
+ * - Menghasilkan 14 hari laporan harian (hari ini s/d 13 hari lalu) untuk 4 outlet Medan.
+ * - Setiap laporan 100% konsisten secara matematis:
+ *   total_sold = sum(report_products.quantity)
+ *   cash_revenue + qris_revenue = sum(report_products.quantity * price)
  */
 function buildDailyReports(admin) {
   const Timestamp = admin.firestore.Timestamp;
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 30, 0);
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 21, 0, 0);
-  const threeDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3, 21, 0, 0);
-  const tenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 10, 21, 0, 0);
+  const rng = createRng(20260515);
 
-  const reports = [
-    {
-      id: "report_sudirman_today",
-      outlet_id: "outlet_sudirman",
-      date: Timestamp.fromDate(today),
-      cash_revenue: 1520000,
-      qris_revenue: 960000,
-      total_sold: 496,
-    },
-    {
-      id: "report_cikini_today",
-      outlet_id: "outlet_cikini",
-      date: Timestamp.fromDate(today),
-      cash_revenue: 1020000,
-      qris_revenue: 760000,
-      total_sold: 356,
-    },
-    {
-      id: "report_sudirman_yesterday",
-      outlet_id: "outlet_sudirman",
-      date: Timestamp.fromDate(yesterday),
-      cash_revenue: 1480000,
-      qris_revenue: 1000000,
-      total_sold: 496,
-    },
-    {
-      id: "report_gajah_mada_yesterday",
-      outlet_id: "outlet_gajah_mada",
-      date: Timestamp.fromDate(yesterday),
-      cash_revenue: 1320000,
-      qris_revenue: 800000,
-      total_sold: 424,
-    },
-    {
-      id: "report_tebet_3d",
-      outlet_id: "outlet_tebet",
-      date: Timestamp.fromDate(threeDaysAgo),
-      cash_revenue: 750000,
-      qris_revenue: 500000,
-      total_sold: 250,
-    },
-    {
-      id: "report_gajah_mada_10d",
-      outlet_id: "outlet_gajah_mada",
-      date: Timestamp.fromDate(tenDaysAgo),
-      cash_revenue: 1180000,
-      qris_revenue: 870000,
-      total_sold: 410,
-    },
-  ];
+  const reports = [];
+  const reportProducts = [];
+  const reportExpenses = [];
+  const reportDamagedMaterials = [];
 
-  const reportProducts = [
-    // Penjualan Outlet Sudirman
-    {
-      id: "rep_prod_sudirman_1",
-      daily_report_id: "report_sudirman_yesterday",
-      product_id: "prod_tahu_ori_bungkus",
-      quantity: 250,
-      price: 5000,
-    },
-    {
-      id: "rep_prod_sudirman_2",
-      daily_report_id: "report_sudirman_yesterday",
-      product_id: "prod_tahu_pedas_bungkus",
-      quantity: 130,
-      price: 6000,
-    },
-    {
-      id: "rep_prod_sudirman_3",
-      daily_report_id: "report_sudirman_yesterday",
-      product_id: "prod_tahu_keju_bungkus",
-      quantity: 50,
-      price: 7000,
-    },
-    {
-      id: "rep_prod_sudirman_4",
-      daily_report_id: "report_sudirman_yesterday",
-      product_id: "prod_tahu_ori_satuan",
-      quantity: 50,
-      price: 1000,
-    },
-    {
-      id: "rep_prod_sudirman_5",
-      daily_report_id: "report_sudirman_yesterday",
-      product_id: "prod_addon_chilly_oil",
-      quantity: 25,
-      price: 2000,
-    },
+  for (let daysAgo = 0; daysAgo < 14; daysAgo++) {
+    const baseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAgo);
+    const dayOfWeek = baseDate.getDay(); // 0 = Minggu, 5 = Jumat, 6 = Sabtu
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+    const isRainyDay = daysAgo > 0 && rng() < 0.18;
 
-    // Penjualan Outlet Gajah Mada
-    {
-      id: "rep_prod_gm_1",
-      daily_report_id: "report_gajah_mada_yesterday",
-      product_id: "prod_tahu_ori_bungkus",
-      quantity: 220,
-      price: 5000,
-    },
-    {
-      id: "rep_prod_gm_2",
-      daily_report_id: "report_gajah_mada_yesterday",
-      product_id: "prod_tahu_pedas_bungkus",
-      quantity: 120,
-      price: 6000,
-    },
-    {
-      id: "rep_prod_gm_3",
-      daily_report_id: "report_gajah_mada_yesterday",
-      product_id: "prod_tahu_keju_bungkus",
-      quantity: 40,
-      price: 7000,
-    },
-    {
-      id: "rep_prod_gm_4",
-      daily_report_id: "report_gajah_mada_yesterday",
-      product_id: "prod_tahu_ori_satuan",
-      quantity: 20,
-      price: 1000,
-    },
-  ];
+    for (const profile of OUTLET_PROFILES) {
+      if (daysAgo === 0 && !profile.hasTodayReport) continue;
 
-  const reportExpenses = [
-    // Pengeluaran Mandiri Outlet Sudirman
-    {
-      id: "rep_exp_sudirman_1",
-      daily_report_id: "report_sudirman_yesterday",
-      category: "GAS",
-      amount: 22000,
-      note: "Beli tabung Gas LPG 3kg",
-    },
-    {
-      id: "rep_exp_sudirman_2",
-      daily_report_id: "report_sudirman_yesterday",
-      category: "PLASTIC_BAG",
-      amount: 18000,
-      note: "Plastik pembungkus kertas & plastik kantong kresek",
-    },
-    {
-      id: "rep_exp_sudirman_3",
-      daily_report_id: "report_sudirman_yesterday",
-      category: "OTHER",
-      amount: 45000,
-      note: "Minyak goreng 2 liter & 2 pak lidi tusuk",
-    },
+      const reportId = `report_${profile.slug}_d${daysAgo}`;
+      const reportDate =
+        daysAgo === 0
+          ? new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), profile.todayHour, profile.todayMinute, 0)
+          : new Date(
+              baseDate.getFullYear(),
+              baseDate.getMonth(),
+              baseDate.getDate(),
+              profile.closeHour,
+              randInt(rng, 5, 45),
+              0
+            );
 
-    // Pengeluaran Mandiri Outlet Gajah Mada
-    {
-      id: "rep_exp_gm_1",
-      daily_report_id: "report_gajah_mada_yesterday",
-      category: "OTHER",
-      amount: 52000,
-      note: "Minyak goreng 2 liter & saus sambal umum bantal",
-    },
-    {
-      id: "rep_exp_gm_2",
-      daily_report_id: "report_gajah_mada_yesterday",
-      category: "PLASTIC_BAG",
-      amount: 15000,
-      note: "Plastik kantong & tusuk lidi",
-    },
-  ];
+      // Faktor harian: akhir pekan lebih ramai, hujan sore di Medan sedikit menurunkan penjualan
+      let dayFactor = profile.baseScale * (0.9 + rng() * 0.2);
+      if (isWeekend) dayFactor *= 1.16;
+      if (isRainyDay) dayFactor *= 0.82;
+      if (daysAgo === 0) dayFactor *= 0.88; // laporan sore sebelum jam tutup penuh
 
-  const reportDamagedMaterials = [
-    {
-      id: "rep_dmg_sudirman_1",
-      daily_report_id: "report_sudirman_yesterday",
-      material_id: "mat_tahu_original",
-      quantity: 12,
-      note: "Tahu pecah/kempes saat penggorengan",
-    },
-    {
-      id: "rep_dmg_gm_1",
-      daily_report_id: "report_gajah_mada_yesterday",
-      material_id: "mat_tahu_pedas",
-      quantity: 8,
-      note: "Tahu asam/basi saat sore hari",
-    },
-  ];
+      const isStudentArea = profile.slug === "mansyur";
+      const productSpecs = [
+        { id: "prod_tahu_ori_bungkus", qty: Math.round(randInt(rng, 185, 245) * dayFactor) },
+        { id: "prod_tahu_pedas_bungkus", qty: Math.round(randInt(rng, isStudentArea ? 115 : 95, isStudentArea ? 150 : 130) * dayFactor) },
+        { id: "prod_tahu_keju_bungkus", qty: Math.round(randInt(rng, isStudentArea ? 45 : 32, isStudentArea ? 70 : 52) * dayFactor) },
+        { id: "prod_tahu_ori_satuan", qty: Math.round(randInt(rng, 25, 55) * dayFactor) },
+        { id: "prod_tahu_pedas_satuan", qty: Math.round(randInt(rng, 15, 35) * dayFactor) },
+        { id: "prod_tahu_keju_satuan", qty: rng() < 0.7 ? Math.round(randInt(rng, 8, 20) * dayFactor) : 0 },
+        { id: "prod_addon_chilly_oil", qty: Math.round(randInt(rng, 14, 34) * dayFactor) },
+      ];
+
+      let totalRevenue = 0;
+      let totalSold = 0;
+      let prodIdx = 1;
+
+      for (const spec of productSpecs) {
+        if (spec.qty <= 0) continue;
+        const price = PRODUCT_PRICE[spec.id];
+        totalRevenue += spec.qty * price;
+        totalSold += spec.qty;
+
+        reportProducts.push({
+          id: `rep_prod_${profile.slug}_d${daysAgo}_${prodIdx++}`,
+          daily_report_id: reportId,
+          product_id: spec.id,
+          quantity: spec.qty,
+          price,
+        });
+      }
+
+      const qrisShare = Math.min(0.7, Math.max(0.25, profile.qrisRatio + (rng() - 0.5) * 0.1));
+      const qrisRevenue = Math.min(totalRevenue, Math.round((totalRevenue * qrisShare) / 1000) * 1000);
+      const cashRevenue = totalRevenue - qrisRevenue;
+
+      reports.push({
+        id: reportId,
+        outlet_id: profile.id,
+        date: Timestamp.fromDate(reportDate),
+        cash_revenue: cashRevenue,
+        qris_revenue: qrisRevenue,
+        total_sold: totalSold,
+      });
+
+      // Pengeluaran harian outlet (2-3 item per laporan)
+      let expIdx = 1;
+      if (rng() < 0.78 || daysAgo <= 1) {
+        reportExpenses.push({
+          id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
+          daily_report_id: reportId,
+          category: "GAS",
+          amount: randInt(rng, 20, 23) * 1000,
+          note: pick(rng, profile.gasNotes),
+        });
+      }
+
+      reportExpenses.push({
+        id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
+        daily_report_id: reportId,
+        category: "PLASTIC_BAG",
+        amount: randInt(rng, 14, 22) * 1000,
+        note: pick(rng, profile.plasticNotes),
+      });
+
+      const specialKey = `${profile.slug}_${daysAgo}`;
+      if (SPECIAL_EXPENSES[specialKey]) {
+        reportExpenses.push({
+          id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
+          daily_report_id: reportId,
+          category: "OTHER",
+          amount: SPECIAL_EXPENSES[specialKey].amount,
+          note: SPECIAL_EXPENSES[specialKey].note,
+        });
+      } else {
+        reportExpenses.push({
+          id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
+          daily_report_id: reportId,
+          category: "OTHER",
+          amount: randInt(rng, 34, 56) * 1000,
+          note: pick(rng, profile.otherNotes),
+        });
+      }
+
+      // Bahan rusak (~48% laporan, lebih mungkin saat hujan deras)
+      const hasDamage = isRainyDay ? rng() < 0.75 : rng() < 0.42;
+      if (hasDamage) {
+        let dmgIdx = 1;
+        const primaryMat = pick(rng, ["mat_tahu_original", "mat_tahu_pedas", "mat_tahu_keju"]);
+        // Sesekali >= 10 pcs agar alert bahan rusak di Owner Dashboard teruji
+        const isHighDamage = isRainyDay && rng() < 0.45;
+        const qty = isHighDamage ? randInt(rng, 10, 15) : randInt(rng, 3, 9);
+
+        reportDamagedMaterials.push({
+          id: `rep_dmg_${profile.slug}_d${daysAgo}_${dmgIdx++}`,
+          daily_report_id: reportId,
+          material_id: primaryMat,
+          quantity: qty,
+          note: pick(rng, profile.damagedNotes),
+        });
+
+        if (rng() < 0.22) {
+          reportDamagedMaterials.push({
+            id: `rep_dmg_${profile.slug}_d${daysAgo}_${dmgIdx++}`,
+            daily_report_id: reportId,
+            material_id: pick(rng, ["mat_bumbu_balado", "mat_bumbu_bbq", "mat_saus_sambal"]),
+            quantity: randInt(rng, 1, 3),
+            note: "Bumbu menggumpal / kemasan bocor saat operasional",
+          });
+        }
+      }
+    }
+  }
 
   return {
     reports,
@@ -223,5 +347,6 @@ async function seed(db, admin) {
 module.exports = {
   name: "daily_reports",
   collection: COLLECTIONS.DAILY_REPORTS,
+  buildDailyReports,
   seed,
 };
