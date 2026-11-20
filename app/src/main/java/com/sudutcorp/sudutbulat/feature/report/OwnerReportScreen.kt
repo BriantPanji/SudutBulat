@@ -20,16 +20,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,10 +50,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
@@ -58,6 +70,8 @@ import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
 import com.sudutcorp.sudutbulat.feature.owner.ReportTabMode
+import com.sudutcorp.sudutbulat.feature.owner.filterDailyReports
+import com.sudutcorp.sudutbulat.feature.owner.formatUtcDateMillis
 
 @Composable
 fun OwnerReportScreen(
@@ -99,32 +113,22 @@ fun OwnerReportContent(
     val focusManager = LocalFocusManager.current
     val periods = remember { listOf("7 Hari" to "7 hari", "30 Hari" to "30 hari", "3 Bulan" to "3 bulan") }
     var showOutletFilterMenu by rememberSaveable { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
 
     val filteredReports = remember(
         uiState.reportListItems,
         uiState.reportSearchQuery,
         uiState.reportOutletFilterId,
-        uiState.reportDateFilter
+        uiState.reportDateFilter,
+        uiState.reportSelectedDateMillis
     ) {
-        val nowMillis = System.currentTimeMillis()
-        val dayMillis = 86_400_000L
-        val q = uiState.reportSearchQuery.trim().lowercase()
-        uiState.reportListItems.filter { item ->
-            val matchesOutlet = uiState.reportOutletFilterId.isNullOrBlank() ||
-                item.outletId == uiState.reportOutletFilterId
-            val ageMillis = (nowMillis - item.dateMillis).coerceAtLeast(0L)
-            val matchesDate = when (uiState.reportDateFilter) {
-                "Hari ini" -> ageMillis <= dayMillis
-                "7 Hari" -> ageMillis <= 7L * dayMillis
-                "30 Hari" -> ageMillis <= 30L * dayMillis
-                "3 Bulan" -> ageMillis <= 90L * dayMillis
-                else -> true
-            }
-            val matchesQuery = q.isBlank() ||
-                item.outletName.lowercase().contains(q) ||
-                item.dateLabel.lowercase().contains(q)
-            matchesOutlet && matchesDate && matchesQuery
-        }
+        filterDailyReports(
+            items = uiState.reportListItems,
+            searchQuery = uiState.reportSearchQuery,
+            outletFilterId = uiState.reportOutletFilterId,
+            dateFilter = uiState.reportDateFilter,
+            selectedDateMillis = uiState.reportSelectedDateMillis
+        )
     }
 
     val selectedOutletFilterName = remember(uiState.reportOutletFilterId, uiState.outletItems) {
@@ -297,17 +301,71 @@ fun OwnerReportContent(
                 }
             }
         } else {
-            SBSearchBar(
-                query = uiState.reportSearchQuery,
-                onQueryChange = { onEvent(OwnerUiEvent.ReportSearchChanged(it)) },
-                placeholder = "Cari outlet atau tanggal laporan..."
-            )
+            val hasSelectedDate = uiState.reportSelectedDateMillis != null
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SBSearchBar(
+                    query = uiState.reportSearchQuery,
+                    onQueryChange = { onEvent(OwnerUiEvent.ReportSearchChanged(it)) },
+                    placeholder = "Cari outlet...",
+                    modifier = Modifier.weight(1f)
+                )
+
+                Surface(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (hasSelectedDate) SBColor.Primary_100 else Color.White,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (hasSelectedDate) SBColor.Primary_550 else SBColor.Grey_200
+                    )
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.calendar),
+                            contentDescription = "Pilih tanggal laporan",
+                            tint = if (hasSelectedDate) SBColor.Primary_550 else SBColor.Grey_600,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
 
             SBFilterChipRow(
                 options = listOf("Semua", "Hari ini", "7 Hari", "30 Hari", "3 Bulan").map { it to it },
-                selectedKey = uiState.reportDateFilter,
+                selectedKey = if (hasSelectedDate) "" else uiState.reportDateFilter,
                 onSelected = { onEvent(OwnerUiEvent.ReportDateFilterSelected(it)) }
             )
+
+            uiState.reportSelectedDateMillis?.let { selectedMillis ->
+                val selectedDateLabel = remember(selectedMillis) { formatUtcDateMillis(selectedMillis) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = true,
+                        onClick = { onEvent(OwnerUiEvent.ReportSpecificDateSelected(null)) },
+                        label = {
+                            Text(
+                                text = "Tanggal: $selectedDateLabel  ✕",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        },
+                        shape = RoundedCornerShape(9.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = SBColor.Primary_100,
+                            selectedLabelColor = SBColor.Primary_550
+                        ),
+                        border = BorderStroke(1.dp, SBColor.Primary_200)
+                    )
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -389,6 +447,90 @@ fun OwnerReportContent(
                     }
                 }
             }
+        }
+    }
+
+    if (showDatePicker) {
+        ReportDatePickerDialog(
+            initialSelectedDateMillis = uiState.reportSelectedDateMillis,
+            onDismiss = { showDatePicker = false },
+            onConfirm = { dateMillis ->
+                onEvent(OwnerUiEvent.ReportSpecificDateSelected(dateMillis))
+                showDatePicker = false
+            },
+            onReset = {
+                onEvent(OwnerUiEvent.ReportSpecificDateSelected(null))
+                showDatePicker = false
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReportDatePickerDialog(
+    initialSelectedDateMillis: Long?,
+    onDismiss: () -> Unit,
+    onConfirm: (Long?) -> Unit,
+    onReset: () -> Unit
+) {
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialSelectedDateMillis)
+    val dateFormatter = remember { DatePickerDefaults.dateFormatter() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val pickerColors = DatePickerDefaults.colors(
+        containerColor = Color.White,
+        selectedDayContainerColor = SBColor.Primary_550,
+        selectedDayContentColor = Color.White,
+        todayContentColor = SBColor.Primary_550,
+        todayDateBorderColor = SBColor.Primary_550
+    )
+
+    LaunchedEffect(datePickerState.displayMode) {
+        if (datePickerState.displayMode == DisplayMode.Picker) {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        // Prevent Android's Dialog window from resizing frame-by-frame while the IME animates closed.
+        modifier = if (datePickerState.displayMode == DisplayMode.Input) {
+            Modifier.padding(bottom = 96.dp)
+        } else {
+            Modifier
+        },
+        colors = pickerColors,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        ),
+        confirmButton = {
+            TextButton(onClick = { onConfirm(datePickerState.selectedDateMillis) }) {
+                Text("Pilih", fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (initialSelectedDateMillis != null) {
+                    TextButton(onClick = onReset) {
+                        Text("Reset", fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Batal", fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
+                }
+            }
+        }
+    ) {
+        // Bypass M3's private AnimatedContent + SizeTransform to prevent choppy dialog resizing on mode switch.
+        key(datePickerState.displayMode) {
+            DatePicker(
+                state = datePickerState,
+                dateFormatter = dateFormatter,
+                colors = pickerColors
+            )
         }
     }
 }

@@ -273,6 +273,7 @@ data class OwnerUiState(
     val reportSearchQuery: String = "",
     val reportOutletFilterId: String? = null,
     val reportDateFilter: String = "Semua",
+    val reportSelectedDateMillis: Long? = null,
 
     val catalogTabMode: CatalogTabMode = CatalogTabMode.MATERIAL,
     val catalogSearchQuery: String = "",
@@ -312,6 +313,7 @@ sealed interface OwnerUiEvent {
     data class ReportSearchChanged(val query: String) : OwnerUiEvent
     data class ReportOutletFilterSelected(val outletId: String?) : OwnerUiEvent
     data class ReportDateFilterSelected(val filter: String) : OwnerUiEvent
+    data class ReportSpecificDateSelected(val dateMillis: Long?) : OwnerUiEvent
 
     data class CatalogTabSelected(val mode: CatalogTabMode) : OwnerUiEvent
     data class CatalogSearchChanged(val query: String) : OwnerUiEvent

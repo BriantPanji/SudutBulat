@@ -9,10 +9,16 @@ import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
 private val ID_LOCALE: Locale = Locale.forLanguageTag("id-ID")
+private val REPORT_DATE_CHIP_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd MMM yyyy", ID_LOCALE)
 
 fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
     val activeOutlets = raw.outlets.ifEmpty { defaultSeededOutlets() }
@@ -343,3 +349,44 @@ fun sortProductCatalogItems(
     }
     return if (direction == SortDirection.ASC) items.sortedWith(comparator) else items.sortedWith(comparator.reversed())
 }
+
+// Material 3 DatePicker returns UTC midnight millis; convert via ZoneOffset.UTC before comparing against local report dates.
+fun filterDailyReports(
+    items: List<DailyReportListItemUi>,
+    searchQuery: String,
+    outletFilterId: String?,
+    dateFilter: String,
+    selectedDateMillis: Long?,
+    nowMillis: Long = System.currentTimeMillis(),
+    zoneId: ZoneId = ZoneId.systemDefault()
+): List<DailyReportListItemUi> {
+    val dayMillis = 86_400_000L
+    val query = searchQuery.trim().lowercase(Locale.ROOT)
+    val selectedLocalDate = selectedDateMillis?.let {
+        Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
+    }
+
+    return items.filter { item ->
+        val matchesOutlet = outletFilterId.isNullOrBlank() || item.outletId == outletFilterId
+        val matchesDate = if (selectedLocalDate != null) {
+            Instant.ofEpochMilli(item.dateMillis).atZone(zoneId).toLocalDate() == selectedLocalDate
+        } else {
+            val ageMillis = (nowMillis - item.dateMillis).coerceAtLeast(0L)
+            when (dateFilter) {
+                "Hari ini" -> ageMillis <= dayMillis
+                "7 Hari" -> ageMillis <= 7L * dayMillis
+                "30 Hari" -> ageMillis <= 30L * dayMillis
+                "3 Bulan" -> ageMillis <= 90L * dayMillis
+                else -> true
+            }
+        }
+        val matchesQuery = query.isBlank() || item.outletName.lowercase(Locale.ROOT).contains(query)
+        matchesOutlet && matchesDate && matchesQuery
+    }
+}
+
+fun formatUtcDateMillis(dateMillis: Long): String =
+    Instant.ofEpochMilli(dateMillis)
+        .atZone(ZoneOffset.UTC)
+        .toLocalDate()
+        .format(REPORT_DATE_CHIP_FORMATTER)

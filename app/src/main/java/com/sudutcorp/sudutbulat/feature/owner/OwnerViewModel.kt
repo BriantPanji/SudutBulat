@@ -166,7 +166,12 @@ class OwnerViewModel(
             is OwnerUiEvent.ReportPeriodSelected -> _state.update { it.copy(selectedReportPeriod = event.period) }
             is OwnerUiEvent.ReportSearchChanged -> _state.update { it.copy(reportSearchQuery = event.query) }
             is OwnerUiEvent.ReportOutletFilterSelected -> _state.update { it.copy(reportOutletFilterId = event.outletId) }
-            is OwnerUiEvent.ReportDateFilterSelected -> _state.update { it.copy(reportDateFilter = event.filter) }
+            is OwnerUiEvent.ReportDateFilterSelected -> _state.update {
+                it.copy(reportDateFilter = event.filter, reportSelectedDateMillis = null)
+            }
+            is OwnerUiEvent.ReportSpecificDateSelected -> _state.update {
+                it.copy(reportSelectedDateMillis = event.dateMillis)
+            }
 
             is OwnerUiEvent.CatalogTabSelected -> _state.update { it.copy(catalogTabMode = event.mode) }
             is OwnerUiEvent.CatalogSearchChanged -> _state.update { it.copy(catalogSearchQuery = event.query) }
