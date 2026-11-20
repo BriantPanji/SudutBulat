@@ -14,6 +14,7 @@ import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
@@ -109,16 +110,31 @@ object FirestoreMappers {
         "is_active" to isActive
     )
 
-    fun DocumentSnapshot.toProduct(): Product = Product(
-        id = id,
-        name = getString("name").orEmpty(),
-        price = (getLong("price") ?: 0L).coerceAtLeast(0L),
-        isActive = getBoolean("is_active") ?: true
-    )
+    fun DocumentSnapshot.toProduct(): Product {
+        val name = getString("name").orEmpty()
+        val saleType = ProductSaleType.fromString(getString("sale_type"))
+            ?: if (name.contains("bungkus", ignoreCase = true)) ProductSaleType.BUNGKUS else ProductSaleType.SATUAN
+        val rawPcs = getLong("pcs_per_pack")?.toInt()
+        val pcsPerPack = if (saleType == ProductSaleType.BUNGKUS) {
+            (rawPcs ?: 5).coerceAtLeast(1)
+        } else {
+            1
+        }
+        return Product(
+            id = id,
+            name = name,
+            price = (getLong("price") ?: 0L).coerceAtLeast(0L),
+            saleType = saleType,
+            pcsPerPack = pcsPerPack,
+            isActive = getBoolean("is_active") ?: true
+        )
+    }
 
     fun Product.toFirestoreMap(): Map<String, Any?> = mapOf(
         "name" to name,
         "price" to price,
+        "sale_type" to saleType.firestoreValue,
+        "pcs_per_pack" to if (saleType == ProductSaleType.BUNGKUS) pcsPerPack else 1,
         "is_active" to isActive
     )
 

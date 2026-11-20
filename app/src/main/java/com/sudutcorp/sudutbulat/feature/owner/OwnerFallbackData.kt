@@ -5,6 +5,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
@@ -76,12 +77,12 @@ fun defaultSeededMaterials(): List<Material> = listOf(
 )
 
 fun defaultSeededProducts(): List<Product> = listOf(
-    Product("prod_tahu_ori_satuan", "Tahu Bulat Original (Satuan)", 1_000L, true),
-    Product("prod_tahu_ori_bungkus", "Tahu Bulat Original (Bungkus 5 pcs)", 5_000L, true),
-    Product("prod_tahu_pedas_satuan", "Tahu Bulat Pedas (Satuan)", 1_200L, true),
-    Product("prod_tahu_pedas_bungkus", "Tahu Bulat Pedas (Bungkus 5 pcs)", 6_000L, true),
-    Product("prod_tahu_keju_satuan", "Tahu Bulat Keju (Satuan)", 1_500L, true),
-    Product("prod_tahu_keju_bungkus", "Tahu Bulat Keju (Bungkus 5 pcs)", 7_000L, true)
+    Product("prod_tahu_ori_satuan", "Tahu Bulat Original (Satuan)", 1_000L, ProductSaleType.SATUAN, 1, true),
+    Product("prod_tahu_ori_bungkus", "Tahu Bulat Original (Bungkus 5 pcs)", 5_000L, ProductSaleType.BUNGKUS, 5, true),
+    Product("prod_tahu_pedas_satuan", "Tahu Bulat Pedas (Satuan)", 1_200L, ProductSaleType.SATUAN, 1, true),
+    Product("prod_tahu_pedas_bungkus", "Tahu Bulat Pedas (Bungkus 5 pcs)", 6_000L, ProductSaleType.BUNGKUS, 5, true),
+    Product("prod_tahu_keju_satuan", "Tahu Bulat Keju (Satuan)", 1_500L, ProductSaleType.SATUAN, 1, true),
+    Product("prod_tahu_keju_bungkus", "Tahu Bulat Keju (Bungkus 5 pcs)", 7_000L, ProductSaleType.BUNGKUS, 5, true)
 )
 
 fun defaultNotifications(): List<OwnerNotificationUi> = listOf(

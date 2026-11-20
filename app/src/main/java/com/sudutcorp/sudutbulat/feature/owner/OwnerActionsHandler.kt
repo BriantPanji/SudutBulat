@@ -7,6 +7,7 @@ import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
@@ -267,6 +268,19 @@ class OwnerActionsHandler(
             return
         }
 
+        val resolvedPcsPerPack = if (form.isProduct && form.saleType == ProductSaleType.BUNGKUS) {
+            val parsed = form.pcsPerPackInput.toIntOrNull()
+            if (parsed == null || parsed < 2) {
+                state.update {
+                    it.copy(addCatalogForm = form.copy(errorMessage = "Jumlah pcs per bungkus minimal 2."))
+                }
+                return
+            }
+            parsed
+        } else {
+            1
+        }
+
         state.update { it.copy(addCatalogForm = form.copy(isSaving = true, errorMessage = null)) }
         val priceOrCost = form.priceOrCostInput.toLongOrNull() ?: 0L
         val slug = cleanName.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "_").trim('_')
@@ -278,6 +292,8 @@ class OwnerActionsHandler(
                 id = form.editingItemId ?: "prod_$slug",
                 name = cleanName,
                 price = priceOrCost,
+                saleType = form.saleType,
+                pcsPerPack = resolvedPcsPerPack,
                 isActive = form.isActive
             )
             val result: Result<Any> = if (isEdit) {

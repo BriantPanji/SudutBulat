@@ -5,6 +5,7 @@ import com.sudutcorp.sudutbulat.core.util.formatRupiah
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import java.text.SimpleDateFormat
@@ -197,12 +198,19 @@ private fun buildCatalogItems(materials: List<Material>, products: List<Product>
         )
     }
     val prodItems = products.map { prod ->
+        val unitText = if (prod.saleType == ProductSaleType.BUNGKUS) {
+            "bungkus (${prod.pcsPerPack} pcs)"
+        } else {
+            "satuan"
+        }
         CatalogItemUi(
             id = prod.id, name = prod.name, category = "Produk Jual", isProduct = true,
             priceOrCost = prod.price,
             unit = UnitType.PCS,
-            unitLabel = if (prod.name.contains("Bungkus", ignoreCase = true)) "bungkus" else "pcs",
-            subtitleText = "Harga jual ${formatRupiah(prod.price)}",
+            saleType = prod.saleType,
+            pcsPerPack = prod.pcsPerPack,
+            unitLabel = unitText,
+            subtitleText = "${formatRupiah(prod.price)} / $unitText",
             statusBadge = if (prod.isActive) "Dijual" else "Tidak dijual",
             isWarning = !prod.isActive,
             isActive = prod.isActive

@@ -7,6 +7,8 @@ import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
+import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
@@ -58,6 +60,17 @@ class BackendPersistenceTest {
         val materialMap = Material("mat_1", "Tahu", 500L, UnitType.PCS, isActive = false).toFirestoreMap()
         assertEquals("pcs", materialMap["unit"])
         assertEquals(false, materialMap["is_active"])
+
+        val satuanMap = Product("p1", "Tahu Ori", 1000L, ProductSaleType.SATUAN, 5, true).toFirestoreMap()
+        assertEquals("satuan", satuanMap["sale_type"])
+        assertEquals(1, satuanMap["pcs_per_pack"])
+
+        val bungkusMap = Product("p2", "Tahu Ori Bungkus", 5000L, ProductSaleType.BUNGKUS, 5, true).toFirestoreMap()
+        assertEquals("bungkus", bungkusMap["sale_type"])
+        assertEquals(5, bungkusMap["pcs_per_pack"])
+
+        assertEquals(ProductSaleType.SATUAN, ProductSaleType.fromString("SATUAN"))
+        assertEquals(ProductSaleType.BUNGKUS, ProductSaleType.fromString("bungkus"))
 
         val reportMap = DailyReport("r1", "o1", cashRevenue = 1000L, qrisRevenue = 500L, totalSold = 3).toFirestoreMap()
         assertFalse(reportMap.containsKey("totalRevenue"))
@@ -150,5 +163,62 @@ class BackendPersistenceTest {
         assertEquals(Role.WAREHOUSE, saved.role)
         assertTrue(effects.tryReceive().getOrNull() is OwnerUiEffect.ShowSnackbar)
         assertEquals(OwnerUiEffect.NavigateBack, effects.tryReceive().getOrNull())
+    }
+
+    @Test
+    fun submitCatalogProductValidatesPackSizeAndPersistsSaleType() = runBlocking {
+        val productDs = FakeProductRemoteDataSource()
+        val state = MutableStateFlow(
+            OwnerUiState(
+                addCatalogForm = AddCatalogItemFormState(
+                    name = "Tahu Keju Bungkus",
+                    isProduct = true,
+                    priceOrCostInput = "7000",
+                    saleType = ProductSaleType.BUNGKUS,
+                    pcsPerPackInput = "1"
+                )
+            )
+        )
+        val effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
+        val handler = OwnerActionsHandler(
+            outletRepository = OutletRepository(FakeOutletRemoteDataSource()),
+            userRepository = UserRepository(FakeUserRemoteDataSource()),
+            materialRepository = MaterialRepository(FakeMaterialRemoteDataSource()),
+            productRepository = ProductRepository(productDs),
+            authRepository = FakeAuthRepository(),
+            state = state,
+            effects = effects
+        )
+
+        // 1. Reject bungkus with < 2 pcs
+        handler.submitCatalogItem()
+        assertTrue(productDs.products.isEmpty())
+        assertNotNull(state.value.addCatalogForm.errorMessage)
+
+        // 2. Accept bungkus with 5 pcs
+        state.value = state.value.copy(
+            addCatalogForm = state.value.addCatalogForm.copy(pcsPerPackInput = "5", errorMessage = null)
+        )
+        handler.submitCatalogItem()
+        val savedPack = productDs.products.values.firstOrNull { it.name == "Tahu Keju Bungkus" }
+        assertNotNull(savedPack)
+        assertEquals(ProductSaleType.BUNGKUS, savedPack?.saleType)
+        assertEquals(5, savedPack?.pcsPerPack)
+
+        // 3. Satuan always persists pcsPerPack = 1
+        state.value = state.value.copy(
+            addCatalogForm = AddCatalogItemFormState(
+                name = "Tahu Ori Satuan",
+                isProduct = true,
+                priceOrCostInput = "1000",
+                saleType = ProductSaleType.SATUAN,
+                pcsPerPackInput = "9"
+            )
+        )
+        handler.submitCatalogItem()
+        val savedUnit = productDs.products.values.firstOrNull { it.name == "Tahu Ori Satuan" }
+        assertNotNull(savedUnit)
+        assertEquals(ProductSaleType.SATUAN, savedUnit?.saleType)
+        assertEquals(1, savedUnit?.pcsPerPack)
     }
 }

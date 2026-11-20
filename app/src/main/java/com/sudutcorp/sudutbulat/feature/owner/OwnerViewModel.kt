@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.core.util.sanitizeTimeDigits
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
@@ -189,6 +190,17 @@ class OwnerViewModel(
             is OwnerUiEvent.CatalogUnitChanged -> _state.update {
                 it.copy(addCatalogForm = it.addCatalogForm.copy(unit = event.unit, errorMessage = null))
             }
+            is OwnerUiEvent.CatalogSaleTypeChanged -> _state.update {
+                it.copy(addCatalogForm = it.addCatalogForm.copy(saleType = event.saleType, errorMessage = null))
+            }
+            is OwnerUiEvent.CatalogPcsPerPackChanged -> _state.update {
+                it.copy(
+                    addCatalogForm = it.addCatalogForm.copy(
+                        pcsPerPackInput = event.pcsInput.filter(Char::isDigit),
+                        errorMessage = null
+                    )
+                )
+            }
             is OwnerUiEvent.ResetCatalogForm -> _state.update {
                 it.copy(addCatalogForm = AddCatalogItemFormState(isProduct = event.defaultIsProduct))
             }
@@ -200,6 +212,12 @@ class OwnerViewModel(
                         isProduct = event.item.isProduct,
                         priceOrCostInput = event.item.priceOrCost.toString(),
                         unit = event.item.unit,
+                        saleType = event.item.saleType,
+                        pcsPerPackInput = if (event.item.saleType == ProductSaleType.BUNGKUS) {
+                            event.item.pcsPerPack.toString()
+                        } else {
+                            ""
+                        },
                         isActive = event.item.isActive
                     )
                 )

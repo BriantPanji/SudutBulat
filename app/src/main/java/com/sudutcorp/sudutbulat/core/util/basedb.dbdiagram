@@ -81,6 +81,8 @@ Table products {
   id string [pk]
   name string [not null, unique]
   price int [not null]
+  sale_type ProductSaleType [not null, default: 'satuan']
+  pcs_per_pack int [not null, default: 1]
   is_active boolean [not null, default: true]
 }
 
@@ -121,6 +123,11 @@ enum Unit {
   gr
   ml
   unit
+}
+
+enum ProductSaleType {
+  satuan
+  bungkus
 }
 
 Enum DistributionStatus {

@@ -7,6 +7,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
@@ -176,6 +177,8 @@ data class CatalogItemUi(
     val isProduct: Boolean,
     val priceOrCost: Long,
     val unit: UnitType = UnitType.PCS,
+    val saleType: ProductSaleType = ProductSaleType.SATUAN,
+    val pcsPerPack: Int = 1,
     val unitLabel: String,
     val subtitleText: String,
     val statusBadge: String,
@@ -220,6 +223,8 @@ data class AddCatalogItemFormState(
     val isProduct: Boolean = false,
     val priceOrCostInput: String = "",
     val unit: UnitType = UnitType.PCS,
+    val saleType: ProductSaleType = ProductSaleType.SATUAN,
+    val pcsPerPackInput: String = "",
     val isActive: Boolean = true,
     val isSaving: Boolean = false,
     val errorMessage: String? = null
@@ -318,6 +323,8 @@ sealed interface OwnerUiEvent {
     data class CatalogTypeChanged(val isProduct: Boolean) : OwnerUiEvent
     data class CatalogPriceChanged(val priceInput: String) : OwnerUiEvent
     data class CatalogUnitChanged(val unit: UnitType) : OwnerUiEvent
+    data class CatalogSaleTypeChanged(val saleType: ProductSaleType) : OwnerUiEvent
+    data class CatalogPcsPerPackChanged(val pcsInput: String) : OwnerUiEvent
     data class ResetCatalogForm(val defaultIsProduct: Boolean = false) : OwnerUiEvent
     data class StartEditCatalogItem(val item: CatalogItemUi) : OwnerUiEvent
     data class ToggleCatalogItemActive(val item: CatalogItemUi) : OwnerUiEvent

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -66,6 +67,7 @@ import com.sudutcorp.sudutbulat.core.components.SBSortDropdownButton
 import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.ThousandSeparatorVisualTransformation
+import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi
 import com.sudutcorp.sudutbulat.feature.owner.CatalogTabMode
@@ -317,6 +319,8 @@ fun GudangStockScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 24.dp),
@@ -348,20 +352,65 @@ fun GudangStockScreen(
                     onValueChange = { onEvent(OwnerUiEvent.CatalogNameChanged(it)) }
                 )
 
+                val isPackProduct = form.isProduct && form.saleType == ProductSaleType.BUNGKUS
                 SBLabeledTextField(
-                    label = if (form.isProduct) "Harga jual" else "Harga modal per satuan",
+                    label = when {
+                        isPackProduct -> "Harga jual per bungkus"
+                        form.isProduct -> "Harga jual per satuan"
+                        else -> "Harga modal per satuan"
+                    },
                     value = form.priceOrCostInput,
                     placeholder = if (form.isProduct) "5.000" else "500",
                     leadingIconRes = R.drawable.ic_wallet,
                     prefixText = "Rp",
                     keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done,
+                    imeAction = if (isPackProduct) ImeAction.Next else ImeAction.Done,
                     visualTransformation = thousandTransformation,
-                    onImeAction = { focusManager.clearFocus() },
+                    onImeAction = {
+                        if (isPackProduct) focusManager.moveFocus(FocusDirection.Next) else focusManager.clearFocus()
+                    },
                     onValueChange = { onEvent(OwnerUiEvent.CatalogPriceChanged(it)) }
                 )
 
-                if (!form.isProduct) {
+                if (form.isProduct) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Tipe penjualan", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ProductSaleType.entries.forEach { saleType ->
+                                val isSelected = form.saleType == saleType
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onEvent(OwnerUiEvent.CatalogSaleTypeChanged(saleType)) },
+                                    label = { Text(saleType.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) },
+                                    shape = RoundedCornerShape(9.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SBColor.Grey_700,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = SBColor.Grey_100,
+                                        labelColor = SBColor.Grey_600
+                                    ),
+                                    border = null
+                                )
+                            }
+                        }
+                    }
+
+                    if (isPackProduct) {
+                        SBLabeledTextField(
+                            label = "Isi per bungkus (pcs)",
+                            value = form.pcsPerPackInput,
+                            placeholder = "5",
+                            leadingIconRes = R.drawable.ic_box,
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done,
+                            onImeAction = { focusManager.clearFocus() },
+                            onValueChange = { onEvent(OwnerUiEvent.CatalogPcsPerPackChanged(it)) }
+                        )
+                    }
+                } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Satuan material", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
                         Row(
