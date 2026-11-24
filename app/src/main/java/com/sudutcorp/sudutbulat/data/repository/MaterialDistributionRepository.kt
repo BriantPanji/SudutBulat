@@ -52,7 +52,7 @@ class MaterialDistributionRepository(
      */
     suspend fun getDistributionWithItems(distributionId: String): Result<DistributionWithItems?> = runCatching {
         val dist = remoteDataSource.getDistributionById(distributionId).getOrThrow() ?: return@runCatching null
-        val items = remoteDataSource.getDistributionItems(distributionId).getOrThrow()
+        val items = dist.items.ifEmpty { remoteDataSource.getDistributionItems(distributionId).getOrThrow() }
         DistributionWithItems(distribution = dist, items = items)
     }
 

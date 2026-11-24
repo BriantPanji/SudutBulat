@@ -278,7 +278,10 @@ async function handleMigrateFresh(extraArgs) {
   const { db } = getFirebase();
   console.log("=== Menghapus Seluruh Koleksi Firestore (migrate:fresh) ===");
 
-  const allCollections = Object.values(COLLECTIONS);
+  const allCollections = [
+    ...Object.values(COLLECTIONS),
+    "material_distribution_items",
+  ];
   for (const colName of allCollections) {
     const deletedCount = await clearCollection(db, colName);
     console.log(`  [CLEARED] ${colName}: ${deletedCount} dokumen dihapus.`);

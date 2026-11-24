@@ -91,12 +91,11 @@ Sumber acuan: [`basedb.dbdiagram`](file:///c:/Users/FASILKOMTIUSU/panjay/SudutBu
 | `outlets` | `Outlet` | `id`, `name`, `address`, `coordinate` (`GeoPoint`), `is_active`, `is_open`. |
 | `materials` | `Material` | Katalog bahan mentah/stok: `id`, `name` (unik), `cost` (Long $\ge 0$), `unit` (`PCS`, `GR`, `ML`, `UNIT`). **Tidak menyimpan stok gudang.** |
 | `products` | `Product` | Katalog barang siap jual: `id`, `name` (unik), `price` (Long $\ge 0$), `is_active`. |
-| `material_distributions` | `MaterialDistribution` | Header distribusi/request stok ke outlet: `id`, `outlet_id`, `created_by`, `confirmed_by`, `status` (`DistributionStatus`), `note`, `confirmation_note`, `created_at`, `sent_at`, `confirmed_at`. |
-| `material_distribution_items` | `MaterialDistributionItem` | Detail item per distribusi: `id`, `distribution_id`, `material_id`, `quantity_sent`, `quantity_received`, `note`. Unik per `(distribution_id, material_id)`. |
+| `material_distributions` | `MaterialDistribution` | Dokumen distribusi/request stok ke outlet: `id`, `outlet_id`, `created_by`, `confirmed_by`, `status` (`DistributionStatus`), `note`, `confirmation_note`, `created_at`, `sent_at`, `confirmed_at`, serta `items` (array of map: `{ material_id, quantity_sent, quantity_received, note }`). |
 | `daily_reports` | `DailyReport` | Header laporan tutup toko harian: `id`, `outlet_id`, `date`, `cash_revenue`, `qris_revenue`, `total_sold`. Unik per `(outlet_id, date)`. |
-| `daily_report_products` | `DailyReportProduct` | Rincian produk terjual pada laporan harian: `id`, `daily_report_id`, `product_id`, `quantity`, `price`. |
-| `daily_report_expenses` | `DailyReportExpense` | Pengeluaran operasional mandiri outlet: `id`, `daily_report_id`, `category` (`ExpenseCategory`: `GAS`, `PLASTIC_BAG`, `OTHER` — detail item seperti lidi, minyak, saus umum ditulis di `note` atau penambahan enum jika diperlukan), `amount` (Long $\ge 0$), `note`. |
-| `daily_report_damaged_materials` | `DailyReportDamagedMaterial` | Catatan bahan mentah rusak/basi di outlet: `id`, `daily_report_id`, `material_id`, `quantity`, `note`. |
+| `daily_report_products` | `DailyReportProduct` | 1 dokumen per `daily_report_id` (doc ID = `daily_report_id`) yang menyimpan array `items`: `[{ product_id, quantity, price }]`. |
+| `daily_report_expenses` | `DailyReportExpense` | 1 dokumen per `daily_report_id` (doc ID = `daily_report_id`) yang menyimpan array `items`: `[{ category, amount, note }]`. |
+| `daily_report_damaged_materials` | `DailyReportDamagedMaterial` | 1 dokumen per `daily_report_id` (doc ID = `daily_report_id`) yang menyimpan array `items`: `[{ material_id, quantity, note }]`. |
 
 ### Siklus Status Distribusi & Request Stok (`DistributionStatus`)
 - **Distribusi Rutin Pagi (Inisiatif Gudang):**

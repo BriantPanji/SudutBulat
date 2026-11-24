@@ -45,7 +45,9 @@ data class MaterialDistribution(
 
     @get:PropertyName("confirmed_at")
     @set:PropertyName("confirmed_at")
-    var confirmedAt: Timestamp? = null
+    var confirmedAt: Timestamp? = null,
+
+    val items: List<MaterialDistributionItem> = emptyList()
 ) {
     init {
         require(note == null || note.length <= 512) { "Note must not exceed 512 characters" }

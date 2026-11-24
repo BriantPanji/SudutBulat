@@ -2,10 +2,13 @@ package com.sudutcorp.sudutbulat.feature.owner
 
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.DailyReport
+import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
+import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
@@ -13,7 +16,11 @@ import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreItemMap
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreMap
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toReportDamagedDocMap
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toReportExpensesDocMap
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toReportProductsDocMap
 import com.sudutcorp.sudutbulat.data.repository.FakeMaterialRemoteDataSource
 import com.sudutcorp.sudutbulat.data.repository.FakeOutletRemoteDataSource
 import com.sudutcorp.sudutbulat.data.repository.FakeProductRemoteDataSource
@@ -75,11 +82,40 @@ class BackendPersistenceTest {
         val reportMap = DailyReport("r1", "o1", cashRevenue = 1000L, qrisRevenue = 500L, totalSold = 3).toFirestoreMap()
         assertFalse(reportMap.containsKey("totalRevenue"))
 
-        val rpMap = DailyReportProduct("rp1", "r1", "p1", 2, 5000L).toFirestoreMap()
-        assertFalse(rpMap.containsKey("subtotal"))
+        val rpItemMap = DailyReportProduct("rp1", "r1", "p1", 2, 5000L).toFirestoreItemMap()
+        assertFalse(rpItemMap.containsKey("subtotal"))
+        assertFalse(rpItemMap.containsKey("daily_report_id"))
 
-        val distItemMap = MaterialDistributionItem("di1", "d1", "m1", 10, 8).toFirestoreMap()
+        val rpDocMap = listOf(
+            DailyReportProduct("rp1", "r1", "p1", 2, 5000L),
+            DailyReportProduct("rp2", "r1", "p2", 4, 6000L)
+        ).toReportProductsDocMap("r1")
+        assertEquals("r1", rpDocMap["daily_report_id"])
+        assertEquals(2, (rpDocMap["items"] as List<*>).size)
+
+        val expDocMap = listOf(
+            DailyReportExpense("e1", "r1", ExpenseCategory.GAS, 22000L, "Gas 3kg")
+        ).toReportExpensesDocMap("r1")
+        assertEquals("r1", expDocMap["daily_report_id"])
+        assertEquals(1, (expDocMap["items"] as List<*>).size)
+
+        val dmgDocMap = listOf(
+            DailyReportDamagedMaterial("d1", "r1", "m1", 5, "Pecah")
+        ).toReportDamagedDocMap("r1")
+        assertEquals("r1", dmgDocMap["daily_report_id"])
+        assertEquals(1, (dmgDocMap["items"] as List<*>).size)
+
+        val distItemMap = MaterialDistributionItem("di1", "d1", "m1", 10, 8).toFirestoreItemMap()
         assertFalse(distItemMap.containsKey("quantityDifference"))
+        assertFalse(distItemMap.containsKey("distribution_id"))
+
+        val distMap = MaterialDistribution(
+            id = "d1",
+            outletId = "o1",
+            createdBy = "gudang",
+            items = listOf(MaterialDistributionItem("di1", "d1", "m1", 10, 8))
+        ).toFirestoreMap()
+        assertEquals(1, (distMap["items"] as List<*>).size)
 
         assertEquals(UnitType.PCS, UnitType.fromString("pcs"))
         assertEquals(UnitType.GR, UnitType.fromString("GR"))

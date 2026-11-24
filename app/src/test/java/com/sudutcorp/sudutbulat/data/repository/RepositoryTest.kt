@@ -228,7 +228,6 @@ class FakeProductRemoteDataSource : ProductRemoteDataSource() {
 
 class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataSource() {
     val distributions = mutableMapOf<String, MaterialDistribution>()
-    val distributionItems = mutableMapOf<String, MutableList<MaterialDistributionItem>>()
     var shouldFail: Boolean = false
 
     override fun getDistributionsFlow(outletId: String?): Flow<List<MaterialDistribution>> = flowOf(
@@ -255,11 +254,14 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
 
     override suspend fun getDistributionItems(distributionId: String): Result<List<MaterialDistributionItem>> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
-        distributionItems[distributionId] ?: emptyList()
+        distributions[distributionId]?.items ?: emptyList()
     }
 
     override fun getDistributionItemsFlow(distributionId: String): Flow<List<MaterialDistributionItem>> =
-        flowOf(distributionItems[distributionId] ?: emptyList())
+        flowOf(distributions[distributionId]?.items ?: emptyList())
+
+    override fun getAllDistributionItemsFlow(): Flow<List<MaterialDistributionItem>> =
+        flowOf(distributions.values.flatMap { it.items })
 
     override suspend fun createDistribution(
         distribution: MaterialDistribution,
@@ -267,14 +269,13 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
     ): Result<String> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val id = if (distribution.id.isBlank()) "dist_${distributions.size + 1}" else distribution.id
-        val savedDist = distribution.copy(id = id)
-        distributions[id] = savedDist
-        distributionItems[id] = items.mapIndexed { idx, itm ->
+        val normalizedItems = items.mapIndexed { idx, itm ->
             itm.copy(
                 id = if (itm.id.isBlank()) "item_${id}_$idx" else itm.id,
                 distributionId = id
             )
-        }.toMutableList()
+        }
+        distributions[id] = distribution.copy(id = id, items = normalizedItems)
         id
     }
 
@@ -306,19 +307,20 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
     ): Result<Unit> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val dist = distributions[distributionId] ?: throw NoSuchElementException()
-        distributions[distributionId] = dist.copy(
-            status = status,
-            confirmedBy = confirmedBy,
-            confirmationNote = confirmationNote,
-            confirmedAt = Timestamp.now()
-        )
-        val itemsList = distributionItems[distributionId] ?: mutableListOf()
+        val itemsList = dist.items.toMutableList()
         updatedItems.forEach { updated ->
-            val idx = itemsList.indexOfFirst { it.id == updated.id }
+            val idx = itemsList.indexOfFirst { it.id == updated.id || it.materialId == updated.materialId }
             if (idx >= 0) {
                 itemsList[idx] = updated
             }
         }
+        distributions[distributionId] = dist.copy(
+            status = status,
+            confirmedBy = confirmedBy,
+            confirmationNote = confirmationNote,
+            confirmedAt = Timestamp.now(),
+            items = itemsList
+        )
     }
 }
 

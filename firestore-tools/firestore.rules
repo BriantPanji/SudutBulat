@@ -38,10 +38,6 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    match /material_distribution_items/{docId} {
-      allow read, write: if isSignedIn();
-    }
-
     match /daily_reports/{docId} {
       allow read, write: if isSignedIn();
     }

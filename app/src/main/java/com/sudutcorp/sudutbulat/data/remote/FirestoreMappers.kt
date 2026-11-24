@@ -155,62 +155,120 @@ object FirestoreMappers {
         "total_sold" to totalSold
     )
 
-    fun DocumentSnapshot.toDailyReportProduct(): DailyReportProduct = DailyReportProduct(
-        id = id,
-        dailyReportId = getString("daily_report_id").orEmpty(),
-        productId = getString("product_id").orEmpty(),
-        quantity = (getLong("quantity") ?: 0L).toInt().coerceAtLeast(0),
-        price = (getLong("price") ?: 0L).coerceAtLeast(0L)
-    )
+    private fun Any?.asLong(): Long = (this as? Number)?.toLong() ?: 0L
 
-    fun DailyReportProduct.toFirestoreMap(): Map<String, Any?> = mapOf(
-        "daily_report_id" to dailyReportId,
+    private fun Any?.asInt(): Int = (this as? Number)?.toInt() ?: 0
+
+    private fun Any?.asNullableInt(): Int? = (this as? Number)?.toInt()
+
+    @Suppress("UNCHECKED_CAST")
+    private fun DocumentSnapshot.rawItemsList(): List<Map<String, Any?>> =
+        (get("items") as? List<*>)?.mapNotNull { it as? Map<String, Any?> } ?: emptyList()
+
+    fun DocumentSnapshot.toDailyReportProducts(): List<DailyReportProduct> {
+        val reportId = getString("daily_report_id").orEmpty().ifBlank { id }
+        return rawItemsList().mapIndexed { idx, raw ->
+            DailyReportProduct(
+                id = "${reportId}_prod_${idx + 1}",
+                dailyReportId = reportId,
+                productId = (raw["product_id"] as? String).orEmpty(),
+                quantity = raw["quantity"].asInt().coerceAtLeast(0),
+                price = raw["price"].asLong().coerceAtLeast(0L)
+            )
+        }
+    }
+
+    fun DailyReportProduct.toFirestoreItemMap(): Map<String, Any?> = mapOf(
         "product_id" to productId,
         "quantity" to quantity,
         "price" to price
     )
 
-    fun DocumentSnapshot.toDailyReportExpense(): DailyReportExpense = DailyReportExpense(
-        id = id,
-        dailyReportId = getString("daily_report_id")?.takeIf { it.isNotBlank() },
-        category = parseExpenseCategory(getString("category")),
-        amount = (getLong("amount") ?: 0L).coerceAtLeast(0L),
-        note = getString("note")?.take(512)
+    fun List<DailyReportProduct>.toReportProductsDocMap(dailyReportId: String): Map<String, Any?> = mapOf(
+        "daily_report_id" to dailyReportId,
+        "items" to map { it.toFirestoreItemMap() }
     )
 
-    fun DailyReportExpense.toFirestoreMap(): Map<String, Any?> = mapOf(
-        "daily_report_id" to dailyReportId,
+    fun DocumentSnapshot.toDailyReportExpenses(): List<DailyReportExpense> {
+        val reportId = getString("daily_report_id")?.takeIf { it.isNotBlank() } ?: id
+        return rawItemsList().mapIndexed { idx, raw ->
+            DailyReportExpense(
+                id = "${reportId}_exp_${idx + 1}",
+                dailyReportId = reportId,
+                category = parseExpenseCategory(raw["category"] as? String),
+                amount = raw["amount"].asLong().coerceAtLeast(0L),
+                note = (raw["note"] as? String)?.take(512)
+            )
+        }
+    }
+
+    fun DailyReportExpense.toFirestoreItemMap(): Map<String, Any?> = mapOf(
         "category" to category.name,
         "amount" to amount,
         "note" to note
     )
 
-    fun DocumentSnapshot.toDailyReportDamagedMaterial(): DailyReportDamagedMaterial = DailyReportDamagedMaterial(
-        id = id,
-        dailyReportId = getString("daily_report_id").orEmpty(),
-        materialId = getString("material_id").orEmpty(),
-        quantity = (getLong("quantity") ?: 0L).toInt().coerceAtLeast(0),
-        note = getString("note")?.take(512)
+    fun List<DailyReportExpense>.toReportExpensesDocMap(dailyReportId: String): Map<String, Any?> = mapOf(
+        "daily_report_id" to dailyReportId,
+        "items" to map { it.toFirestoreItemMap() }
     )
 
-    fun DailyReportDamagedMaterial.toFirestoreMap(): Map<String, Any?> = mapOf(
-        "daily_report_id" to dailyReportId,
+    fun DocumentSnapshot.toDailyReportDamagedMaterials(): List<DailyReportDamagedMaterial> {
+        val reportId = getString("daily_report_id").orEmpty().ifBlank { id }
+        return rawItemsList().mapIndexed { idx, raw ->
+            DailyReportDamagedMaterial(
+                id = "${reportId}_dmg_${idx + 1}",
+                dailyReportId = reportId,
+                materialId = (raw["material_id"] as? String).orEmpty(),
+                quantity = raw["quantity"].asInt().coerceAtLeast(0),
+                note = (raw["note"] as? String)?.take(512)
+            )
+        }
+    }
+
+    fun DailyReportDamagedMaterial.toFirestoreItemMap(): Map<String, Any?> = mapOf(
         "material_id" to materialId,
         "quantity" to quantity,
         "note" to note
     )
 
-    fun DocumentSnapshot.toMaterialDistribution(): MaterialDistribution = MaterialDistribution(
-        id = id,
-        outletId = getString("outlet_id").orEmpty(),
-        createdBy = getString("created_by").orEmpty(),
-        confirmedBy = getString("confirmed_by")?.takeIf { it.isNotBlank() },
-        status = parseDistributionStatus(getString("status")),
-        note = getString("note")?.take(512),
-        confirmationNote = getString("confirmation_note")?.take(512),
-        createdAt = getTimestamp("created_at") ?: Timestamp.now(),
-        sentAt = getTimestamp("sent_at"),
-        confirmedAt = getTimestamp("confirmed_at")
+    fun List<DailyReportDamagedMaterial>.toReportDamagedDocMap(dailyReportId: String): Map<String, Any?> = mapOf(
+        "daily_report_id" to dailyReportId,
+        "items" to map { it.toFirestoreItemMap() }
+    )
+
+    fun DocumentSnapshot.toMaterialDistribution(): MaterialDistribution {
+        val parsedItems = rawItemsList().mapIndexed { idx, raw ->
+            val matId = (raw["material_id"] as? String).orEmpty()
+            MaterialDistributionItem(
+                id = (raw["id"] as? String)?.takeIf { it.isNotBlank() } ?: "${id}_${matId.ifBlank { (idx + 1).toString() }}",
+                distributionId = id,
+                materialId = matId,
+                quantitySent = raw["quantity_sent"].asInt().coerceAtLeast(0),
+                quantityReceived = raw["quantity_received"].asNullableInt()?.coerceAtLeast(0),
+                note = (raw["note"] as? String)?.take(512)
+            )
+        }
+        return MaterialDistribution(
+            id = id,
+            outletId = getString("outlet_id").orEmpty(),
+            createdBy = getString("created_by").orEmpty(),
+            confirmedBy = getString("confirmed_by")?.takeIf { it.isNotBlank() },
+            status = parseDistributionStatus(getString("status")),
+            note = getString("note")?.take(512),
+            confirmationNote = getString("confirmation_note")?.take(512),
+            createdAt = getTimestamp("created_at") ?: Timestamp.now(),
+            sentAt = getTimestamp("sent_at"),
+            confirmedAt = getTimestamp("confirmed_at"),
+            items = parsedItems
+        )
+    }
+
+    fun MaterialDistributionItem.toFirestoreItemMap(): Map<String, Any?> = mapOf(
+        "material_id" to materialId,
+        "quantity_sent" to quantitySent,
+        "quantity_received" to quantityReceived,
+        "note" to note
     )
 
     fun MaterialDistribution.toFirestoreMap(): Map<String, Any?> = mapOf(
@@ -222,23 +280,7 @@ object FirestoreMappers {
         "confirmation_note" to confirmationNote,
         "created_at" to createdAt,
         "sent_at" to sentAt,
-        "confirmed_at" to confirmedAt
-    )
-
-    fun DocumentSnapshot.toMaterialDistributionItem(): MaterialDistributionItem = MaterialDistributionItem(
-        id = id,
-        distributionId = getString("distribution_id").orEmpty(),
-        materialId = getString("material_id").orEmpty(),
-        quantitySent = (getLong("quantity_sent") ?: 0L).toInt().coerceAtLeast(0),
-        quantityReceived = getLong("quantity_received")?.toInt()?.coerceAtLeast(0),
-        note = getString("note")?.take(512)
-    )
-
-    fun MaterialDistributionItem.toFirestoreMap(): Map<String, Any?> = mapOf(
-        "distribution_id" to distributionId,
-        "material_id" to materialId,
-        "quantity_sent" to quantitySent,
-        "quantity_received" to quantityReceived,
-        "note" to note
+        "confirmed_at" to confirmedAt,
+        "items" to items.map { it.toFirestoreItemMap() }
     )
 }

@@ -6,12 +6,13 @@ import com.google.firebase.firestore.Query
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
+import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreItemMap
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreMap
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toMaterialDistribution
-import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toMaterialDistributionItem
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 
 open class MaterialDistributionRemoteDataSource(
@@ -23,9 +24,6 @@ open class MaterialDistributionRemoteDataSource(
 
     private val distributionsCollection
         get() = db?.collection(FirestoreCollections.MATERIAL_DISTRIBUTIONS)
-
-    private val distributionItemsCollection
-        get() = db?.collection(FirestoreCollections.MATERIAL_DISTRIBUTION_ITEMS)
 
     open fun getDistributionsFlow(outletId: String? = null): Flow<List<MaterialDistribution>> = callbackFlow {
         val col = distributionsCollection
@@ -97,78 +95,34 @@ open class MaterialDistributionRemoteDataSource(
     }
 
     open suspend fun getDistributionItems(distributionId: String): Result<List<MaterialDistributionItem>> = runCatching {
-        val itemCol = distributionItemsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
-        val snapshot = itemCol.whereEqualTo("distribution_id", distributionId).get().await()
-        snapshot.documents.map { it.toMaterialDistributionItem() }
+        getDistributionById(distributionId).getOrThrow()?.items ?: emptyList()
     }
 
-    open fun getDistributionItemsFlow(distributionId: String): Flow<List<MaterialDistributionItem>> = callbackFlow {
-        val itemCol = distributionItemsCollection
-        if (itemCol == null) {
-            close(IllegalStateException("Layanan Firestore tidak tersedia."))
-            return@callbackFlow
-        }
+    open fun getDistributionItemsFlow(distributionId: String): Flow<List<MaterialDistributionItem>> =
+        getDistributionFlow(distributionId).map { it?.items ?: emptyList() }
 
-        val registration = itemCol.whereEqualTo("distribution_id", distributionId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    close(error)
-                    return@addSnapshotListener
-                }
-                val items = snapshot?.documents?.map { it.toMaterialDistributionItem() } ?: emptyList()
-                trySend(items)
-            }
-
-        awaitClose { registration.remove() }
-    }
-
-    open fun getAllDistributionItemsFlow(): Flow<List<MaterialDistributionItem>> = callbackFlow {
-        val itemCol = distributionItemsCollection
-        if (itemCol == null) {
-            close(IllegalStateException("Layanan Firestore tidak tersedia."))
-            return@callbackFlow
-        }
-
-        val registration = itemCol.addSnapshotListener { snapshot, error ->
-            if (error != null) {
-                close(error)
-                return@addSnapshotListener
-            }
-            val items = snapshot?.documents?.map { it.toMaterialDistributionItem() } ?: emptyList()
-            trySend(items)
-        }
-
-        awaitClose { registration.remove() }
-    }
+    open fun getAllDistributionItemsFlow(): Flow<List<MaterialDistributionItem>> =
+        getDistributionsFlow(outletId = null).map { list -> list.flatMap { it.items } }
 
     /**
-     * Atomically creates a MaterialDistribution and all associated line items using Firestore WriteBatch.
+     * Atomically creates a MaterialDistribution document with embedded line items.
      */
     open suspend fun createDistribution(
         distribution: MaterialDistribution,
         items: List<MaterialDistributionItem>
     ): Result<String> = runCatching {
-        val firestore = db ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val distCol = distributionsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
-        val itemCol = distributionItemsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
-
-        val batch = firestore.batch()
-
         val distDoc = if (distribution.id.isNotBlank()) distCol.document(distribution.id) else distCol.document()
-        val distToSave = if (distribution.id.isBlank()) distribution.copy(id = distDoc.id) else distribution
-        batch.set(distDoc, distToSave.toFirestoreMap())
-
-        items.forEach { item ->
-            val itemDoc = if (item.id.isNotBlank()) itemCol.document(item.id) else itemCol.document()
-            val itemToSave = item.copy(
-                id = itemDoc.id,
-                distributionId = distDoc.id
+        val distId = distDoc.id
+        val normalizedItems = items.mapIndexed { idx, item ->
+            item.copy(
+                id = item.id.ifBlank { "${distId}_${item.materialId.ifBlank { (idx + 1).toString() }}" },
+                distributionId = distId
             )
-            batch.set(itemDoc, itemToSave.toFirestoreMap())
         }
-
-        batch.commit().await()
-        distDoc.id
+        val distToSave = distribution.copy(id = distId, items = normalizedItems)
+        distDoc.set(distToSave.toFirestoreMap()).await()
+        distId
     }
 
     open suspend fun updateDistributionStatus(
@@ -190,8 +144,8 @@ open class MaterialDistributionRemoteDataSource(
     }
 
     /**
-     * Atomically confirms distribution receipt, updating header status & notes
-     * along with received quantities on each item.
+     * Atomically confirms distribution receipt in a single document update,
+     * updating status, notes, and embedded items array.
      */
     open suspend fun confirmDistribution(
         distributionId: String,
@@ -200,38 +154,16 @@ open class MaterialDistributionRemoteDataSource(
         updatedItems: List<MaterialDistributionItem>,
         status: DistributionStatus = DistributionStatus.RECEIVED
     ): Result<Unit> = runCatching {
-        val firestore = db ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val distCol = distributionsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
-        val itemCol = distributionItemsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
-
-        val batch = firestore.batch()
-
-        val headerRef = distCol.document(distributionId)
-        val headerUpdates = mutableMapOf<String, Any>(
+        val updates = mutableMapOf<String, Any>(
             "status" to status.name,
             "confirmed_by" to confirmedBy,
-            "confirmed_at" to Timestamp.now()
+            "confirmed_at" to Timestamp.now(),
+            "items" to updatedItems.map { it.toFirestoreItemMap() }
         )
         if (confirmationNote != null) {
-            headerUpdates["confirmation_note"] = confirmationNote
+            updates["confirmation_note"] = confirmationNote
         }
-        batch.update(headerRef, headerUpdates)
-
-        updatedItems.forEach { item ->
-            require(item.id.isNotBlank()) { "Item ID tidak boleh kosong saat konfirmasi." }
-            val itemRef = itemCol.document(item.id)
-            val itemUpdates = mutableMapOf<String, Any>()
-            if (item.quantityReceived != null) {
-                itemUpdates["quantity_received"] = item.quantityReceived!!
-            }
-            if (item.note != null) {
-                itemUpdates["note"] = item.note
-            }
-            if (itemUpdates.isNotEmpty()) {
-                batch.update(itemRef, itemUpdates)
-            }
-        }
-
-        batch.commit().await()
+        distCol.document(distributionId).update(updates).await()
     }
 }

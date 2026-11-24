@@ -42,33 +42,21 @@ Table daily_reports {
 }
 
 Table daily_report_damaged_materials {
-  id string [pk]
-  daily_report_id string [ref: > daily_reports.id]
-  material_id string [ref: > materials.id]
-  quantity int
-  note string(512)
-
-  indexes {
-    (daily_report_id, material_id) [unique]
-  }
+  id string [pk, ref: - daily_reports.id] // 1 doc per daily_report_id
+  daily_report_id string [not null, ref: - daily_reports.id]
+  items array // list of { material_id, quantity, note }
 }
 
 Table daily_report_expenses {
-  daily_report_id string [ref: ?> daily_reports.id]
-  category expense_category
-  note string(512)
+  id string [pk, ref: - daily_reports.id] // 1 doc per daily_report_id
+  daily_report_id string [ref: - daily_reports.id]
+  items array // list of { category, amount, note }
 }
 
 Table daily_report_products {
-  id string [pk]
-  daily_report_id string [not null, ref: > daily_reports.id]
-  product_id string [not null, ref: > products.id]
-  quantity int [not null, default: 0]
-  price int [not null]
-
-  indexes {
-    (daily_report_id, product_id) [unique]
-  }
+  id string [pk, ref: - daily_reports.id] // 1 doc per daily_report_id
+  daily_report_id string [not null, ref: - daily_reports.id]
+  items array // list of { product_id, quantity, price }
 }
 
 Enum expense_category {
@@ -100,21 +88,8 @@ Table material_distributions {
   created_at timestamp [not null]
   sent_at timestamp
   confirmed_at timestamp
-}
 
-Table material_distribution_items {
-  id string [pk]
-  distribution_id string [not null, ref: > material_distributions.id]
-  material_id string [not null, ref: > materials.id]
-
-  quantity_sent int [not null]
-  quantity_received int
-
-  note string(512)
-
-  indexes {
-    (distribution_id, material_id) [unique]
-  }
+  items array // list of { material_id, quantity_sent, quantity_received, note }
 }
 
 

@@ -4,7 +4,6 @@ const COLLECTIONS = {
   MATERIALS: "materials",
   PRODUCTS: "products",
   MATERIAL_DISTRIBUTIONS: "material_distributions",
-  MATERIAL_DISTRIBUTION_ITEMS: "material_distribution_items",
   DAILY_REPORTS: "daily_reports",
   DAILY_REPORT_PRODUCTS: "daily_report_products",
   DAILY_REPORT_EXPENSES: "daily_report_expenses",

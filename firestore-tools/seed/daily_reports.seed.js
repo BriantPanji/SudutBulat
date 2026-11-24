@@ -218,7 +218,7 @@ function buildDailyReports(admin) {
 
       let totalRevenue = 0;
       let totalSold = 0;
-      let prodIdx = 1;
+      const productItems = [];
 
       for (const spec of productSpecs) {
         if (spec.qty <= 0) continue;
@@ -226,12 +226,18 @@ function buildDailyReports(admin) {
         totalRevenue += spec.qty * price;
         totalSold += spec.qty;
 
-        reportProducts.push({
-          id: `rep_prod_${profile.slug}_d${daysAgo}_${prodIdx++}`,
-          daily_report_id: reportId,
+        productItems.push({
           product_id: spec.id,
           quantity: spec.qty,
           price,
+        });
+      }
+
+      if (productItems.length > 0) {
+        reportProducts.push({
+          id: reportId,
+          daily_report_id: reportId,
+          items: productItems,
         });
       }
 
@@ -248,21 +254,17 @@ function buildDailyReports(admin) {
         total_sold: totalSold,
       });
 
-      // Pengeluaran harian outlet (2-3 item per laporan)
-      let expIdx = 1;
+      // Pengeluaran harian outlet (1 dokumen per laporan berisi array items)
+      const expenseItems = [];
       if (rng() < 0.78 || daysAgo <= 1) {
-        reportExpenses.push({
-          id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
-          daily_report_id: reportId,
+        expenseItems.push({
           category: "GAS",
           amount: randInt(rng, 20, 23) * 1000,
           note: pick(rng, profile.gasNotes),
         });
       }
 
-      reportExpenses.push({
-        id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
-        daily_report_id: reportId,
+      expenseItems.push({
         category: "PLASTIC_BAG",
         amount: randInt(rng, 14, 22) * 1000,
         note: pick(rng, profile.plasticNotes),
@@ -270,49 +272,53 @@ function buildDailyReports(admin) {
 
       const specialKey = `${profile.slug}_${daysAgo}`;
       if (SPECIAL_EXPENSES[specialKey]) {
-        reportExpenses.push({
-          id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
-          daily_report_id: reportId,
+        expenseItems.push({
           category: "OTHER",
           amount: SPECIAL_EXPENSES[specialKey].amount,
           note: SPECIAL_EXPENSES[specialKey].note,
         });
       } else {
-        reportExpenses.push({
-          id: `rep_exp_${profile.slug}_d${daysAgo}_${expIdx++}`,
-          daily_report_id: reportId,
+        expenseItems.push({
           category: "OTHER",
           amount: randInt(rng, 34, 56) * 1000,
           note: pick(rng, profile.otherNotes),
         });
       }
 
-      // Bahan rusak (~48% laporan, lebih mungkin saat hujan deras)
+      reportExpenses.push({
+        id: reportId,
+        daily_report_id: reportId,
+        items: expenseItems,
+      });
+
+      // Bahan rusak (~48% laporan, 1 dokumen per laporan berisi array items)
       const hasDamage = isRainyDay ? rng() < 0.75 : rng() < 0.42;
       if (hasDamage) {
-        let dmgIdx = 1;
+        const damagedItems = [];
         const primaryMat = pick(rng, ["mat_tahu_original", "mat_tahu_pedas", "mat_tahu_keju"]);
         // Sesekali >= 10 pcs agar alert bahan rusak di Owner Dashboard teruji
         const isHighDamage = isRainyDay && rng() < 0.45;
         const qty = isHighDamage ? randInt(rng, 10, 15) : randInt(rng, 3, 9);
 
-        reportDamagedMaterials.push({
-          id: `rep_dmg_${profile.slug}_d${daysAgo}_${dmgIdx++}`,
-          daily_report_id: reportId,
+        damagedItems.push({
           material_id: primaryMat,
           quantity: qty,
           note: pick(rng, profile.damagedNotes),
         });
 
         if (rng() < 0.22) {
-          reportDamagedMaterials.push({
-            id: `rep_dmg_${profile.slug}_d${daysAgo}_${dmgIdx++}`,
-            daily_report_id: reportId,
+          damagedItems.push({
             material_id: pick(rng, ["mat_bumbu_balado", "mat_bumbu_bbq", "mat_saus_sambal"]),
             quantity: randInt(rng, 1, 3),
             note: "Bumbu menggumpal / kemasan bocor saat operasional",
           });
         }
+
+        reportDamagedMaterials.push({
+          id: reportId,
+          daily_report_id: reportId,
+          items: damagedItems,
+        });
       }
     }
   }
@@ -339,7 +345,7 @@ async function seed(db, admin) {
   );
 
   console.log(
-    `  [OK] ${COLLECTIONS.DAILY_REPORTS}: ${rCount} laporan, ${pCount} item produk, ${eCount} pengeluaran, ${dCount} bahan rusak berhasil di-seed.`
+    `  [OK] ${COLLECTIONS.DAILY_REPORTS}: ${rCount} doc laporan, ${pCount} doc produk, ${eCount} doc pengeluaran, ${dCount} doc bahan rusak berhasil di-seed.`
   );
   return rCount + pCount + eCount + dCount;
 }

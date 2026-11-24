@@ -106,7 +106,6 @@ data class OutletUiState(
     val rawMaterials: List<Material> = emptyList(),
     val rawProducts: List<Product> = emptyList(),
     val rawDistributions: List<MaterialDistribution> = emptyList(),
-    val rawDistributionItems: List<MaterialDistributionItem> = emptyList(),
     val rawReports: List<DailyReport> = emptyList()
 )
 
@@ -193,11 +192,6 @@ class OutletViewModel(
             distributionRepository.getDistributionsFlow(outletId = null)
                 .catch { e -> reportError("memuat distribusi", e) }
                 .collect { list -> _state.update { recompute(it.copy(rawDistributions = list)) } }
-        }
-        viewModelScope.launch {
-            distributionRepository.getAllDistributionItemsFlow()
-                .catch { e -> reportError("memuat item distribusi", e) }
-                .collect { list -> _state.update { recompute(it.copy(rawDistributionItems = list)) } }
         }
         viewModelScope.launch {
             dailyReportRepository.getDailyReportsFlow(outletId = null)
@@ -456,13 +450,12 @@ class OutletViewModel(
         } ?: raw.rawOutlets.firstOrNull { it.isActive } ?: raw.rawOutlets.firstOrNull()
 
         val matMap = raw.rawMaterials.associateBy { it.id }
-        val itemsByDist = raw.rawDistributionItems.groupBy { it.distributionId }
         val timeFmt = SimpleDateFormat("dd MMM, HH.mm", Locale.forLanguageTag("id-ID"))
 
         val outletDists = raw.rawDistributions
             .filter { assignedOutlet == null || it.outletId == assignedOutlet.id }
             .map { dist ->
-                val items = itemsByDist[dist.id].orEmpty().map { item ->
+                val items = dist.items.map { item ->
                     val mat = matMap[item.materialId]
                     OutletDistributionItemUi(
                         id = item.id,

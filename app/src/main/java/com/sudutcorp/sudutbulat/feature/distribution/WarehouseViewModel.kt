@@ -58,7 +58,6 @@ data class WarehouseUiState(
     val materials: List<Material> = emptyList(),
     val users: List<User> = emptyList(),
     val distributions: List<MaterialDistribution> = emptyList(),
-    val distributionItems: List<MaterialDistributionItem> = emptyList(),
     val activeOutlets: List<Outlet> = emptyList(),
     val activeMaterials: List<Material> = emptyList(),
     val outletsPendingMorning: List<Outlet> = emptyList(),
@@ -131,11 +130,6 @@ class WarehouseViewModel(
             distributionRepository.getDistributionsFlow(outletId = null)
                 .catch { e -> reportError("memuat distribusi", e) }
                 .collect { list -> _state.update { recompute(it.copy(distributions = list)) } }
-        }
-        viewModelScope.launch {
-            distributionRepository.getAllDistributionItemsFlow()
-                .catch { e -> reportError("memuat item distribusi", e) }
-                .collect { list -> _state.update { recompute(it.copy(distributionItems = list)) } }
         }
     }
 
@@ -257,7 +251,6 @@ class WarehouseViewModel(
         val outletMap = raw.outlets.associateBy { it.id }
         val materialMap = raw.materials.associateBy { it.id }
         val userMap = raw.users.associateBy { it.id }
-        val itemsByDist = raw.distributionItems.groupBy { it.distributionId }
 
         val startOfTodaySec = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
@@ -269,7 +262,7 @@ class WarehouseViewModel(
         val timeFmt = SimpleDateFormat("dd MMM, HH.mm", Locale.forLanguageTag("id-ID"))
 
         val cards = raw.distributions.map { dist ->
-            val items = itemsByDist[dist.id].orEmpty()
+            val items = dist.items
             val totalQty = items.sumOf { it.quantitySent }
             val summary = items.take(2).joinToString(", ") { item ->
                 val matName = materialMap[item.materialId]?.name ?: item.materialId
