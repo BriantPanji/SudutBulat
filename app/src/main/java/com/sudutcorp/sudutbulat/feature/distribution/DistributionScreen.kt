@@ -1,5 +1,6 @@
 package com.sudutcorp.sudutbulat.feature.distribution
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -50,6 +51,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -97,6 +99,9 @@ import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.feature.owner.SortDirection
+import com.sudutcorp.sudutbulat.navigation.OwnerSubRoutes
+import com.sudutcorp.sudutbulat.navigation.navigateSingle
+import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -113,7 +118,6 @@ fun DistributionScreen(
     val focusManager = LocalFocusManager.current
     val gridState = rememberLazyGridState()
 
-    var showCreateSheet by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showOutletFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showOutletPresetListSheet by rememberSaveable { mutableStateOf(false) }
@@ -123,10 +127,8 @@ fun DistributionScreen(
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
-            when (effect) {
-                WarehouseUiEffect.DistributionSaved -> showCreateSheet = false
-                WarehouseUiEffect.RoutinePresetSaved -> editingPresetOutletId = null
-                else -> Unit
+            if (effect is WarehouseUiEffect.RoutinePresetSaved) {
+                editingPresetOutletId = null
             }
         }
     }
@@ -179,10 +181,14 @@ fun DistributionScreen(
         DistributionType.ROUTINE
     }
 
-    val openCreateSheet: (String?, DistributionType) -> Unit = remember(onEvent) {
+    val openCreateSheet: (String?, DistributionType) -> Unit = remember(navController, onEvent) {
         { outletId, type ->
-            onEvent(WarehouseUiEvent.InitCreateForm(preselectedOutletId = outletId, defaultType = type))
-            showCreateSheet = true
+            navController.navigateSingle(
+                route = OwnerSubRoutes.CreateDistribution,
+                beforeNavigate = {
+                    onEvent(WarehouseUiEvent.InitCreateForm(preselectedOutletId = outletId, defaultType = type))
+                }
+            )
         }
     }
 
@@ -551,14 +557,6 @@ fun DistributionScreen(
                 )
             }
         }
-    }
-
-    if (showCreateSheet) {
-        CreateDistributionBottomSheet(
-            uiState = uiState,
-            onEvent = onEvent,
-            onDismiss = { if (!uiState.createForm.isSaving) showCreateSheet = false }
-        )
     }
 
     if (showOutletFilterSheet) {
@@ -1251,10 +1249,12 @@ private fun EmptyDistributionCard(
 }
 
 @Composable
-fun CreateDistributionBottomSheet(
-    uiState: WarehouseUiState,
-    onEvent: (WarehouseUiEvent) -> Unit,
-    onDismiss: () -> Unit
+fun CreateDistributionScreen(
+    navController: NavHostController,
+    modifier: Modifier = Modifier,
+    uiState: WarehouseUiState = WarehouseUiState(),
+    effects: Flow<WarehouseUiEffect> = emptyFlow(),
+    onEvent: (WarehouseUiEvent) -> Unit = {}
 ) {
     val form = uiState.createForm
     val focusManager = LocalFocusManager.current
@@ -1270,184 +1270,190 @@ fun CreateDistributionBottomSheet(
         "Kirim distribusi sekarang"
     }
 
-    Dialog(
-        onDismissRequest = { if (!form.isSaving) onDismiss() },
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        )
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.White
+    BackHandler(enabled = form.isSaving) {
+        // Prevent accidental back navigation while network save is in progress
+    }
+
+    LaunchedEffect(effects) {
+        effects.collect { effect ->
+            if (effect is WarehouseUiEffect.DistributionSaved) {
+                navController.popBackStackSafe()
+            }
+        }
+    }
+
+    Scaffold(
+        modifier = modifier,
+        containerColor = Color.White,
+        bottomBar = {
+            SBBottomCtaBar(
+                label = ctaLabel,
+                isLoading = form.isSaving,
+                onClick = { onEvent(WarehouseUiEvent.SubmitCreateDistribution) }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .padding(innerPadding)
+                .imePadding()
+                .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
         ) {
-            Column(
+            SBSubHeader(
+                eyebrow = "Admin Gudang",
+                title = "Buat distribusi ${form.distributionType.label.lowercase()}",
+                onBackClick = { if (!form.isSaving) navController.popBackStackSafe() },
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+            )
+
+            HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .imePadding()
-                    .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                SBSubHeader(
-                    eyebrow = "Admin Gudang",
-                    title = "Buat distribusi ${form.distributionType.label.lowercase()}",
-                    onBackClick = { if (!form.isSaving) onDismiss() },
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
-                )
+                item(key = "create_outlet", contentType = "outlet") {
+                    SBSelectField(
+                        label = "Outlet tujuan",
+                        valueText = selectedOutlet?.let {
+                            if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
+                        } ?: "Pilih outlet tujuan",
+                        isPlaceholder = selectedOutlet == null,
+                        onClick = { showOutletPicker = true }
+                    )
+                }
 
-                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    item(key = "create_outlet", contentType = "outlet") {
-                        SBSelectField(
-                            label = "Outlet tujuan",
-                            valueText = selectedOutlet?.let {
-                                if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
-                            } ?: "Pilih outlet tujuan",
-                            isPlaceholder = selectedOutlet == null,
-                            onClick = { showOutletPicker = true }
-                        )
-                    }
-
-                    if (form.distributionType == DistributionType.ROUTINE && selectedOutlet != null) {
-                        item(key = "create_preset_banner", contentType = "preset_banner") {
-                            val hasPreset = selectedOutlet.routinePreset.any { it.quantity > 0 }
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                                color = if (hasPreset) SBColor.Success_100.copy(alpha = 0.7f) else SBColor.Warning_100
+                if (form.distributionType == DistributionType.ROUTINE && selectedOutlet != null) {
+                    item(key = "create_preset_banner", contentType = "preset_banner") {
+                        val hasPreset = selectedOutlet.routinePreset.any { it.quantity > 0 }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (hasPreset) SBColor.Success_100.copy(alpha = 0.7f) else SBColor.Warning_100
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                                Text(
+                                    text = if (hasPreset) {
+                                        "Terisi otomatis dari preset (dapat disesuaikan)"
+                                    } else {
+                                        "Preset rutin outlet ini belum diatur"
+                                    },
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (hasPreset) SBColor.Success_600 else SBColor.Warning_600,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (hasPreset) {
                                     Text(
-                                        text = if (hasPreset) {
-                                            "Terisi otomatis dari preset (dapat disesuaikan)"
-                                        } else {
-                                            "Preset rutin outlet ini belum diatur"
-                                        },
+                                        text = "Reset",
                                         fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (hasPreset) SBColor.Success_600 else SBColor.Warning_600,
-                                        modifier = Modifier.weight(1f)
+                                        fontWeight = FontWeight.Bold,
+                                        color = SBColor.Primary_550,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .clickable { onEvent(WarehouseUiEvent.ApplyOutletPresetToForm) }
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
-                                    if (hasPreset) {
-                                        Text(
-                                            text = "Reset",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = SBColor.Primary_550,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .clickable { onEvent(WarehouseUiEvent.ApplyOutletPresetToForm) }
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
                                 }
                             }
                         }
                     }
+                }
 
-                    item(key = "create_materials_header", contentType = "section_header") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                item(key = "create_materials_header", contentType = "section_header") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Jumlah bahan mentah",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SBColor.Grey_700
+                        )
+                        if (selectedItemCount > 0) {
                             Text(
-                                text = "Jumlah bahan mentah",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = SBColor.Grey_700
-                            )
-                            if (selectedItemCount > 0) {
-                                Text(
-                                    text = "$selectedItemCount bahan dipilih",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = SBColor.Primary_550
-                                )
-                            }
-                        }
-                    }
-
-                    items(
-                        items = uiState.activeMaterials,
-                        key = { it.id },
-                        contentType = { "dist_material_input" }
-                    ) { mat ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                                Text(mat.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
-                                Text("Satuan: ${mat.unit.firestoreValue}", fontSize = 12.sp, color = SBColor.Grey_500)
-                            }
-                            OutlinedTextField(
-                                value = form.itemQuantities[mat.id].orEmpty(),
-                                onValueChange = { onEvent(WarehouseUiEvent.UpdateItemQuantity(mat.id, it)) },
-                                modifier = Modifier.width(108.dp),
-                                placeholder = { Text("0", fontSize = 13.sp) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = SBColor.Primary_550,
-                                    unfocusedBorderColor = SBColor.Grey_200
-                                )
+                                text = "$selectedItemCount bahan dipilih",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SBColor.Primary_550
                             )
                         }
                     }
+                }
 
-                    item(key = "create_note", contentType = "note") {
+                items(
+                    items = uiState.activeMaterials,
+                    key = { it.id },
+                    contentType = { "dist_material_input" }
+                ) { mat ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                            Text(mat.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                            Text("Satuan: ${mat.unit.firestoreValue}", fontSize = 12.sp, color = SBColor.Grey_500)
+                        }
                         OutlinedTextField(
-                            value = form.note,
-                            onValueChange = { onEvent(WarehouseUiEvent.UpdateNote(it)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Catatan pengiriman (opsional)") },
-                            placeholder = {
-                                Text(
-                                    if (form.distributionType == DistributionType.ROUTINE) {
-                                        "Distribusi rutin pagi hari"
-                                    } else {
-                                        "Tambahan stok siang hari"
-                                    }
-                                )
-                            },
+                            value = form.itemQuantities[mat.id].orEmpty(),
+                            onValueChange = { onEvent(WarehouseUiEvent.UpdateItemQuantity(mat.id, it)) },
+                            modifier = Modifier.width(108.dp),
+                            placeholder = { Text("0", fontSize = 13.sp) },
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = SBColor.Primary_550,
                                 unfocusedBorderColor = SBColor.Grey_200
                             )
                         )
                     }
-
-                    form.errorMessage?.let { err ->
-                        item(key = "create_error", contentType = "error") {
-                            Text(text = err, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
-                        }
-                    }
                 }
 
-                SBBottomCtaBar(
-                    label = ctaLabel,
-                    isLoading = form.isSaving,
-                    onClick = { onEvent(WarehouseUiEvent.SubmitCreateDistribution) }
-                )
+                item(key = "create_note", contentType = "note") {
+                    OutlinedTextField(
+                        value = form.note,
+                        onValueChange = { onEvent(WarehouseUiEvent.UpdateNote(it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Catatan pengiriman (opsional)") },
+                        placeholder = {
+                            Text(
+                                if (form.distributionType == DistributionType.ROUTINE) {
+                                    "Distribusi rutin pagi hari"
+                                } else {
+                                    "Tambahan stok siang hari"
+                                }
+                            )
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SBColor.Primary_550,
+                            unfocusedBorderColor = SBColor.Grey_200
+                        )
+                    )
+                }
+
+                form.errorMessage?.let { err ->
+                    item(key = "create_error", contentType = "error") {
+                        Text(text = err, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
+                    }
+                }
             }
         }
     }

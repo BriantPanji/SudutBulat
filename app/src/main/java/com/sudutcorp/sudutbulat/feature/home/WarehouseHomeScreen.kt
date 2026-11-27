@@ -62,7 +62,6 @@ import com.sudutcorp.sudutbulat.core.util.formatDecimal
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Role
-import com.sudutcorp.sudutbulat.feature.distribution.CreateDistributionBottomSheet
 import com.sudutcorp.sudutbulat.feature.distribution.AdditionalDistributionSubTab
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionCardRow
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionCardUi
@@ -77,6 +76,8 @@ import com.sudutcorp.sudutbulat.feature.distribution.WarehouseDistributionTab
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEffect
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEvent
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiState
+import com.sudutcorp.sudutbulat.navigation.OwnerSubRoutes
+import com.sudutcorp.sudutbulat.navigation.navigateSingle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -96,7 +97,6 @@ fun WarehouseHomeScreen(
     onOpenCatalogTab: () -> Unit = {},
     onOpenDistributionTab: () -> Unit = {}
 ) {
-    var showCreateSheet by rememberSaveable { mutableStateOf(false) }
     var showOutletPresetListSheet by rememberSaveable { mutableStateOf(false) }
     var editingPresetOutletId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -104,10 +104,8 @@ fun WarehouseHomeScreen(
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
-            when (effect) {
-                WarehouseUiEffect.DistributionSaved -> showCreateSheet = false
-                WarehouseUiEffect.RoutinePresetSaved -> editingPresetOutletId = null
-                else -> Unit
+            if (effect is WarehouseUiEffect.RoutinePresetSaved) {
+                editingPresetOutletId = null
             }
         }
     }
@@ -219,8 +217,10 @@ fun WarehouseHomeScreen(
 
         WarehouseQuickActionsRow(
             onCreateDistribution = {
-                onEvent(WarehouseUiEvent.InitCreateForm(null))
-                showCreateSheet = true
+                navController.navigateSingle(
+                    route = OwnerSubRoutes.CreateDistribution,
+                    beforeNavigate = { onEvent(WarehouseUiEvent.InitCreateForm(null)) }
+                )
             },
             onManagePresets = { showOutletPresetListSheet = true },
             onOpenCatalog = onOpenCatalogTab
@@ -246,8 +246,10 @@ fun WarehouseHomeScreen(
                     openDistributionWithFilter(WarehouseDistributionTab.ROUTINE, DistributionStatusFilter.NOT_SENT)
                 },
                 onSendOutletClick = { outletId ->
-                    onEvent(WarehouseUiEvent.InitCreateForm(outletId))
-                    showCreateSheet = true
+                    navController.navigateSingle(
+                        route = OwnerSubRoutes.CreateDistribution,
+                        beforeNavigate = { onEvent(WarehouseUiEvent.InitCreateForm(outletId)) }
+                    )
                 }
             )
         }
@@ -258,14 +260,6 @@ fun WarehouseHomeScreen(
                 openDistributionWithFilter(WarehouseDistributionTab.HISTORY, DistributionStatusFilter.ALL)
             },
             onCardClick = { detailDistributionId = it }
-        )
-    }
-
-    if (showCreateSheet) {
-        CreateDistributionBottomSheet(
-            uiState = uiState,
-            onEvent = onEvent,
-            onDismiss = { if (!uiState.createForm.isSaving) showCreateSheet = false }
         )
     }
 

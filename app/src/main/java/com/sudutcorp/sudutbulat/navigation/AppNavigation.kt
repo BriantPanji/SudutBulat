@@ -54,7 +54,9 @@ import com.sudutcorp.sudutbulat.data.DefaultAppContainer
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.auth.LoginScreen
+import com.sudutcorp.sudutbulat.feature.distribution.CreateDistributionScreen
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEffect
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEvent
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiState
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
 import com.sudutcorp.sudutbulat.feature.home.WarehouseRoleBottomSheet
@@ -332,6 +334,9 @@ fun MainScreen(
     val onOwnerEvent: (OwnerUiEvent) -> Unit = remember(ownerViewModel) {
         { event -> ownerViewModel?.onEvent(event) }
     }
+    val onWarehouseEvent: (WarehouseUiEvent) -> Unit = remember(warehouseViewModel) {
+        { event -> warehouseViewModel?.onEvent(event) }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
     NavHost(
@@ -425,7 +430,7 @@ fun MainScreen(
                             onOwnerEvent = onOwnerEvent,
                             warehouseUiState = warehouseUiState,
                             warehouseEffects = warehouseViewModel?.effects ?: emptyFlow(),
-                            onWarehouseEvent = { event -> warehouseViewModel?.onEvent(event) },
+                            onWarehouseEvent = onWarehouseEvent,
                             catalogUiState = catalogUiState,
                             catalogEffects = catalogViewModel?.effects ?: emptyFlow(),
                             onCatalogEvent = { event -> catalogViewModel?.onEvent(event) },
@@ -588,6 +593,17 @@ fun MainScreen(
                             nestedNavController.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
                         }
                     }
+                )
+            }
+        }
+
+        composable<OwnerSubRoutes.CreateDistribution> {
+            PredictiveBackScreenContainer {
+                CreateDistributionScreen(
+                    navController = nestedNavController,
+                    uiState = warehouseUiState,
+                    effects = warehouseViewModel?.effects ?: emptyFlow(),
+                    onEvent = onWarehouseEvent
                 )
             }
         }

@@ -68,4 +68,7 @@ sealed interface OwnerSubRoutes {
 
     @Serializable
     data object Notification : OwnerSubRoutes
+
+    @Serializable
+    data object CreateDistribution : OwnerSubRoutes
 }
