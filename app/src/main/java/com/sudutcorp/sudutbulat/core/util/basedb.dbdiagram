@@ -98,6 +98,7 @@ Table material_distributions {
   confirmed_by string [ref: > users.id]
 
   status DistributionStatus [not null, default: 'DRAFT']
+  type DistributionType [not null, default: 'ROUTINE']
 
   note string(512)
   confirmation_note string(512)
@@ -129,6 +130,11 @@ Enum DistributionStatus {
   PARTIALLY_RECEIVED
   NOT_RECEIVED
   CANCELLED
+}
+
+Enum DistributionType {
+  ROUTINE
+  ADDITIONAL
 }
 
 enum UserRole {

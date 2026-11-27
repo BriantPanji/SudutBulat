@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
+import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
@@ -15,6 +16,7 @@ import com.sudutcorp.sudutbulat.data.repository.MaterialDistributionRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
+import com.sudutcorp.sudutbulat.feature.owner.SortDirection
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,15 +33,32 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+data class DistributionItemDetailUi(
+    val id: String,
+    val materialId: String,
+    val materialName: String,
+    val unitLabel: String,
+    val quantitySent: Int,
+    val quantityReceived: Int?,
+    val note: String?
+)
+
 data class DistributionCardUi(
     val id: String,
     val outletId: String,
     val outletName: String,
     val createdByName: String,
+    val confirmedByName: String?,
     val status: DistributionStatus,
+    val type: DistributionType,
     val totalQuantity: Int,
     val itemsSummary: String,
+    val items: List<DistributionItemDetailUi>,
     val timeLabel: String,
+    val todayTimeLabel: String,
+    val sentTimeLabel: String?,
+    val confirmedTimeLabel: String?,
+    val createdAtMillis: Long,
     val note: String?,
     val confirmationNote: String?,
     val isToday: Boolean
@@ -47,6 +66,7 @@ data class DistributionCardUi(
 
 data class CreateDistributionFormState(
     val selectedOutletId: String = "",
+    val distributionType: DistributionType = DistributionType.ROUTINE,
     val itemQuantities: Map<String, String> = emptyMap(),
     val note: String = "",
     val isSaving: Boolean = false,
@@ -63,14 +83,41 @@ data class WarehouseUiState(
     val outletsPendingMorning: List<Outlet> = emptyList(),
     val outletsCompletedMorningCount: Int = 0,
     val pendingRequests: List<DistributionCardUi> = emptyList(),
+    val todayPendingAdditionalCount: Int = 0,
     val distributionCards: List<DistributionCardUi> = emptyList(),
+    val selectedTab: WarehouseDistributionTab = WarehouseDistributionTab.ROUTINE,
+    val routineFilter: DistributionTabFilterState = DistributionTabFilterState(),
+    val additionalFilter: DistributionTabFilterState = DistributionTabFilterState(),
+    val historyFilter: DistributionTabFilterState = DistributionTabFilterState(),
     val createForm: CreateDistributionFormState = CreateDistributionFormState(),
     val isActionLoading: Boolean = false,
     val backendError: String? = null
-)
+) {
+    fun filterFor(tab: WarehouseDistributionTab): DistributionTabFilterState = when (tab) {
+        WarehouseDistributionTab.ROUTINE -> routineFilter
+        WarehouseDistributionTab.ADDITIONAL -> additionalFilter
+        WarehouseDistributionTab.HISTORY -> historyFilter
+    }
+}
 
 sealed interface WarehouseUiEvent {
-    data class InitCreateForm(val preselectedOutletId: String? = null) : WarehouseUiEvent
+    data class SelectDistributionTab(val tab: WarehouseDistributionTab) : WarehouseUiEvent
+    data class UpdateSearchQuery(val tab: WarehouseDistributionTab, val query: String) : WarehouseUiEvent
+    data class SelectStatusFilter(val tab: WarehouseDistributionTab, val statusFilter: DistributionStatusFilter) : WarehouseUiEvent
+    data class UpdateSort(
+        val tab: WarehouseDistributionTab,
+        val field: DistributionSortField,
+        val direction: SortDirection
+    ) : WarehouseUiEvent
+    data class SelectHistoryDate(val dateMillis: Long?) : WarehouseUiEvent
+    data class SelectHistoryTypeFilter(val typeFilter: DistributionTypeFilter) : WarehouseUiEvent
+    data class ResetTabFilters(val tab: WarehouseDistributionTab) : WarehouseUiEvent
+
+    data class InitCreateForm(
+        val preselectedOutletId: String? = null,
+        val defaultType: DistributionType = DistributionType.ROUTINE
+    ) : WarehouseUiEvent
+    data class SelectCreateType(val type: DistributionType) : WarehouseUiEvent
     data class SelectOutlet(val outletId: String) : WarehouseUiEvent
     data class UpdateItemQuantity(val materialId: String, val qtyInput: String) : WarehouseUiEvent
     data class UpdateNote(val note: String) : WarehouseUiEvent
@@ -133,13 +180,60 @@ class WarehouseViewModel(
         }
     }
 
+    private fun updateTabFilter(
+        tab: WarehouseDistributionTab,
+        transform: (DistributionTabFilterState) -> DistributionTabFilterState
+    ) {
+        _state.update { current ->
+            when (tab) {
+                WarehouseDistributionTab.ROUTINE -> current.copy(routineFilter = transform(current.routineFilter))
+                WarehouseDistributionTab.ADDITIONAL -> current.copy(additionalFilter = transform(current.additionalFilter))
+                WarehouseDistributionTab.HISTORY -> current.copy(historyFilter = transform(current.historyFilter))
+            }
+        }
+    }
+
     fun onEvent(event: WarehouseUiEvent) {
         when (event) {
+            is WarehouseUiEvent.SelectDistributionTab -> _state.update {
+                it.copy(selectedTab = event.tab)
+            }
+            is WarehouseUiEvent.UpdateSearchQuery -> updateTabFilter(event.tab) {
+                it.copy(searchQuery = event.query)
+            }
+            is WarehouseUiEvent.SelectStatusFilter -> updateTabFilter(event.tab) {
+                it.copy(statusFilter = event.statusFilter)
+            }
+            is WarehouseUiEvent.UpdateSort -> updateTabFilter(event.tab) {
+                it.copy(sortField = event.field, sortDirection = event.direction)
+            }
+            is WarehouseUiEvent.SelectHistoryDate -> updateTabFilter(WarehouseDistributionTab.HISTORY) {
+                it.copy(selectedDateMillis = event.dateMillis)
+            }
+            is WarehouseUiEvent.SelectHistoryTypeFilter -> updateTabFilter(WarehouseDistributionTab.HISTORY) {
+                it.copy(typeFilter = event.typeFilter)
+            }
+            is WarehouseUiEvent.ResetTabFilters -> updateTabFilter(event.tab) {
+                DistributionTabFilterState(sortField = it.sortField, sortDirection = it.sortDirection)
+            }
+
             is WarehouseUiEvent.InitCreateForm -> _state.update { current ->
                 val outletId = event.preselectedOutletId?.takeIf { it.isNotBlank() }
-                    ?: current.outletsPendingMorning.firstOrNull()?.id
+                    ?: if (event.defaultType == DistributionType.ROUTINE) {
+                        current.outletsPendingMorning.firstOrNull()?.id
+                    } else {
+                        null
+                    }
                     ?: current.activeOutlets.firstOrNull()?.id.orEmpty()
-                current.copy(createForm = CreateDistributionFormState(selectedOutletId = outletId))
+                current.copy(
+                    createForm = CreateDistributionFormState(
+                        selectedOutletId = outletId,
+                        distributionType = event.defaultType
+                    )
+                )
+            }
+            is WarehouseUiEvent.SelectCreateType -> _state.update {
+                it.copy(createForm = it.createForm.copy(distributionType = event.type, errorMessage = null))
             }
             is WarehouseUiEvent.SelectOutlet -> _state.update {
                 it.copy(createForm = it.createForm.copy(selectedOutletId = event.outletId, errorMessage = null))
@@ -187,11 +281,17 @@ class WarehouseViewModel(
         viewModelScope.launch {
             _state.update { it.copy(createForm = form.copy(isSaving = true, errorMessage = null)) }
             val now = Timestamp.now()
+            val defaultNote = if (form.distributionType == DistributionType.ROUTINE) {
+                "Distribusi rutin dari gudang"
+            } else {
+                "Distribusi tambahan stok dari gudang"
+            }
             val distribution = MaterialDistribution(
                 outletId = form.selectedOutletId,
                 createdBy = resolveCurrentUserId(),
                 status = DistributionStatus.SENT,
-                note = form.note.trim().ifBlank { "Distribusi stok dari gudang" },
+                type = form.distributionType,
+                note = form.note.trim().ifBlank { defaultNote },
                 createdAt = now,
                 sentAt = now
             )
@@ -199,7 +299,7 @@ class WarehouseViewModel(
             distributionRepository.createDistribution(distribution, items)
                 .onSuccess {
                     _state.update { it.copy(createForm = CreateDistributionFormState()) }
-                    _effects.send(WarehouseUiEffect.ShowSnackbar("Distribusi berhasil dikirim ke outlet."))
+                    _effects.send(WarehouseUiEffect.ShowSnackbar("Distribusi ${form.distributionType.label.lowercase()} berhasil dikirim ke outlet."))
                     _effects.send(WarehouseUiEffect.DistributionSaved)
                 }
                 .onFailure { e ->
@@ -238,9 +338,9 @@ class WarehouseViewModel(
                 confirmedAt = Timestamp.now()
             ).onSuccess {
                 _state.update { it.copy(isActionLoading = false) }
-                _effects.send(WarehouseUiEffect.ShowSnackbar("Permintaan stok ditolak."))
+                _effects.send(WarehouseUiEffect.ShowSnackbar("Permintaan stok dibatalkan."))
             }.onFailure { e ->
-                reportError("menolak permintaan stok", e)
+                reportError("membatalkan permintaan stok", e)
             }
         }
     }
@@ -259,16 +359,28 @@ class WarehouseViewModel(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis / 1000L
 
-        val timeFmt = SimpleDateFormat("dd MMM, HH.mm", Locale.forLanguageTag("id-ID"))
+        val idLocale = Locale.forLanguageTag("id-ID")
+        val dateTimeFmt = SimpleDateFormat("dd MMM, HH.mm", idLocale)
+        val clockFmt = SimpleDateFormat("HH.mm", idLocale)
 
         val cards = raw.distributions.map { dist ->
-            val items = dist.items
-            val totalQty = items.sumOf { it.quantitySent }
-            val summary = items.take(2).joinToString(", ") { item ->
-                val matName = materialMap[item.materialId]?.name ?: item.materialId
-                "$matName (${item.quantitySent})"
+            val detailItems = dist.items.map { item ->
+                val mat = materialMap[item.materialId]
+                DistributionItemDetailUi(
+                    id = item.id,
+                    materialId = item.materialId,
+                    materialName = mat?.name ?: item.materialId,
+                    unitLabel = mat?.unit?.firestoreValue ?: "pcs",
+                    quantitySent = item.quantitySent,
+                    quantityReceived = item.quantityReceived,
+                    note = item.note
+                )
+            }
+            val totalQty = detailItems.sumOf { it.quantitySent }
+            val summary = detailItems.take(2).joinToString(", ") { item ->
+                "${item.materialName} (${item.quantitySent} ${item.unitLabel})"
             }.let { base ->
-                if (items.size > 2) "$base +${items.size - 2} lainnya" else base
+                if (detailItems.size > 2) "$base +${detailItems.size - 2} lainnya" else base
             }.ifBlank { "Belum ada rincian item" }
 
             val outlet = outletMap[dist.outletId]
@@ -276,32 +388,46 @@ class WarehouseViewModel(
                 if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
             } ?: dist.outletId
 
+            val createdDate = dist.createdAt.toDate()
+
             DistributionCardUi(
                 id = dist.id,
                 outletId = dist.outletId,
                 outletName = outletName,
                 createdByName = userMap[dist.createdBy]?.name ?: dist.createdBy,
+                confirmedByName = dist.confirmedBy?.let { userMap[it]?.name ?: it },
                 status = dist.status,
+                type = dist.type,
                 totalQuantity = totalQty,
                 itemsSummary = summary,
-                timeLabel = timeFmt.format(Date(dist.createdAt.toDate().time)),
+                items = detailItems,
+                timeLabel = dateTimeFmt.format(createdDate),
+                todayTimeLabel = clockFmt.format(createdDate),
+                sentTimeLabel = dist.sentAt?.toDate()?.let { dateTimeFmt.format(it) },
+                confirmedTimeLabel = dist.confirmedAt?.toDate()?.let { dateTimeFmt.format(it) },
+                createdAtMillis = createdDate.time,
                 note = dist.note,
                 confirmationNote = dist.confirmationNote,
                 isToday = dist.createdAt.seconds >= startOfTodaySec
             )
         }
 
-        val outletsWithTodayDelivery = raw.distributions
+        // Only today's active ROUTINE distributions count toward daily routine completion.
+        val outletsWithTodayRoutine = raw.distributions
             .filter {
-                it.createdAt.seconds >= startOfTodaySec &&
+                it.type == DistributionType.ROUTINE &&
+                    it.createdAt.seconds >= startOfTodaySec &&
                     it.status != DistributionStatus.DRAFT &&
                     it.status != DistributionStatus.CANCELLED
             }
             .map { it.outletId }
             .toSet()
 
-        val pendingMorning = activeOutlets.filter { it.id !in outletsWithTodayDelivery }
+        val pendingMorning = activeOutlets.filter { it.id !in outletsWithTodayRoutine }
         val pendingRequests = cards.filter { it.status == DistributionStatus.DRAFT }
+        val todayPendingAdditionalCount = cards.count {
+            it.isToday && it.type == DistributionType.ADDITIONAL && it.status == DistributionStatus.DRAFT
+        }
 
         return raw.copy(
             activeOutlets = activeOutlets,
@@ -309,6 +435,7 @@ class WarehouseViewModel(
             outletsPendingMorning = pendingMorning,
             outletsCompletedMorningCount = activeOutlets.size - pendingMorning.size,
             pendingRequests = pendingRequests,
+            todayPendingAdditionalCount = todayPendingAdditionalCount,
             distributionCards = cards
         )
     }

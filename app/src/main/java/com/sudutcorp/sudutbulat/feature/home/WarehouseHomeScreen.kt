@@ -55,6 +55,7 @@ import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.distribution.CreateDistributionBottomSheet
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionCardRow
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseDistributionTab
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEffect
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEvent
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiState
@@ -236,7 +237,10 @@ fun WarehouseHomeScreen(
                 ) {
                     Text("Belum dikirim hari ini", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                     TextButton(
-                        onClick = onOpenDistributionTab,
+                        onClick = {
+                            onEvent(WarehouseUiEvent.SelectDistributionTab(WarehouseDistributionTab.ROUTINE))
+                            onOpenDistributionTab()
+                        },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
                         Text("Lihat semua", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
@@ -278,7 +282,10 @@ fun WarehouseHomeScreen(
             ) {
                 Text("Permintaan tambahan stok", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                 TextButton(
-                    onClick = onOpenDistributionTab,
+                    onClick = {
+                        onEvent(WarehouseUiEvent.SelectDistributionTab(WarehouseDistributionTab.ADDITIONAL))
+                        onOpenDistributionTab()
+                    },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
                     Text("Semua distribusi", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)

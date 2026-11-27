@@ -10,6 +10,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
+import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
@@ -403,7 +404,8 @@ class OutletViewModel(
                 outletId = outlet!!.id,
                 createdBy = createdBy,
                 status = DistributionStatus.DRAFT,
-                note = form.note.trim().ifBlank { "[REQUEST] Permintaan tambahan stok dari Outlet ${outlet.name}" },
+                type = DistributionType.ADDITIONAL,
+                note = form.note.trim().ifBlank { "Permintaan tambahan stok dari Outlet ${outlet.name}" },
                 createdAt = Timestamp.now()
             )
             distributionRepository.createDistribution(distribution, items)

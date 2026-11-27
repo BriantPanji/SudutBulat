@@ -29,6 +29,8 @@ data class MaterialDistribution(
 
     val status: DistributionStatus = DistributionStatus.DRAFT,
 
+    val type: DistributionType = DistributionType.ROUTINE,
+
     val note: String? = null,
 
     @get:PropertyName("confirmation_note")

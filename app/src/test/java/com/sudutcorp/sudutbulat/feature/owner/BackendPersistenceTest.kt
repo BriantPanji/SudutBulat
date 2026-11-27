@@ -6,6 +6,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
+import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialCategory
@@ -141,13 +142,17 @@ class BackendPersistenceTest {
             id = "d1",
             outletId = "o1",
             createdBy = "gudang",
+            type = DistributionType.ADDITIONAL,
             items = listOf(MaterialDistributionItem("di1", "d1", "m1", 10, 8))
         ).toFirestoreMap()
         assertEquals(1, (distMap["items"] as List<*>).size)
+        assertEquals("ADDITIONAL", distMap["type"])
 
         assertEquals(UnitType.PCS, UnitType.fromString("pcs"))
         assertEquals(UnitType.GR, UnitType.fromString("GR"))
         assertEquals(DistributionStatus.SENT, FirestoreMappers.parseDistributionStatus("sent"))
+        assertEquals(DistributionType.ADDITIONAL, FirestoreMappers.parseDistributionType("additional"))
+        assertEquals(DistributionType.ROUTINE, FirestoreMappers.parseDistributionType("routine"))
         assertEquals(ExpenseCategory.PLASTIC_BAG, FirestoreMappers.parseExpenseCategory("plastic_bag"))
     }
 

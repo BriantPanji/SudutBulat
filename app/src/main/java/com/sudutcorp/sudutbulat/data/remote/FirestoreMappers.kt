@@ -8,6 +8,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
+import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialCategory
@@ -30,6 +31,11 @@ object FirestoreMappers {
     fun parseDistributionStatus(raw: String?): DistributionStatus {
         val clean = raw?.trim()?.uppercase() ?: return DistributionStatus.DRAFT
         return DistributionStatus.entries.firstOrNull { it.name == clean } ?: DistributionStatus.DRAFT
+    }
+
+    fun parseDistributionType(raw: String?): DistributionType {
+        val clean = raw?.trim()?.uppercase() ?: return DistributionType.ROUTINE
+        return DistributionType.entries.firstOrNull { it.name == clean } ?: DistributionType.ROUTINE
     }
 
     fun parseExpenseCategory(raw: String?): ExpenseCategory {
@@ -277,6 +283,7 @@ object FirestoreMappers {
             createdBy = getString("created_by").orEmpty(),
             confirmedBy = getString("confirmed_by")?.takeIf { it.isNotBlank() },
             status = parseDistributionStatus(getString("status")),
+            type = parseDistributionType(getString("type")),
             note = getString("note")?.take(512),
             confirmationNote = getString("confirmation_note")?.take(512),
             createdAt = getTimestamp("created_at") ?: Timestamp.now(),
@@ -298,6 +305,7 @@ object FirestoreMappers {
         "created_by" to createdBy,
         "confirmed_by" to confirmedBy,
         "status" to status.name,
+        "type" to type.name,
         "note" to note,
         "confirmation_note" to confirmationNote,
         "created_at" to createdAt,

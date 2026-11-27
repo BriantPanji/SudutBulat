@@ -20,13 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDefaults
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -35,11 +30,8 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -50,14 +42,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBDatePickerDialog
 import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
 import com.sudutcorp.sudutbulat.core.components.SBPageHeader
 import com.sudutcorp.sudutbulat.core.components.SBSearchBar
@@ -451,7 +442,7 @@ fun OwnerReportContent(
     }
 
     if (showDatePicker) {
-        ReportDatePickerDialog(
+        SBDatePickerDialog(
             initialSelectedDateMillis = uiState.reportSelectedDateMillis,
             onDismiss = { showDatePicker = false },
             onConfirm = { dateMillis ->
@@ -463,75 +454,6 @@ fun OwnerReportContent(
                 showDatePicker = false
             }
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ReportDatePickerDialog(
-    initialSelectedDateMillis: Long?,
-    onDismiss: () -> Unit,
-    onConfirm: (Long?) -> Unit,
-    onReset: () -> Unit
-) {
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialSelectedDateMillis)
-    val dateFormatter = remember { DatePickerDefaults.dateFormatter() }
-    val focusManager = LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val pickerColors = DatePickerDefaults.colors(
-        containerColor = Color.White,
-        selectedDayContainerColor = SBColor.Primary_550,
-        selectedDayContentColor = Color.White,
-        todayContentColor = SBColor.Primary_550,
-        todayDateBorderColor = SBColor.Primary_550
-    )
-
-    LaunchedEffect(datePickerState.displayMode) {
-        if (datePickerState.displayMode == DisplayMode.Picker) {
-            focusManager.clearFocus(force = true)
-            keyboardController?.hide()
-        }
-    }
-
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        // Prevent Android's Dialog window from resizing frame-by-frame while the IME animates closed.
-        modifier = if (datePickerState.displayMode == DisplayMode.Input) {
-            Modifier.padding(bottom = 96.dp)
-        } else {
-            Modifier
-        },
-        colors = pickerColors,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false
-        ),
-        confirmButton = {
-            TextButton(onClick = { onConfirm(datePickerState.selectedDateMillis) }) {
-                Text("Pilih", fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
-            }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (initialSelectedDateMillis != null) {
-                    TextButton(onClick = onReset) {
-                        Text("Reset", fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
-                    }
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Batal", fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
-                }
-            }
-        }
-    ) {
-        // Bypass M3's private AnimatedContent + SizeTransform to prevent choppy dialog resizing on mode switch.
-        key(datePickerState.displayMode) {
-            DatePicker(
-                state = datePickerState,
-                dateFormatter = dateFormatter,
-                colors = pickerColors
-            )
-        }
     }
 }
 

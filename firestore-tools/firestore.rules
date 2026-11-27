@@ -38,8 +38,15 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    function isValidDistribution() {
+      let data = request.resource.data;
+      return data.status in ['DRAFT', 'SENT', 'RECEIVED', 'PARTIALLY_RECEIVED', 'NOT_RECEIVED', 'CANCELLED']
+        && data.type in ['ROUTINE', 'ADDITIONAL'];
+    }
+
     match /material_distributions/{docId} {
-      allow read, write: if isSignedIn();
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidDistribution();
     }
 
     match /material_distribution_items/{docId} {

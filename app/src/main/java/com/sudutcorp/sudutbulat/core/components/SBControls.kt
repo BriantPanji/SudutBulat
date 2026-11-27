@@ -22,18 +22,27 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DisplayMode
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,12 +52,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import kotlin.math.roundToInt
@@ -147,6 +159,20 @@ fun SBSearchBar(
                 modifier = Modifier.size(18.dp)
             )
         },
+        trailingIcon = if (query.isNotEmpty()) {
+            {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_close),
+                        contentDescription = "Hapus pencarian",
+                        tint = SBColor.Grey_500,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        } else {
+            null
+        },
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
@@ -205,7 +231,9 @@ fun <F> SBSortDropdownButton(
     isAlphaField: (F) -> Boolean,
     defaultDescendingFor: (F) -> Boolean,
     onSelectSort: (field: F, isDescending: Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    ascLabelOf: (F) -> String = { if (isAlphaField(it)) "A – Z ↑" else "Terendah ↑" },
+    descLabelOf: (F) -> String = { if (isAlphaField(it)) "Z – A ↓" else "Tertinggi ↓" }
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val arrow = if (isDescending) "↓" else "↑"
@@ -273,9 +301,8 @@ fun <F> SBSortDropdownButton(
                 modifier = Modifier.padding(vertical = 4.dp)
             )
 
-            val alpha = isAlphaField(selectedField)
-            val ascLabel = if (alpha) "A – Z ↑" else "Terendah ↑"
-            val descLabel = if (alpha) "Z – A ↓" else "Tertinggi ↓"
+            val ascLabel = ascLabelOf(selectedField)
+            val descLabel = descLabelOf(selectedField)
 
             Row(
                 modifier = Modifier
@@ -306,6 +333,75 @@ fun <F> SBSortDropdownButton(
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SBDatePickerDialog(
+    initialSelectedDateMillis: Long?,
+    onDismiss: () -> Unit,
+    onConfirm: (Long?) -> Unit,
+    onReset: () -> Unit
+) {
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialSelectedDateMillis)
+    val dateFormatter = remember { DatePickerDefaults.dateFormatter() }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val pickerColors = DatePickerDefaults.colors(
+        containerColor = Color.White,
+        selectedDayContainerColor = SBColor.Primary_550,
+        selectedDayContentColor = Color.White,
+        todayContentColor = SBColor.Primary_550,
+        todayDateBorderColor = SBColor.Primary_550
+    )
+
+    LaunchedEffect(datePickerState.displayMode) {
+        if (datePickerState.displayMode == DisplayMode.Picker) {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        // Prevent Android's Dialog window from resizing frame-by-frame while the IME animates closed.
+        modifier = if (datePickerState.displayMode == DisplayMode.Input) {
+            Modifier.padding(bottom = 96.dp)
+        } else {
+            Modifier
+        },
+        colors = pickerColors,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        ),
+        confirmButton = {
+            TextButton(onClick = { onConfirm(datePickerState.selectedDateMillis) }) {
+                Text("Pilih", fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (initialSelectedDateMillis != null) {
+                    TextButton(onClick = onReset) {
+                        Text("Reset", fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Batal", fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
+                }
+            }
+        }
+    ) {
+        // Bypass M3's private AnimatedContent + SizeTransform to prevent choppy dialog resizing on mode switch.
+        key(datePickerState.displayMode) {
+            DatePicker(
+                state = datePickerState,
+                dateFormatter = dateFormatter,
+                colors = pickerColors
+            )
         }
     }
 }
