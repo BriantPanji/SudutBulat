@@ -21,6 +21,11 @@ enum class WarehouseDistributionTab(val label: String) {
     HISTORY("Riwayat")
 }
 
+enum class AdditionalDistributionSubTab(val label: String) {
+    UNCONFIRMED("Menunggu"),
+    PROCESSED("Diproses")
+}
+
 enum class DistributionStatusFilter(
     val label: String,
     val status: DistributionStatus? = null
@@ -35,9 +40,15 @@ enum class DistributionStatusFilter(
     CANCELLED("Batal", DistributionStatus.CANCELLED);
 
     companion object {
-        fun optionsForTab(tab: WarehouseDistributionTab): List<DistributionStatusFilter> = when (tab) {
+        fun optionsForTab(
+            tab: WarehouseDistributionTab,
+            additionalSubTab: AdditionalDistributionSubTab = AdditionalDistributionSubTab.PROCESSED
+        ): List<DistributionStatusFilter> = when (tab) {
             WarehouseDistributionTab.ROUTINE -> entries
-            WarehouseDistributionTab.ADDITIONAL -> entries.filterNot { it == NOT_SENT }
+            WarehouseDistributionTab.ADDITIONAL -> when (additionalSubTab) {
+                AdditionalDistributionSubTab.UNCONFIRMED -> emptyList()
+                AdditionalDistributionSubTab.PROCESSED -> entries.filterNot { it == NOT_SENT || it == PENDING }
+            }
             WarehouseDistributionTab.HISTORY -> entries.filterNot { it == NOT_SENT || it == PENDING }
         }
     }
@@ -50,28 +61,20 @@ enum class DistributionSortField(val label: String) {
     STATUS("Status")
 }
 
-enum class DistributionTypeFilter(
-    val label: String,
-    val type: DistributionType? = null
-) {
-    ALL("Semua jenis"),
-    ROUTINE("Rutin", DistributionType.ROUTINE),
-    ADDITIONAL("Tambahan", DistributionType.ADDITIONAL)
-}
-
 data class DistributionTabFilterState(
     val searchQuery: String = "",
     val statusFilter: DistributionStatusFilter = DistributionStatusFilter.ALL,
     val sortField: DistributionSortField = DistributionSortField.TIME,
     val sortDirection: SortDirection = SortDirection.DESC,
     val selectedDateMillis: Long? = null,
-    val typeFilter: DistributionTypeFilter = DistributionTypeFilter.ALL
+    val selectedOutletId: String? = null,
+    val additionalSubTab: AdditionalDistributionSubTab = AdditionalDistributionSubTab.UNCONFIRMED
 ) {
     val hasActiveFilter: Boolean
         get() = searchQuery.isNotBlank() ||
             statusFilter != DistributionStatusFilter.ALL ||
             selectedDateMillis != null ||
-            typeFilter != DistributionTypeFilter.ALL
+            selectedOutletId != null
 }
 
 private fun DistributionStatus.sortPriority(): Int = when (this) {
@@ -106,16 +109,31 @@ fun filterAndSortDistributions(
     val filtered = cards.filter { card ->
         val matchesTabScope = when (tab) {
             WarehouseDistributionTab.ROUTINE -> card.isToday && card.type == DistributionType.ROUTINE
-            WarehouseDistributionTab.ADDITIONAL -> card.isToday && card.type == DistributionType.ADDITIONAL
+            WarehouseDistributionTab.ADDITIONAL -> card.isToday &&
+                card.type == DistributionType.ADDITIONAL &&
+                when (filter.additionalSubTab) {
+                    AdditionalDistributionSubTab.UNCONFIRMED -> card.status == DistributionStatus.DRAFT
+                    AdditionalDistributionSubTab.PROCESSED -> card.status != DistributionStatus.DRAFT
+                }
             WarehouseDistributionTab.HISTORY -> !card.isToday &&
-                card.status != DistributionStatus.DRAFT &&
-                (filter.typeFilter.type == null || card.type == filter.typeFilter.type)
+                card.status != DistributionStatus.DRAFT
         }
         if (!matchesTabScope) return@filter false
 
-        val matchesStatus = when (val target = filter.statusFilter.status) {
-            null -> true
-            else -> card.status == target
+        if (filter.selectedOutletId != null && card.outletId != filter.selectedOutletId) {
+            return@filter false
+        }
+
+        val matchesStatus = if (
+            tab == WarehouseDistributionTab.ADDITIONAL &&
+            filter.additionalSubTab == AdditionalDistributionSubTab.UNCONFIRMED
+        ) {
+            true
+        } else {
+            when (val target = filter.statusFilter.status) {
+                null -> true
+                else -> card.status == target
+            }
         }
         if (!matchesStatus) return@filter false
 
@@ -161,11 +179,17 @@ fun filterPendingMorningOutlets(
         return emptyList()
     }
 
+    val outletScoped = if (filter.selectedOutletId != null) {
+        outlets.filter { it.id == filter.selectedOutletId }
+    } else {
+        outlets
+    }
+
     val query = filter.searchQuery.trim().lowercase(Locale.ROOT)
     val filtered = if (query.isBlank()) {
-        outlets
+        outletScoped
     } else {
-        outlets.filter { outlet ->
+        outletScoped.filter { outlet ->
             outlet.name.lowercase(Locale.ROOT).contains(query) ||
                 "outlet ${outlet.name}".lowercase(Locale.ROOT).contains(query) ||
                 outlet.address.lowercase(Locale.ROOT).contains(query)

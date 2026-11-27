@@ -63,6 +63,7 @@ import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.distribution.CreateDistributionBottomSheet
+import com.sudutcorp.sudutbulat.feature.distribution.AdditionalDistributionSubTab
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionCardRow
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionCardUi
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionDetailBottomSheet
@@ -188,7 +189,8 @@ fun WarehouseHomeScreen(
                 openDistributionWithFilter(WarehouseDistributionTab.ROUTINE, DistributionStatusFilter.SENT)
             },
             onPendingRequestsClick = {
-                openDistributionWithFilter(WarehouseDistributionTab.ADDITIONAL, DistributionStatusFilter.PENDING)
+                onEvent(WarehouseUiEvent.SelectAdditionalSubTab(AdditionalDistributionSubTab.UNCONFIRMED))
+                openDistributionWithFilter(WarehouseDistributionTab.ADDITIONAL, DistributionStatusFilter.ALL)
             },
             onConfirmedClick = {
                 openDistributionWithFilter(WarehouseDistributionTab.ROUTINE, DistributionStatusFilter.RECEIVED)
@@ -228,6 +230,7 @@ fun WarehouseHomeScreen(
             pendingRequests = uiState.pendingRequests,
             isActionLoading = uiState.isActionLoading,
             onSeeAllClick = {
+                onEvent(WarehouseUiEvent.SelectAdditionalSubTab(AdditionalDistributionSubTab.UNCONFIRMED))
                 openDistributionWithFilter(WarehouseDistributionTab.ADDITIONAL, DistributionStatusFilter.ALL)
             },
             onCardClick = { detailDistributionId = it },

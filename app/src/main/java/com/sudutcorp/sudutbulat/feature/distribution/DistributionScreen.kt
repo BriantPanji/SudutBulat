@@ -115,11 +115,11 @@ fun DistributionScreen(
 
     var showCreateSheet by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showOutletFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showOutletPresetListSheet by rememberSaveable { mutableStateOf(false) }
     var editingPresetOutletId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
     var rejectingDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showHistoryTypeMenu by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
@@ -135,9 +135,20 @@ fun DistributionScreen(
     val activeFilter = uiState.filterFor(activeTab)
     val isHistoryTab = activeTab == WarehouseDistributionTab.HISTORY
     val isRoutineTab = activeTab == WarehouseDistributionTab.ROUTINE
+    val isAdditionalTab = activeTab == WarehouseDistributionTab.ADDITIONAL
 
-    val statusChipOptions = remember(activeTab) {
-        DistributionStatusFilter.optionsForTab(activeTab).map { it.name to it.label }
+    val statusChipOptions = remember(activeTab, activeFilter.additionalSubTab) {
+        DistributionStatusFilter
+            .optionsForTab(activeTab, activeFilter.additionalSubTab)
+            .map { it.name to it.label }
+    }
+
+    val selectedOutletFilterName = remember(activeFilter.selectedOutletId, uiState.outlets) {
+        activeFilter.selectedOutletId?.let { id ->
+            uiState.outlets.firstOrNull { it.id == id }?.let { outlet ->
+                if (outlet.name.startsWith("Outlet", ignoreCase = true)) outlet.name else "Outlet ${outlet.name}"
+            }
+        }
     }
 
     val filteredCards = remember(uiState.distributionCards, activeTab, activeFilter) {
@@ -209,6 +220,23 @@ fun DistributionScreen(
             )
         }
 
+        if (isAdditionalTab) {
+            item(key = "dist_additional_subtabs", span = { GridItemSpan(maxLineSpan) }, contentType = "subtabs") {
+                SBSegmentedTabs(
+                    options = AdditionalDistributionSubTab.entries,
+                    selected = activeFilter.additionalSubTab,
+                    labelOf = { subTab ->
+                        if (subTab == AdditionalDistributionSubTab.UNCONFIRMED && uiState.todayPendingAdditionalCount > 0) {
+                            "${subTab.label} (${uiState.todayPendingAdditionalCount})"
+                        } else {
+                            subTab.label
+                        }
+                    },
+                    onSelected = { onEvent(WarehouseUiEvent.SelectAdditionalSubTab(it)) }
+                )
+            }
+        }
+
         if (isRoutineTab) {
             item(key = "dist_routine_progress", span = { GridItemSpan(maxLineSpan) }, contentType = "progress") {
                 RoutineProgressCard(
@@ -223,6 +251,7 @@ fun DistributionScreen(
 
         item(key = "dist_search_row", span = { GridItemSpan(maxLineSpan) }, contentType = "search") {
             val hasSelectedDate = isHistoryTab && activeFilter.selectedDateMillis != null
+            val hasSelectedOutlet = activeFilter.selectedOutletId != null
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -238,6 +267,26 @@ fun DistributionScreen(
                     },
                     modifier = Modifier.weight(1f)
                 )
+
+                Surface(
+                    onClick = { showOutletFilterSheet = true },
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (hasSelectedOutlet) SBColor.Primary_100 else Color.White,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = if (hasSelectedOutlet) SBColor.Primary_550 else SBColor.Grey_200
+                    )
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_store),
+                            contentDescription = "Filter outlet distribusi",
+                            tint = if (hasSelectedOutlet) SBColor.Primary_550 else SBColor.Grey_600,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
 
                 if (isHistoryTab) {
                     Surface(
@@ -263,46 +312,70 @@ fun DistributionScreen(
             }
         }
 
-        if (isHistoryTab && activeFilter.selectedDateMillis != null) {
-            item(key = "dist_active_date_chip", span = { GridItemSpan(maxLineSpan) }, contentType = "date_chip") {
-                val dateLabel = remember(activeFilter.selectedDateMillis) {
-                    formatDistributionUtcDate(activeFilter.selectedDateMillis)
-                }
+        if (selectedOutletFilterName != null || (isHistoryTab && activeFilter.selectedDateMillis != null)) {
+            item(key = "dist_active_filter_chips", span = { GridItemSpan(maxLineSpan) }, contentType = "active_chips") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    FilterChip(
-                        selected = true,
-                        onClick = { onEvent(WarehouseUiEvent.SelectHistoryDate(null)) },
-                        label = {
-                            Text(
-                                text = "Tanggal: $dateLabel  ✕",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        },
-                        shape = RoundedCornerShape(9.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = SBColor.Primary_100,
-                            selectedLabelColor = SBColor.Primary_550
-                        ),
-                        border = BorderStroke(1.dp, SBColor.Primary_200)
-                    )
+                    if (selectedOutletFilterName != null) {
+                        FilterChip(
+                            selected = true,
+                            onClick = { onEvent(WarehouseUiEvent.SelectOutletFilter(activeTab, null)) },
+                            label = {
+                                Text(
+                                    text = "$selectedOutletFilterName  ✕",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            },
+                            shape = RoundedCornerShape(9.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SBColor.Primary_100,
+                                selectedLabelColor = SBColor.Primary_550
+                            ),
+                            border = BorderStroke(1.dp, SBColor.Primary_200)
+                        )
+                    }
+                    if (isHistoryTab && activeFilter.selectedDateMillis != null) {
+                        val dateLabel = remember(activeFilter.selectedDateMillis) {
+                            formatDistributionUtcDate(activeFilter.selectedDateMillis)
+                        }
+                        FilterChip(
+                            selected = true,
+                            onClick = { onEvent(WarehouseUiEvent.SelectHistoryDate(null)) },
+                            label = {
+                                Text(
+                                    text = "Tanggal: $dateLabel  ✕",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            },
+                            shape = RoundedCornerShape(9.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = SBColor.Primary_100,
+                                selectedLabelColor = SBColor.Primary_550
+                            ),
+                            border = BorderStroke(1.dp, SBColor.Primary_200)
+                        )
+                    }
                 }
             }
         }
 
-        item(key = "dist_status_chips", span = { GridItemSpan(maxLineSpan) }, contentType = "status_chips") {
-            SBFilterChipRow(
-                options = statusChipOptions,
-                selectedKey = activeFilter.statusFilter.name,
-                onSelected = { key ->
-                    val chosen = DistributionStatusFilter.entries.firstOrNull { it.name == key }
-                        ?: DistributionStatusFilter.ALL
-                    onEvent(WarehouseUiEvent.SelectStatusFilter(activeTab, chosen))
-                }
-            )
+        if (statusChipOptions.isNotEmpty()) {
+            item(key = "dist_status_chips", span = { GridItemSpan(maxLineSpan) }, contentType = "status_chips") {
+                SBFilterChipRow(
+                    options = statusChipOptions,
+                    selectedKey = activeFilter.statusFilter.name,
+                    onSelected = { key ->
+                        val chosen = DistributionStatusFilter.entries.firstOrNull { it.name == key }
+                            ?: DistributionStatusFilter.ALL
+                        onEvent(WarehouseUiEvent.SelectStatusFilter(activeTab, chosen))
+                    }
+                )
+            }
         }
 
         item(key = "dist_toolbar", span = { GridItemSpan(maxLineSpan) }, contentType = "toolbar") {
@@ -315,10 +388,12 @@ fun DistributionScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val unitLabel = if (isRoutineTab && activeFilter.statusFilter == DistributionStatusFilter.NOT_SENT) {
-                        "outlet belum dikirim"
-                    } else {
-                        "distribusi"
+                    val unitLabel = when {
+                        isRoutineTab && activeFilter.statusFilter == DistributionStatusFilter.NOT_SENT ->
+                            "outlet belum dikirim"
+                        isAdditionalTab && activeFilter.additionalSubTab == AdditionalDistributionSubTab.UNCONFIRMED ->
+                            "permintaan menunggu"
+                        else -> "distribusi"
                     }
                     Text(
                         text = "$totalResultCount $unitLabel",
@@ -344,53 +419,6 @@ fun DistributionScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    if (isHistoryTab) {
-                        Box {
-                            TextButton(
-                                onClick = { showHistoryTypeMenu = true },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                            ) {
-                                Text(
-                                    text = "${activeFilter.typeFilter.label} ▾",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (activeFilter.typeFilter == DistributionTypeFilter.ALL) {
-                                        SBColor.Grey_600
-                                    } else {
-                                        SBColor.Primary_550
-                                    }
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showHistoryTypeMenu,
-                                onDismissRequest = { showHistoryTypeMenu = false },
-                                modifier = Modifier
-                                    .width(176.dp)
-                                    .background(Color.White),
-                                shape = RoundedCornerShape(14.dp),
-                                containerColor = Color.White
-                            ) {
-                                DistributionTypeFilter.entries.forEach { option ->
-                                    val selected = option == activeFilter.typeFilter
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = option.label,
-                                                fontSize = 14.sp,
-                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (selected) SBColor.Primary_550 else SBColor.Grey_700
-                                            )
-                                        },
-                                        onClick = {
-                                            onEvent(WarehouseUiEvent.SelectHistoryTypeFilter(option))
-                                            showHistoryTypeMenu = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     SBSortDropdownButton(
                         fields = DistributionSortField.entries,
                         selectedField = activeFilter.sortField,
@@ -530,6 +558,21 @@ fun DistributionScreen(
             uiState = uiState,
             onEvent = onEvent,
             onDismiss = { if (!uiState.createForm.isSaving) showCreateSheet = false }
+        )
+    }
+
+    if (showOutletFilterSheet) {
+        OutletFilterBottomSheet(
+            title = "Filter berdasarkan outlet",
+            subtitle = "Cari nama atau alamat outlet untuk menyaring daftar distribusi.",
+            outlets = if (isHistoryTab) uiState.outlets else uiState.activeOutlets,
+            selectedOutletId = activeFilter.selectedOutletId,
+            showAllOption = true,
+            onDismiss = { showOutletFilterSheet = false },
+            onSelectOutlet = { chosenId ->
+                onEvent(WarehouseUiEvent.SelectOutletFilter(activeTab, chosenId))
+                showOutletFilterSheet = false
+            }
         )
     }
 
@@ -834,11 +877,216 @@ private fun PendingRoutineOutletCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+internal fun OutletFilterBottomSheet(
+    title: String,
+    subtitle: String,
+    outlets: List<Outlet>,
+    selectedOutletId: String?,
+    showAllOption: Boolean,
+    onDismiss: () -> Unit,
+    onSelectOutlet: (String?) -> Unit
+) {
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val filteredOutlets = remember(outlets, searchQuery) {
+        val q = searchQuery.trim().lowercase()
+        if (q.isBlank()) {
+            outlets
+        } else {
+            outlets.filter { outlet ->
+                outlet.name.lowercase().contains(q) ||
+                    "outlet ${outlet.name}".lowercase().contains(q) ||
+                    outlet.address.lowercase().contains(q)
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_700
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = SBColor.Grey_500
+                )
+            }
+
+            SBSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                placeholder = "Cari nama atau alamat outlet..."
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 380.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (showAllOption && searchQuery.isBlank()) {
+                    item(key = "outlet_filter_all", contentType = "outlet_filter_all") {
+                        val isAllSelected = selectedOutletId == null
+                        OutlinedCard(
+                            onClick = { onSelectOutlet(null) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = if (isAllSelected) SBColor.Primary_100.copy(alpha = 0.45f) else Color.White
+                            ),
+                            border = BorderStroke(
+                                width = if (isAllSelected) 1.5.dp else 1.dp,
+                                color = if (isAllSelected) SBColor.Primary_400 else SBColor.Grey_100
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = "Semua outlet",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isAllSelected) SBColor.Primary_550 else SBColor.Grey_700
+                                    )
+                                    Text(
+                                        text = "Tampilkan dari seluruh outlet (${outlets.size} outlet)",
+                                        fontSize = 12.sp,
+                                        color = SBColor.Grey_500
+                                    )
+                                }
+                                RadioButton(
+                                    selected = isAllSelected,
+                                    onClick = { onSelectOutlet(null) },
+                                    colors = RadioButtonDefaults.colors(selectedColor = SBColor.Primary_550)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (filteredOutlets.isEmpty()) {
+                    item(key = "outlet_filter_empty", contentType = "outlet_filter_empty") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Tidak ada outlet yang cocok dengan pencarian.",
+                                fontSize = 13.sp,
+                                color = SBColor.Grey_500
+                            )
+                        }
+                    }
+                } else {
+                    items(
+                        items = filteredOutlets,
+                        key = { it.id },
+                        contentType = { "outlet_filter_item" }
+                    ) { outlet ->
+                        val isSelected = outlet.id == selectedOutletId
+                        val displayName = if (outlet.name.startsWith("Outlet", ignoreCase = true)) {
+                            outlet.name
+                        } else {
+                            "Outlet ${outlet.name}"
+                        }
+                        OutlinedCard(
+                            onClick = { onSelectOutlet(outlet.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.outlinedCardColors(
+                                containerColor = if (isSelected) SBColor.Primary_100.copy(alpha = 0.45f) else Color.White
+                            ),
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) SBColor.Primary_400 else SBColor.Grey_100
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = displayName,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) SBColor.Primary_550 else SBColor.Grey_700
+                                    )
+                                    Text(
+                                        text = outlet.address.ifBlank { if (outlet.isOpen) "Buka" else "Tutup" },
+                                        fontSize = 12.sp,
+                                        color = SBColor.Grey_500,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = { onSelectOutlet(outlet.id) },
+                                    colors = RadioButtonDefaults.colors(selectedColor = SBColor.Primary_550)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 internal fun OutletPresetListBottomSheet(
     outlets: List<Outlet>,
     onDismiss: () -> Unit,
     onSelectOutlet: (String) -> Unit
 ) {
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val filteredOutlets = remember(outlets, searchQuery) {
+        val q = searchQuery.trim().lowercase()
+        if (q.isBlank()) {
+            outlets
+        } else {
+            outlets.filter { outlet ->
+                outlet.name.lowercase().contains(q) ||
+                    "outlet ${outlet.name}".lowercase().contains(q) ||
+                    outlet.address.lowercase().contains(q)
+            }
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -867,6 +1115,12 @@ internal fun OutletPresetListBottomSheet(
                 )
             }
 
+            SBSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                placeholder = "Cari nama atau alamat outlet..."
+            )
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -874,7 +1128,7 @@ internal fun OutletPresetListBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(
-                    items = outlets,
+                    items = filteredOutlets,
                     key = { it.id },
                     contentType = { "preset_outlet_item" }
                 ) { outlet ->
@@ -1036,7 +1290,7 @@ fun CreateDistributionBottomSheet(
             ) {
                 SBSubHeader(
                     eyebrow = "Admin Gudang",
-                    title = "Buat distribusi",
+                    title = "Buat distribusi ${form.distributionType.label.lowercase()}",
                     onBackClick = { if (!form.isSaving) onDismiss() },
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
                 )
@@ -1051,77 +1305,15 @@ fun CreateDistributionBottomSheet(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    item(key = "create_type", contentType = "type") {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "Jenis distribusi",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = SBColor.Grey_700
-                            )
-                            SBSegmentedTabs(
-                                options = DistributionType.entries,
-                                selected = form.distributionType,
-                                labelOf = { it.label },
-                                onSelected = { onEvent(WarehouseUiEvent.SelectCreateType(it)) }
-                            )
-                        }
-                    }
-
                     item(key = "create_outlet", contentType = "outlet") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SBSelectField(
-                                label = "Outlet tujuan",
-                                valueText = selectedOutlet?.let {
-                                    if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
-                                } ?: "Pilih outlet tujuan",
-                                isPlaceholder = selectedOutlet == null,
-                                onClick = { showOutletPicker = !showOutletPicker }
-                            )
-
-                            if (showOutletPicker) {
-                                OutlinedCard(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                                    border = BorderStroke(1.dp, SBColor.Grey_100)
-                                ) {
-                                    Column {
-                                        uiState.activeOutlets.forEachIndexed { idx, outlet ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable {
-                                                        onEvent(WarehouseUiEvent.SelectOutlet(outlet.id))
-                                                        showOutletPicker = false
-                                                    }
-                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(
-                                                    text = if (outlet.name.startsWith("Outlet", ignoreCase = true)) outlet.name else "Outlet ${outlet.name}",
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = SBColor.Grey_700
-                                                )
-                                                RadioButton(
-                                                    selected = outlet.id == form.selectedOutletId,
-                                                    onClick = {
-                                                        onEvent(WarehouseUiEvent.SelectOutlet(outlet.id))
-                                                        showOutletPicker = false
-                                                    },
-                                                    colors = RadioButtonDefaults.colors(selectedColor = SBColor.Primary_550)
-                                                )
-                                            }
-                                            if (idx < uiState.activeOutlets.lastIndex) {
-                                                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        SBSelectField(
+                            label = "Outlet tujuan",
+                            valueText = selectedOutlet?.let {
+                                if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
+                            } ?: "Pilih outlet tujuan",
+                            isPlaceholder = selectedOutlet == null,
+                            onClick = { showOutletPicker = true }
+                        )
                     }
 
                     if (form.distributionType == DistributionType.ROUTINE && selectedOutlet != null) {
@@ -1258,6 +1450,23 @@ fun CreateDistributionBottomSheet(
                 )
             }
         }
+    }
+
+    if (showOutletPicker) {
+        OutletFilterBottomSheet(
+            title = "Pilih outlet tujuan",
+            subtitle = "Cari nama atau alamat outlet tujuan pengiriman.",
+            outlets = uiState.activeOutlets,
+            selectedOutletId = form.selectedOutletId,
+            showAllOption = false,
+            onDismiss = { showOutletPicker = false },
+            onSelectOutlet = { chosenId ->
+                if (!chosenId.isNullOrBlank()) {
+                    onEvent(WarehouseUiEvent.SelectOutlet(chosenId))
+                }
+                showOutletPicker = false
+            }
+        )
     }
 }
 

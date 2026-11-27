@@ -19,6 +19,7 @@ class WarehouseDistributionFilterTest {
 
     private fun card(
         id: String,
+        outletId: String = "o_$id",
         outletName: String = "Outlet Sudirman",
         createdByName: String = "Budi Gudang",
         status: DistributionStatus = DistributionStatus.SENT,
@@ -33,7 +34,7 @@ class WarehouseDistributionFilterTest {
         confirmationNote: String? = null
     ) = DistributionCardUi(
         id = id,
-        outletId = "o_$id",
+        outletId = outletId,
         outletName = outletName,
         createdByName = createdByName,
         confirmedByName = null,
@@ -53,25 +54,48 @@ class WarehouseDistributionFilterTest {
     )
 
     @Test
-    fun `routine and additional tabs strictly show today only while history shows only before today and excludes DRAFT`() {
+    fun `routine and additional subtabs strictly show today only while history shows only before today and excludes DRAFT`() {
         val todayMillis = LocalDate.of(2026, 11, 27).atTime(7, 0).atZone(jakartaZone).toInstant().toEpochMilli()
         val yesterdayMillis = LocalDate.of(2026, 11, 26).atTime(7, 0).atZone(jakartaZone).toInstant().toEpochMilli()
 
         val cards = listOf(
             card("r_today", type = DistributionType.ROUTINE, createdAtMillis = todayMillis, isToday = true),
             card("r_old", type = DistributionType.ROUTINE, createdAtMillis = yesterdayMillis, isToday = false),
-            card("a_today", type = DistributionType.ADDITIONAL, status = DistributionStatus.DRAFT, createdAtMillis = todayMillis + 1000, isToday = true),
+            card("a_today_draft", type = DistributionType.ADDITIONAL, status = DistributionStatus.DRAFT, createdAtMillis = todayMillis + 1000, isToday = true),
+            card("a_today_sent", type = DistributionType.ADDITIONAL, status = DistributionStatus.SENT, createdAtMillis = todayMillis + 1500, isToday = true),
+            card("a_today_cancelled", type = DistributionType.ADDITIONAL, status = DistributionStatus.CANCELLED, createdAtMillis = todayMillis + 1800, isToday = true),
             card("a_old", type = DistributionType.ADDITIONAL, status = DistributionStatus.RECEIVED, createdAtMillis = yesterdayMillis + 1000, isToday = false),
             card("old_draft", type = DistributionType.ADDITIONAL, status = DistributionStatus.DRAFT, createdAtMillis = yesterdayMillis + 2000, isToday = false)
         )
 
         val routineIds = filterAndSortDistributions(cards, WarehouseDistributionTab.ROUTINE, DistributionTabFilterState(), jakartaZone).map { it.id }
-        val additionalIds = filterAndSortDistributions(cards, WarehouseDistributionTab.ADDITIONAL, DistributionTabFilterState(), jakartaZone).map { it.id }
+        val additionalUnconfirmedIds = filterAndSortDistributions(
+            cards,
+            WarehouseDistributionTab.ADDITIONAL,
+            DistributionTabFilterState(additionalSubTab = AdditionalDistributionSubTab.UNCONFIRMED),
+            jakartaZone
+        ).map { it.id }
+        val additionalProcessedIds = filterAndSortDistributions(
+            cards,
+            WarehouseDistributionTab.ADDITIONAL,
+            DistributionTabFilterState(additionalSubTab = AdditionalDistributionSubTab.PROCESSED),
+            jakartaZone
+        ).map { it.id }
         val historyIds = filterAndSortDistributions(cards, WarehouseDistributionTab.HISTORY, DistributionTabFilterState(), jakartaZone).map { it.id }
 
         assertEquals(listOf("r_today"), routineIds)
-        assertEquals(listOf("a_today"), additionalIds)
+        assertEquals(listOf("a_today_draft"), additionalUnconfirmedIds)
+        assertEquals(listOf("a_today_cancelled", "a_today_sent"), additionalProcessedIds)
         assertEquals(listOf("a_old", "r_old"), historyIds)
+        assertEquals(
+            emptyList<DistributionStatusFilter>(),
+            DistributionStatusFilter.optionsForTab(WarehouseDistributionTab.ADDITIONAL, AdditionalDistributionSubTab.UNCONFIRMED)
+        )
+        assertEquals(
+            false,
+            DistributionStatusFilter.optionsForTab(WarehouseDistributionTab.ADDITIONAL, AdditionalDistributionSubTab.PROCESSED)
+                .contains(DistributionStatusFilter.PENDING)
+        )
         assertEquals(
             false,
             DistributionStatusFilter.optionsForTab(WarehouseDistributionTab.HISTORY).contains(DistributionStatusFilter.PENDING)
@@ -106,12 +130,13 @@ class WarehouseDistributionFilterTest {
     }
 
     @Test
-    fun `search, status, type, and sort order work together`() {
+    fun `search, status, outlet filter, and sort order work together`() {
         val base = LocalDate.of(2026, 11, 25).atTime(6, 0).atZone(jakartaZone).toInstant().toEpochMilli()
         val cards = listOf(
-            card("c1", outletName = "Outlet Tebet", status = DistributionStatus.RECEIVED, type = DistributionType.ROUTINE, totalQuantity = 200, createdAtMillis = base, isToday = false),
+            card("c1", outletId = "o_tebet", outletName = "Outlet Tebet", status = DistributionStatus.RECEIVED, type = DistributionType.ROUTINE, totalQuantity = 200, createdAtMillis = base, isToday = false),
             card(
                 "c2",
+                outletId = "o_cikini",
                 outletName = "Outlet Cikini",
                 status = DistributionStatus.CANCELLED,
                 type = DistributionType.ADDITIONAL,
@@ -120,7 +145,7 @@ class WarehouseDistributionFilterTest {
                 isToday = false,
                 note = "Stok chilly oil habis"
             ),
-            card("c3", outletName = "Outlet Gajah Mada", status = DistributionStatus.SENT, type = DistributionType.ADDITIONAL, totalQuantity = 150, createdAtMillis = base + 120_000, isToday = false)
+            card("c3", outletId = "o_gm", outletName = "Outlet Gajah Mada", status = DistributionStatus.SENT, type = DistributionType.ADDITIONAL, totalQuantity = 150, createdAtMillis = base + 120_000, isToday = false)
         )
 
         val cancelledSearch = filterAndSortDistributions(
@@ -129,11 +154,19 @@ class WarehouseDistributionFilterTest {
             filter = DistributionTabFilterState(
                 searchQuery = "chilly",
                 statusFilter = DistributionStatusFilter.CANCELLED,
-                typeFilter = DistributionTypeFilter.ADDITIONAL
+                selectedOutletId = "o_cikini"
             ),
             zoneId = jakartaZone
         )
         assertEquals(listOf("c2"), cancelledSearch.map { it.id })
+
+        val filteredByOutlet = filterAndSortDistributions(
+            cards = cards,
+            tab = WarehouseDistributionTab.HISTORY,
+            filter = DistributionTabFilterState(selectedOutletId = "o_tebet"),
+            zoneId = jakartaZone
+        )
+        assertEquals(listOf("c1"), filteredByOutlet.map { it.id })
 
         val byQtyDesc = filterAndSortDistributions(
             cards = cards,
@@ -179,6 +212,12 @@ class WarehouseDistributionFilterTest {
             filter = DistributionTabFilterState(statusFilter = DistributionStatusFilter.RECEIVED)
         )
         assertEquals(emptyList<String>(), hiddenOnReceived.map { it.id })
+
+        val filteredBySelectedOutlet = filterPendingMorningOutlets(
+            outlets = outlets,
+            filter = DistributionTabFilterState(selectedOutletId = "o1")
+        )
+        assertEquals(listOf("o1"), filteredBySelectedOutlet.map { it.id })
     }
 
     @Test

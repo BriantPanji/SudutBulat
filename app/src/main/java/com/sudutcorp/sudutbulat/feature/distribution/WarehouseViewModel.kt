@@ -110,22 +110,22 @@ data class WarehouseUiState(
 
 sealed interface WarehouseUiEvent {
     data class SelectDistributionTab(val tab: WarehouseDistributionTab) : WarehouseUiEvent
+    data class SelectAdditionalSubTab(val subTab: AdditionalDistributionSubTab) : WarehouseUiEvent
     data class UpdateSearchQuery(val tab: WarehouseDistributionTab, val query: String) : WarehouseUiEvent
     data class SelectStatusFilter(val tab: WarehouseDistributionTab, val statusFilter: DistributionStatusFilter) : WarehouseUiEvent
+    data class SelectOutletFilter(val tab: WarehouseDistributionTab, val outletId: String?) : WarehouseUiEvent
     data class UpdateSort(
         val tab: WarehouseDistributionTab,
         val field: DistributionSortField,
         val direction: SortDirection
     ) : WarehouseUiEvent
     data class SelectHistoryDate(val dateMillis: Long?) : WarehouseUiEvent
-    data class SelectHistoryTypeFilter(val typeFilter: DistributionTypeFilter) : WarehouseUiEvent
     data class ResetTabFilters(val tab: WarehouseDistributionTab) : WarehouseUiEvent
 
     data class InitCreateForm(
         val preselectedOutletId: String? = null,
         val defaultType: DistributionType = DistributionType.ROUTINE
     ) : WarehouseUiEvent
-    data class SelectCreateType(val type: DistributionType) : WarehouseUiEvent
     data class SelectOutlet(val outletId: String) : WarehouseUiEvent
     data object ApplyOutletPresetToForm : WarehouseUiEvent
     data class SaveOutletRoutinePreset(
@@ -259,11 +259,20 @@ class WarehouseViewModel(
             is WarehouseUiEvent.SelectDistributionTab -> _state.update {
                 it.copy(selectedTab = event.tab)
             }
+            is WarehouseUiEvent.SelectAdditionalSubTab -> updateTabFilter(WarehouseDistributionTab.ADDITIONAL) {
+                it.copy(
+                    additionalSubTab = event.subTab,
+                    statusFilter = DistributionStatusFilter.ALL
+                )
+            }
             is WarehouseUiEvent.UpdateSearchQuery -> updateTabFilter(event.tab) {
                 it.copy(searchQuery = event.query)
             }
             is WarehouseUiEvent.SelectStatusFilter -> updateTabFilter(event.tab) {
                 it.copy(statusFilter = event.statusFilter)
+            }
+            is WarehouseUiEvent.SelectOutletFilter -> updateTabFilter(event.tab) {
+                it.copy(selectedOutletId = event.outletId)
             }
             is WarehouseUiEvent.UpdateSort -> updateTabFilter(event.tab) {
                 it.copy(sortField = event.field, sortDirection = event.direction)
@@ -271,11 +280,12 @@ class WarehouseViewModel(
             is WarehouseUiEvent.SelectHistoryDate -> updateTabFilter(WarehouseDistributionTab.HISTORY) {
                 it.copy(selectedDateMillis = event.dateMillis)
             }
-            is WarehouseUiEvent.SelectHistoryTypeFilter -> updateTabFilter(WarehouseDistributionTab.HISTORY) {
-                it.copy(typeFilter = event.typeFilter)
-            }
             is WarehouseUiEvent.ResetTabFilters -> updateTabFilter(event.tab) {
-                DistributionTabFilterState(sortField = it.sortField, sortDirection = it.sortDirection)
+                DistributionTabFilterState(
+                    sortField = it.sortField,
+                    sortDirection = it.sortDirection,
+                    additionalSubTab = it.additionalSubTab
+                )
             }
 
             is WarehouseUiEvent.InitCreateForm -> _state.update { current ->
@@ -296,20 +306,6 @@ class WarehouseViewModel(
                         selectedOutletId = outletId,
                         distributionType = event.defaultType,
                         itemQuantities = initialQuantities
-                    )
-                )
-            }
-            is WarehouseUiEvent.SelectCreateType -> _state.update { current ->
-                val nextQuantities = if (event.type == DistributionType.ROUTINE) {
-                    presetMapFor(current, current.createForm.selectedOutletId)
-                } else {
-                    emptyMap()
-                }
-                current.copy(
-                    createForm = current.createForm.copy(
-                        distributionType = event.type,
-                        itemQuantities = nextQuantities,
-                        errorMessage = null
                     )
                 )
             }
