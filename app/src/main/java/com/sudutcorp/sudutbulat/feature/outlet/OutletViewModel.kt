@@ -72,18 +72,71 @@ data class OutletDistributionItemUi(
     val materialName: String,
     val unitLabel: String,
     val quantitySent: Int,
-    val quantityReceived: Int?
+    val quantityReceived: Int?,
+    val note: String? = null
 )
 
 data class OutletDistributionUi(
     val id: String,
     val status: DistributionStatus,
+    val type: DistributionType = DistributionType.ROUTINE,
     val timeLabel: String,
+    val isToday: Boolean = false,
+    val createdAtMillis: Long = 0L,
+    val createdByName: String = "",
+    val confirmedByName: String? = null,
+    val sentTimeLabel: String? = null,
+    val confirmedTimeLabel: String? = null,
     val note: String?,
     val confirmationNote: String?,
     val items: List<OutletDistributionItemUi>,
-    val totalSent: Int
+    val totalSent: Int,
+    val totalReceived: Int? = null
 )
+
+enum class OutletStockFilter(val label: String) {
+    ALL("Semua"),
+    NEED_CONFIRM("Perlu Konfirmasi"),
+    REQUEST("Permintaan"),
+    DONE("Selesai")
+}
+
+internal fun resolveConfirmationStatus(sentAndReceived: List<Pair<Int, Int>>): DistributionStatus = when {
+    sentAndReceived.isEmpty() -> DistributionStatus.RECEIVED
+    sentAndReceived.all { (_, rec) -> rec <= 0 } -> DistributionStatus.NOT_RECEIVED
+    sentAndReceived.all { (sent, rec) -> rec >= sent } -> DistributionStatus.RECEIVED
+    else -> DistributionStatus.PARTIALLY_RECEIVED
+}
+
+internal fun filterOutletDistributions(
+    distributions: List<OutletDistributionUi>,
+    filter: OutletStockFilter,
+    searchQuery: String
+): List<OutletDistributionUi> {
+    val q = searchQuery.trim().lowercase(Locale.ROOT)
+    return distributions.filter { dist ->
+        val matchesStatus = when (filter) {
+            OutletStockFilter.ALL -> true
+            OutletStockFilter.NEED_CONFIRM -> dist.status == DistributionStatus.SENT
+            OutletStockFilter.REQUEST -> dist.status == DistributionStatus.DRAFT
+            OutletStockFilter.DONE -> dist.status == DistributionStatus.RECEIVED ||
+                dist.status == DistributionStatus.PARTIALLY_RECEIVED ||
+                dist.status == DistributionStatus.NOT_RECEIVED ||
+                dist.status == DistributionStatus.CANCELLED
+        }
+        if (!matchesStatus) return@filter false
+        if (q.isBlank()) return@filter true
+
+        dist.createdByName.lowercase(Locale.ROOT).contains(q) ||
+            dist.type.label.lowercase(Locale.ROOT).contains(q) ||
+            (dist.note?.lowercase(Locale.ROOT)?.contains(q) == true) ||
+            (dist.confirmationNote?.lowercase(Locale.ROOT)?.contains(q) == true) ||
+            dist.items.any { item ->
+                item.materialName.lowercase(Locale.ROOT).contains(q) ||
+                    (item.note?.lowercase(Locale.ROOT)?.contains(q) == true)
+            }
+    }
+}
 
 data class DraftExpenseEntry(
     val id: String,
@@ -154,6 +207,7 @@ sealed interface OutletUiEvent {
     data class UpdateRequestQty(val materialId: String, val qtyInput: String) : OutletUiEvent
     data class UpdateRequestNote(val note: String) : OutletUiEvent
     data object SubmitStockRequest : OutletUiEvent
+    data class CancelStockRequest(val distributionId: String) : OutletUiEvent
 
     data class UpdateProductQty(val productId: String, val qtyInput: String) : OutletUiEvent
     data class UpdateCashRevenue(val input: String) : OutletUiEvent
@@ -172,6 +226,7 @@ sealed interface OutletUiEvent {
 sealed interface OutletUiEffect {
     data class ShowSnackbar(val message: String) : OutletUiEffect
     data object StockRequestSaved : OutletUiEffect
+    data object StockRequestCancelled : OutletUiEffect
     data object DistributionConfirmed : OutletUiEffect
     data object DailyReportSaved : OutletUiEffect
 }
@@ -299,6 +354,7 @@ class OutletViewModel(
                 it.copy(requestForm = it.requestForm.copy(note = event.note, errorMessage = null))
             }
             OutletUiEvent.SubmitStockRequest -> submitStockRequest()
+            is OutletUiEvent.CancelStockRequest -> cancelStockRequest(event.distributionId)
 
             is OutletUiEvent.UpdateProductQty -> _state.update { current ->
                 val digits = event.qtyInput.filter(Char::isDigit)
@@ -393,14 +449,13 @@ class OutletViewModel(
                 distributionId = distributionId,
                 materialId = item.materialId,
                 quantitySent = item.quantitySent,
-                quantityReceived = rec
+                quantityReceived = rec,
+                note = item.note
             )
         }
-        val status = when {
-            updatedItems.all { (it.quantityReceived ?: 0) == 0 } -> DistributionStatus.NOT_RECEIVED
-            updatedItems.all { (it.quantityReceived ?: 0) >= it.quantitySent } -> DistributionStatus.RECEIVED
-            else -> DistributionStatus.PARTIALLY_RECEIVED
-        }
+        val status = resolveConfirmationStatus(
+            updatedItems.map { it.quantitySent to (it.quantityReceived ?: 0) }
+        )
 
         viewModelScope.launch {
             _state.update { it.copy(isActionLoading = true) }
@@ -417,6 +472,29 @@ class OutletViewModel(
                 _effects.send(OutletUiEffect.DistributionConfirmed)
             }.onFailure { e ->
                 reportError("mengonfirmasi penerimaan stok", e)
+            }
+        }
+    }
+
+    private fun cancelStockRequest(distributionId: String) {
+        val dist = _state.value.distributions.firstOrNull { it.id == distributionId } ?: return
+        if (dist.status != DistributionStatus.DRAFT) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isActionLoading = true) }
+            val cancelledBy = resolveCurrentUser()?.id ?: authRepository.getCurrentUserUid() ?: "staff"
+            distributionRepository.updateDistributionStatus(
+                id = distributionId,
+                status = DistributionStatus.CANCELLED,
+                confirmedBy = cancelledBy,
+                confirmationNote = "Dibatalkan oleh staf outlet",
+                confirmedAt = Timestamp.now()
+            ).onSuccess {
+                _state.update { it.copy(isActionLoading = false) }
+                _effects.send(OutletUiEffect.ShowSnackbar("Permintaan tambahan stok dibatalkan."))
+                _effects.send(OutletUiEffect.StockRequestCancelled)
+            }.onFailure { e ->
+                reportError("membatalkan permintaan stok", e)
             }
         }
     }
@@ -649,10 +727,15 @@ class OutletViewModel(
         } ?: raw.rawOutlets.firstOrNull { it.isActive } ?: raw.rawOutlets.firstOrNull()
 
         val matMap = raw.rawMaterials.associateBy { it.id }
-        val timeFmt = SimpleDateFormat("dd MMM, HH.mm", Locale.forLanguageTag("id-ID"))
+        val userMap = raw.rawUsers.associateBy { it.id }
+        val idLocale = Locale.forLanguageTag("id-ID")
+        val timeFmt = SimpleDateFormat("dd MMM, HH.mm", idLocale)
+        val hourFmt = SimpleDateFormat("HH.mm", idLocale)
+        val nowTs = Timestamp.now()
 
         val outletDists = raw.rawDistributions
             .filter { assignedOutlet == null || it.outletId == assignedOutlet.id }
+            .sortedByDescending { it.createdAt.seconds }
             .map { dist ->
                 val items = dist.items.map { item ->
                     val mat = matMap[item.materialId]
@@ -662,24 +745,48 @@ class OutletViewModel(
                         materialName = mat?.name ?: item.materialId,
                         unitLabel = mat?.unit?.firestoreValue ?: "pcs",
                         quantitySent = item.quantitySent,
-                        quantityReceived = item.quantityReceived
+                        quantityReceived = item.quantityReceived,
+                        note = item.note
                     )
+                }
+                val isToday = isSameCalendarDay(dist.createdAt, nowTs)
+                val createdDate = Date(dist.createdAt.toDate().time)
+                val createdByName = userMap[dist.createdBy]?.name?.takeIf { it.isNotBlank() }
+                    ?: dist.createdBy.ifBlank { "Gudang" }
+                val confirmedByName = dist.confirmedBy?.let { cid ->
+                    if (cid.equals("system", ignoreCase = true)) {
+                        "Sistem"
+                    } else {
+                        userMap[cid]?.name?.takeIf { it.isNotBlank() } ?: cid
+                    }
+                }
+                val totalReceived = if (items.any { it.quantityReceived != null }) {
+                    items.sumOf { it.quantityReceived ?: 0 }
+                } else {
+                    null
                 }
                 OutletDistributionUi(
                     id = dist.id,
                     status = dist.status,
-                    timeLabel = timeFmt.format(Date(dist.createdAt.toDate().time)),
+                    type = dist.type,
+                    timeLabel = if (isToday) "Hari ini, ${hourFmt.format(createdDate)}" else timeFmt.format(createdDate),
+                    isToday = isToday,
+                    createdAtMillis = dist.createdAt.toDate().time,
+                    createdByName = createdByName,
+                    confirmedByName = confirmedByName,
+                    sentTimeLabel = dist.sentAt?.let { timeFmt.format(it.toDate()) },
+                    confirmedTimeLabel = dist.confirmedAt?.let { timeFmt.format(it.toDate()) },
                     note = dist.note,
                     confirmationNote = dist.confirmationNote,
                     items = items,
-                    totalSent = items.sumOf { it.quantitySent }
+                    totalSent = items.sumOf { it.quantitySent },
+                    totalReceived = totalReceived
                 )
             }
 
         val outletReports = raw.rawReports
             .filter { assignedOutlet == null || it.outletId == assignedOutlet.id }
             .sortedByDescending { it.date.seconds }
-        val nowTs = Timestamp.now()
         val todayReport = outletReports.firstOrNull { isSameCalendarDay(it.date, nowTs) }
 
         return raw.copy(

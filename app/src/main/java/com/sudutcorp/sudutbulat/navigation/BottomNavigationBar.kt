@@ -283,7 +283,9 @@ fun RoleTabContent(
                 navController = navController,
                 uiState = outletUiState,
                 effects = outletEffects,
-                onEvent = onOutletEvent
+                onEvent = onOutletEvent,
+                isDevMode = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher
             )
             2 -> OutletReportScreen(
                 navController = navController,
