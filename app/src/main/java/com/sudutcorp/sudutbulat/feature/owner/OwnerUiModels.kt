@@ -173,6 +173,7 @@ data class ReportPeriodSummaryUi(
 data class CatalogItemUi(
     val id: String,
     val name: String,
+    val categoryId: String = "",
     val category: String,
     val isProduct: Boolean,
     val priceOrCost: Long,
@@ -221,6 +222,7 @@ data class AddCatalogItemFormState(
     val editingItemId: String? = null,
     val name: String = "",
     val isProduct: Boolean = false,
+    val categoryInput: String = "",
     val priceOrCostInput: String = "",
     val unit: UnitType = UnitType.PCS,
     val saleType: ProductSaleType = ProductSaleType.SATUAN,

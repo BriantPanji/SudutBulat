@@ -5,12 +5,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.remote.DailyReportRemoteDataSource
+import com.sudutcorp.sudutbulat.data.remote.MaterialCategoryRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.MaterialDistributionRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.MaterialRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.OutletRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.ProductRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.UserRemoteDataSource
 import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
+import com.sudutcorp.sudutbulat.data.repository.MaterialCategoryRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialDistributionRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
@@ -28,6 +30,7 @@ interface AppContainer {
     val authRepository: AuthRepository
     val userRepository: UserRepository
     val outletRepository: OutletRepository
+    val materialCategoryRepository: MaterialCategoryRepository
     val materialRepository: MaterialRepository
     val productRepository: ProductRepository
     val materialDistributionRepository: MaterialDistributionRepository
@@ -43,6 +46,7 @@ class DefaultAppContainer : AppContainer {
     // Remote Data Sources (lazy loaded)
     private val userRemoteDataSource by lazy { UserRemoteDataSource() }
     private val outletRemoteDataSource by lazy { OutletRemoteDataSource() }
+    private val materialCategoryRemoteDataSource by lazy { MaterialCategoryRemoteDataSource() }
     private val materialRemoteDataSource by lazy { MaterialRemoteDataSource() }
     private val productRemoteDataSource by lazy { ProductRemoteDataSource() }
     private val materialDistributionRemoteDataSource by lazy { MaterialDistributionRemoteDataSource() }
@@ -59,6 +63,10 @@ class DefaultAppContainer : AppContainer {
 
     override val outletRepository: OutletRepository by lazy {
         OutletRepository(outletRemoteDataSource)
+    }
+
+    override val materialCategoryRepository: MaterialCategoryRepository by lazy {
+        MaterialCategoryRepository(materialCategoryRemoteDataSource)
     }
 
     override val materialRepository: MaterialRepository by lazy {
@@ -101,6 +109,7 @@ class DefaultAppContainer : AppContainer {
             initializer {
                 CatalogViewModel(
                     materialRepository = materialRepository,
+                    materialCategoryRepository = materialCategoryRepository,
                     productRepository = productRepository
                 )
             }

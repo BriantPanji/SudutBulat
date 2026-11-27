@@ -13,6 +13,7 @@ const path = require("path");
 const DEFAULT_ORDER = [
   "outlets.seed.js",
   "users.seed.js",
+  "material_categories.seed.js",
   "materials.seed.js",
   "products.seed.js",
   "distributions.seed.js",

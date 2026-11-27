@@ -1,6 +1,7 @@
 const COLLECTIONS = {
   USERS: "users",
   OUTLETS: "outlets",
+  MATERIAL_CATEGORIES: "material_categories",
   MATERIALS: "materials",
   PRODUCTS: "products",
   MATERIAL_DISTRIBUTIONS: "material_distributions",

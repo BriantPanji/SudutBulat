@@ -11,7 +11,8 @@
     "migrate": "node scripts/cli.js migrate",
     "migrate:rollback": "node scripts/cli.js migrate:rollback",
     "migrate:status": "node scripts/cli.js migrate:status",
-    "migrate:fresh": "node scripts/cli.js migrate:fresh"
+    "migrate:fresh": "node scripts/cli.js migrate:fresh",
+    "deploy:rules": "node scripts/cli.js deploy:rules"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

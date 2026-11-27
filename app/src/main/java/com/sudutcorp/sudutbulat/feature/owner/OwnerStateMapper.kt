@@ -4,6 +4,7 @@ import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialCategory
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
@@ -180,14 +181,25 @@ fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
     )
 }
 
-fun buildCatalogItems(materials: List<Material>, products: List<Product>): List<CatalogItemUi> {
+private fun inferLegacyMaterialCategory(materialName: String): String {
+    val lower = materialName.lowercase(Locale.ROOT)
+    return when {
+        lower.contains("tahu") -> "Tahu"
+        lower.contains("saus") || lower.contains("chilly") || lower.contains("oil") -> "Saus"
+        else -> "Bumbu"
+    }
+}
+
+fun buildCatalogItems(
+    materials: List<Material>,
+    products: List<Product>,
+    categories: List<MaterialCategory> = defaultSeededMaterialCategories()
+): List<CatalogItemUi> {
+    val categoryById = categories.associateBy { it.id }
     val matItems = materials.map { mat ->
         val lower = mat.name.lowercase(Locale.ROOT)
-        val category = when {
-            lower.contains("tahu") -> "Tahu"
-            lower.contains("saus") || lower.contains("chilly") || lower.contains("oil") -> "Saus"
-            else -> "Bumbu"
-        }
+        val resolvedCategory = categoryById[mat.categoryId]?.name?.takeIf { it.isNotBlank() }
+            ?: inferLegacyMaterialCategory(mat.name)
         val unitText = when (mat.unit) {
             UnitType.PCS -> "pcs"
             UnitType.GR -> "gr"
@@ -195,10 +207,10 @@ fun buildCatalogItems(materials: List<Material>, products: List<Product>): List<
             UnitType.UNIT -> if (lower.contains("bumbu")) "pak" else "botol"
         }
         CatalogItemUi(
-            id = mat.id, name = mat.name, category = category, isProduct = false,
+            id = mat.id, name = mat.name, categoryId = mat.categoryId, category = resolvedCategory, isProduct = false,
             priceOrCost = mat.cost, unit = mat.unit, unitLabel = unitText,
             subtitleText = "Modal ${formatRupiah(mat.cost)} / $unitText",
-            statusBadge = if (mat.isActive) category else "Nonaktif",
+            statusBadge = if (mat.isActive) resolvedCategory else "Nonaktif",
             isWarning = !mat.isActive,
             isActive = mat.isActive
         )

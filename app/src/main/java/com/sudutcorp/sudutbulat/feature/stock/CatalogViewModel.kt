@@ -4,9 +4,11 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialCategory
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.UnitType
+import com.sudutcorp.sudutbulat.data.repository.MaterialCategoryRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.ProductRepository
 import com.sudutcorp.sudutbulat.feature.owner.AddCatalogItemFormState
@@ -16,6 +18,7 @@ import com.sudutcorp.sudutbulat.feature.owner.MaterialSortField
 import com.sudutcorp.sudutbulat.feature.owner.ProductSortField
 import com.sudutcorp.sudutbulat.feature.owner.SortDirection
 import com.sudutcorp.sudutbulat.feature.owner.buildCatalogItems
+import com.sudutcorp.sudutbulat.feature.owner.defaultSeededMaterialCategories
 import com.sudutcorp.sudutbulat.feature.owner.defaultSeededMaterials
 import com.sudutcorp.sudutbulat.feature.owner.defaultSeededProducts
 import kotlinx.coroutines.channels.Channel
@@ -33,8 +36,13 @@ import java.util.Locale
 
 data class CatalogUiState(
     val materials: List<Material> = emptyList(),
+    val materialCategories: List<MaterialCategory> = defaultSeededMaterialCategories(),
     val products: List<Product> = emptyList(),
-    val catalogItems: List<CatalogItemUi> = buildCatalogItems(defaultSeededMaterials(), defaultSeededProducts()),
+    val catalogItems: List<CatalogItemUi> = buildCatalogItems(
+        defaultSeededMaterials(),
+        defaultSeededProducts(),
+        defaultSeededMaterialCategories()
+    ),
     val catalogTabMode: CatalogTabMode = CatalogTabMode.MATERIAL,
     val catalogSearchQuery: String = "",
     val catalogCategoryFilter: String = "Semua",
@@ -55,6 +63,7 @@ sealed interface CatalogUiEvent {
     data class MaterialSortChanged(val field: MaterialSortField, val direction: SortDirection) : CatalogUiEvent
     data class ProductSortChanged(val field: ProductSortField, val direction: SortDirection) : CatalogUiEvent
     data class NameChanged(val name: String) : CatalogUiEvent
+    data class CategoryInputChanged(val categoryInput: String) : CatalogUiEvent
     data class TypeChanged(val isProduct: Boolean) : CatalogUiEvent
     data class PriceChanged(val priceInput: String) : CatalogUiEvent
     data class UnitChanged(val unit: UnitType) : CatalogUiEvent
@@ -73,6 +82,7 @@ sealed interface CatalogUiEffect {
 
 class CatalogViewModel(
     private val materialRepository: MaterialRepository,
+    private val materialCategoryRepository: MaterialCategoryRepository,
     private val productRepository: ProductRepository
 ) : ViewModel() {
 
@@ -103,6 +113,24 @@ class CatalogViewModel(
                 }
         }
         viewModelScope.launch {
+            materialCategoryRepository.getCategoriesFlow()
+                .catch { e -> reportError("material_categories", e) }
+                .collect { list ->
+                    _state.update { current ->
+                        val activeCategories = list.ifEmpty { defaultSeededMaterialCategories() }
+                        val validFilter = if (
+                            current.catalogCategoryFilter == "Semua" ||
+                            activeCategories.any { it.name.equals(current.catalogCategoryFilter, ignoreCase = true) }
+                        ) {
+                            current.catalogCategoryFilter
+                        } else {
+                            "Semua"
+                        }
+                        recompute(current.copy(materialCategories = activeCategories, catalogCategoryFilter = validFilter))
+                    }
+                }
+        }
+        viewModelScope.launch {
             productRepository.getProductsFlow(onlyActive = false)
                 .catch { e -> reportError("products", e) }
                 .collect { list ->
@@ -114,7 +142,11 @@ class CatalogViewModel(
     private fun recompute(raw: CatalogUiState): CatalogUiState {
         val activeMaterials = raw.materials.ifEmpty { defaultSeededMaterials() }
         val activeProducts = raw.products.ifEmpty { defaultSeededProducts() }
-        return raw.copy(catalogItems = buildCatalogItems(activeMaterials, activeProducts))
+        val activeCategories = raw.materialCategories.ifEmpty { defaultSeededMaterialCategories() }
+        return raw.copy(
+            materialCategories = activeCategories,
+            catalogItems = buildCatalogItems(activeMaterials, activeProducts, activeCategories)
+        )
     }
 
     fun onEvent(event: CatalogUiEvent) {
@@ -131,6 +163,9 @@ class CatalogViewModel(
             }
             is CatalogUiEvent.NameChanged -> _state.update {
                 it.copy(addCatalogForm = it.addCatalogForm.copy(name = event.name, errorMessage = null))
+            }
+            is CatalogUiEvent.CategoryInputChanged -> _state.update {
+                it.copy(addCatalogForm = it.addCatalogForm.copy(categoryInput = event.categoryInput, errorMessage = null))
             }
             is CatalogUiEvent.TypeChanged -> _state.update {
                 it.copy(addCatalogForm = it.addCatalogForm.copy(isProduct = event.isProduct, errorMessage = null))
@@ -161,6 +196,7 @@ class CatalogViewModel(
                         editingItemId = event.item.id,
                         name = event.item.name,
                         isProduct = event.item.isProduct,
+                        categoryInput = if (event.item.isProduct) "" else event.item.category,
                         priceOrCostInput = event.item.priceOrCost.toString(),
                         unit = event.item.unit,
                         saleType = event.item.saleType,
@@ -199,6 +235,12 @@ class CatalogViewModel(
             1
         }
 
+        val cleanCategoryInput = form.categoryInput.trim().replace(Regex("\\s+"), " ")
+        if (!form.isProduct && cleanCategoryInput.isBlank()) {
+            _state.update { it.copy(addCatalogForm = form.copy(errorMessage = "Kategori material wajib diisi.")) }
+            return
+        }
+
         _state.update { it.copy(addCatalogForm = form.copy(isSaving = true, errorMessage = null)) }
         val priceOrCost = form.priceOrCostInput.toLongOrNull() ?: 0L
         val slug = cleanName.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "_").trim('_')
@@ -230,11 +272,21 @@ class CatalogViewModel(
                 recompute(current.copy(products = updated, addCatalogForm = AddCatalogItemFormState(isProduct = true)))
             }
         } else {
+            val categoryResult = materialCategoryRepository.findOrCreateByName(cleanCategoryInput)
+            if (categoryResult.isFailure) {
+                val msg = "Gagal menyimpan kategori: ${categoryResult.exceptionOrNull()?.readableMessage()}"
+                _state.update { it.copy(addCatalogForm = form.copy(isSaving = false, errorMessage = msg)) }
+                _effects.send(CatalogUiEffect.ShowSnackbar(msg))
+                return
+            }
+            val resolvedCategory = categoryResult.getOrThrow()
+
             val material = Material(
                 id = form.editingItemId ?: "mat_$slug",
                 name = cleanName,
                 cost = priceOrCost,
                 unit = form.unit,
+                categoryId = resolvedCategory.id,
                 isActive = form.isActive
             )
             val result: Result<Any> = if (isEdit) {
@@ -249,8 +301,16 @@ class CatalogViewModel(
                 return
             }
             _state.update { current ->
+                val updatedCategories = (current.materialCategories.filterNot { it.id == resolvedCategory.id } + resolvedCategory)
+                    .sortedBy { it.nameLower }
                 val updated = current.materials.filterNot { it.id == material.id } + material
-                recompute(current.copy(materials = updated, addCatalogForm = AddCatalogItemFormState(isProduct = false)))
+                recompute(
+                    current.copy(
+                        materials = updated,
+                        materialCategories = updatedCategories,
+                        addCatalogForm = AddCatalogItemFormState(isProduct = false)
+                    )
+                )
             }
         }
 

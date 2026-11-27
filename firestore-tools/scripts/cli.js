@@ -294,6 +294,14 @@ async function handleMigrateFresh(extraArgs) {
   }
 }
 
+async function handleDeployRules() {
+  const { admin } = getFirebase();
+  const rulesPath = path.resolve(__dirname, "../firestore.rules");
+  const source = fs.readFileSync(rulesPath, "utf8");
+  const ruleset = await admin.securityRules().releaseFirestoreRulesetFromSource(source);
+  console.log(`=== Firestore Rules Berhasil Di-deploy (${ruleset.name}) ===`);
+}
+
 async function main() {
   const [, , command, arg1, ...restArgs] = process.argv;
 
@@ -320,6 +328,9 @@ async function main() {
         break;
       case "migrate:fresh":
         await handleMigrateFresh([arg1, ...restArgs].filter(Boolean));
+        break;
+      case "deploy:rules":
+        await handleDeployRules();
         break;
       default:
         console.log("SudutBulat Firestore Tools CLI:");

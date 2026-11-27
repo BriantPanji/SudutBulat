@@ -3,6 +3,7 @@ package com.sudutcorp.sudutbulat.feature.owner
 import com.google.firebase.Timestamp
 import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialCategory
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
@@ -65,15 +66,21 @@ fun defaultSeededReports(): List<DailyReport> {
     )
 }
 
+fun defaultSeededMaterialCategories(): List<MaterialCategory> = listOf(
+    MaterialCategory("cat_bumbu", "Bumbu", "bumbu"),
+    MaterialCategory("cat_saus", "Saus", "saus"),
+    MaterialCategory("cat_tahu", "Tahu", "tahu")
+)
+
 fun defaultSeededMaterials(): List<Material> = listOf(
-    Material("mat_tahu_original", "Tahu Original", 500L, UnitType.PCS),
-    Material("mat_tahu_pedas", "Tahu Pedas", 600L, UnitType.PCS),
-    Material("mat_tahu_keju", "Tahu Keju", 700L, UnitType.PCS),
-    Material("mat_saus_sambal", "Saus Sambal", 3_000L, UnitType.UNIT),
-    Material("mat_chilly_oil", "Chilly Oil", 15_000L, UnitType.UNIT),
-    Material("mat_bumbu_original", "Bumbu Original", 12_000L, UnitType.UNIT),
-    Material("mat_bumbu_pedas", "Bumbu Pedas", 14_000L, UnitType.UNIT),
-    Material("mat_bumbu_bbq", "Bumbu BBQ", 14_000L, UnitType.UNIT)
+    Material("mat_tahu_original", "Tahu Original", 500L, UnitType.PCS, "cat_tahu"),
+    Material("mat_tahu_pedas", "Tahu Pedas", 600L, UnitType.PCS, "cat_tahu"),
+    Material("mat_tahu_keju", "Tahu Keju", 700L, UnitType.PCS, "cat_tahu"),
+    Material("mat_saus_sambal", "Saus Sambal", 3_000L, UnitType.UNIT, "cat_saus"),
+    Material("mat_chilly_oil", "Chilly Oil", 15_000L, UnitType.UNIT, "cat_saus"),
+    Material("mat_bumbu_original", "Bumbu Original", 12_000L, UnitType.UNIT, "cat_bumbu"),
+    Material("mat_bumbu_pedas", "Bumbu Pedas", 14_000L, UnitType.UNIT, "cat_bumbu"),
+    Material("mat_bumbu_bbq", "Bumbu BBQ", 14_000L, UnitType.UNIT, "cat_bumbu")
 )
 
 fun defaultSeededProducts(): List<Product> = listOf(

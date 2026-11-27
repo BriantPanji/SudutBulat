@@ -14,6 +14,7 @@ const data = [
     name: "Tahu Bulat Original",
     cost: 500,
     unit: "pcs",
+    category_id: "cat_tahu",
     is_active: true,
   },
   {
@@ -21,6 +22,7 @@ const data = [
     name: "Tahu Bulat Pedas",
     cost: 600,
     unit: "pcs",
+    category_id: "cat_tahu",
     is_active: true,
   },
   {
@@ -28,6 +30,7 @@ const data = [
     name: "Tahu Bulat Keju",
     cost: 700,
     unit: "pcs",
+    category_id: "cat_tahu",
     is_active: true,
   },
   {
@@ -35,6 +38,7 @@ const data = [
     name: "Saus Sambal",
     cost: 3000,
     unit: "pcs",
+    category_id: "cat_saus",
     is_active: true,
   },
   {
@@ -42,6 +46,7 @@ const data = [
     name: "Chilly Oil (Botol)",
     cost: 15000,
     unit: "unit",
+    category_id: "cat_saus",
     is_active: true,
   },
   {
@@ -49,6 +54,7 @@ const data = [
     name: "Bubuk Bumbu Balado",
     cost: 50,
     unit: "gr",
+    category_id: "cat_bumbu",
     is_active: true,
   },
   {
@@ -56,6 +62,7 @@ const data = [
     name: "Bubuk Bumbu BBQ",
     cost: 50,
     unit: "gr",
+    category_id: "cat_bumbu",
     is_active: true,
   },
 ];

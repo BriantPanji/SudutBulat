@@ -26,6 +26,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /material_categories/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
     match /materials/{docId} {
       allow read, write: if isSignedIn();
     }
@@ -35,6 +39,10 @@ service cloud.firestore {
     }
 
     match /material_distributions/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /material_distribution_items/{docId} {
       allow read, write: if isSignedIn();
     }
 

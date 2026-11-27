@@ -6,6 +6,7 @@ package com.sudutcorp.sudutbulat.data.remote
 object FirestoreCollections {
     const val USERS = "users"
     const val OUTLETS = "outlets"
+    const val MATERIAL_CATEGORIES = "material_categories"
     const val MATERIALS = "materials"
     const val PRODUCTS = "products"
     const val MATERIAL_DISTRIBUTIONS = "material_distributions"

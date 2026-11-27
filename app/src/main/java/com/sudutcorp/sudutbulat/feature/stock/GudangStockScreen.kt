@@ -3,6 +3,7 @@ package com.sudutcorp.sudutbulat.feature.stock
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -173,10 +174,13 @@ fun GudangStockScreen(
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val materialChipOptions = remember(uiState.materialCategories) {
+                listOf("Semua" to "Semua") + uiState.materialCategories.map { it.name to it.name }
+            }
             val chipOptions = if (isProductTab) {
                 listOf("Semua" to "Semua", "Dijual" to "Dijual", "Tidak dijual" to "Tidak dijual")
             } else {
-                listOf("Semua" to "Semua", "Tahu" to "Tahu", "Saus" to "Saus", "Bumbu" to "Bumbu")
+                materialChipOptions
             }
             val selectedChip = if (isProductTab) uiState.productStatusFilter else uiState.catalogCategoryFilter
 
@@ -361,10 +365,10 @@ fun GudangStockScreen(
                     leadingIconRes = R.drawable.ic_wallet,
                     prefixText = "Rp",
                     keyboardType = KeyboardType.Number,
-                    imeAction = if (isPackProduct) ImeAction.Next else ImeAction.Done,
+                    imeAction = if (isPackProduct || !form.isProduct) ImeAction.Next else ImeAction.Done,
                     visualTransformation = thousandTransformation,
                     onImeAction = {
-                        if (isPackProduct) focusManager.moveFocus(FocusDirection.Next) else focusManager.clearFocus()
+                        if (isPackProduct || !form.isProduct) focusManager.moveFocus(FocusDirection.Next) else focusManager.clearFocus()
                     },
                     onValueChange = { onEvent(CatalogUiEvent.PriceChanged(it)) }
                 )
@@ -408,6 +412,73 @@ fun GudangStockScreen(
                         )
                     }
                 } else {
+                    val trimmedCategory = form.categoryInput.trim()
+                    val exactCategoryMatch = remember(uiState.materialCategories, trimmedCategory) {
+                        uiState.materialCategories.firstOrNull {
+                            it.name.equals(trimmedCategory, ignoreCase = true)
+                        }
+                    }
+                    val suggestedCategories = remember(uiState.materialCategories, trimmedCategory, exactCategoryMatch) {
+                        if (trimmedCategory.isBlank() || exactCategoryMatch != null) {
+                            uiState.materialCategories
+                        } else {
+                            val filtered = uiState.materialCategories.filter {
+                                it.name.contains(trimmedCategory, ignoreCase = true)
+                            }
+                            filtered.ifEmpty { uiState.materialCategories }
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SBLabeledTextField(
+                            label = "Kategori material",
+                            value = form.categoryInput,
+                            placeholder = "Pilih atau ketik kategori (cth: Tahu)",
+                            leadingIconRes = R.drawable.ic_search,
+                            imeAction = ImeAction.Done,
+                            onImeAction = { focusManager.clearFocus() },
+                            onValueChange = { onEvent(CatalogUiEvent.CategoryInputChanged(it)) }
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            suggestedCategories.forEach { category ->
+                                val isSelected = exactCategoryMatch?.id == category.id
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onEvent(CatalogUiEvent.CategoryInputChanged(category.name)) },
+                                    label = {
+                                        Text(
+                                            text = category.name,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(9.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SBColor.Grey_700,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = SBColor.Grey_100,
+                                        labelColor = SBColor.Grey_600
+                                    ),
+                                    border = null
+                                )
+                            }
+                        }
+
+                        if (trimmedCategory.isNotBlank() && exactCategoryMatch == null) {
+                            Text(
+                                text = "Kategori baru \"$trimmedCategory\" akan ditambahkan otomatis.",
+                                fontSize = 12.sp,
+                                color = SBColor.Grey_500
+                            )
+                        }
+                    }
+
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Satuan material", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
                         Row(
@@ -478,7 +549,7 @@ private fun CatalogInventoryRow(
     onToggleActiveClick: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    val tileBg = if (item.category == "Tahu") SBColor.Secondary_100 else SBColor.Primary_100
+    val tileBg = if (item.category.equals("Tahu", ignoreCase = true)) SBColor.Secondary_100 else SBColor.Primary_100
 
     Row(
         modifier = Modifier
@@ -510,11 +581,27 @@ private fun CatalogInventoryRow(
             Text(text = item.subtitleText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_600)
         }
 
-        SBStatusBadge(
-            text = item.statusBadge,
-            containerColor = if (item.isWarning) SBColor.Grey_100 else SBColor.Success_100,
-            contentColor = if (item.isWarning) SBColor.Grey_600 else SBColor.Success_600
-        )
+        if (item.isProduct) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (item.isWarning) SBColor.Grey_100 else SBColor.Success_100
+            ) {
+                Icon(
+                    painter = painterResource(if (item.isActive) R.drawable.ic_check else R.drawable.ic_close),
+                    contentDescription = item.statusBadge,
+                    tint = if (item.isWarning) SBColor.Grey_600 else SBColor.Success_600,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .size(16.dp)
+                )
+            }
+        } else {
+            SBStatusBadge(
+                text = item.statusBadge,
+                containerColor = if (item.isWarning) SBColor.Grey_100 else SBColor.Success_100,
+                contentColor = if (item.isWarning) SBColor.Grey_600 else SBColor.Success_600
+            )
+        }
 
         Box {
             IconButton(

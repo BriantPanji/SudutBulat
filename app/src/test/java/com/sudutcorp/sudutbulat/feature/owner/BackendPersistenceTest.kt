@@ -8,6 +8,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialCategory
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Product
@@ -21,10 +22,12 @@ import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreMap
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toReportDamagedDocMap
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toReportExpensesDocMap
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toReportProductsDocMap
+import com.sudutcorp.sudutbulat.data.repository.FakeMaterialCategoryRemoteDataSource
 import com.sudutcorp.sudutbulat.data.repository.FakeMaterialRemoteDataSource
 import com.sudutcorp.sudutbulat.data.repository.FakeOutletRemoteDataSource
 import com.sudutcorp.sudutbulat.data.repository.FakeProductRemoteDataSource
 import com.sudutcorp.sudutbulat.data.repository.FakeUserRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.MaterialCategoryRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.ProductRepository
@@ -84,9 +87,14 @@ class BackendPersistenceTest {
         assertEquals("firebase_uid_1", userMap["uid"])
         assertEquals("outlet_sudirman", userMap["outlet_id"])
 
-        val materialMap = Material("mat_1", "Tahu", 500L, UnitType.PCS, isActive = false).toFirestoreMap()
+        val materialMap = Material("mat_1", "Tahu", 500L, UnitType.PCS, categoryId = "cat_tahu", isActive = false).toFirestoreMap()
         assertEquals("pcs", materialMap["unit"])
+        assertEquals("cat_tahu", materialMap["category_id"])
         assertEquals(false, materialMap["is_active"])
+
+        val categoryMap = MaterialCategory("cat_kemasan", "Kemasan", "kemasan").toFirestoreMap()
+        assertEquals("Kemasan", categoryMap["name"])
+        assertEquals("kemasan", categoryMap["name_lower"])
 
         val satuanMap = Product("p1", "Tahu Ori", 1000L, ProductSaleType.SATUAN, 5, true).toFirestoreMap()
         assertEquals("satuan", satuanMap["sale_type"])
@@ -222,6 +230,7 @@ class BackendPersistenceTest {
         val productDs = FakeProductRemoteDataSource()
         val vm = CatalogViewModel(
             materialRepository = MaterialRepository(FakeMaterialRemoteDataSource()),
+            materialCategoryRepository = MaterialCategoryRepository(FakeMaterialCategoryRemoteDataSource()),
             productRepository = ProductRepository(productDs)
         )
 
@@ -254,5 +263,53 @@ class BackendPersistenceTest {
         assertNotNull(savedUnit)
         assertEquals(ProductSaleType.SATUAN, savedUnit?.saleType)
         assertEquals(1, savedUnit?.pcsPerPack)
+    }
+
+    @Test
+    fun submitCatalogMaterialReusesExistingCategoryCaseInsensitivelyAndCreatesNewCategory() = runBlocking {
+        val materialDs = FakeMaterialRemoteDataSource()
+        val categoryDs = FakeMaterialCategoryRemoteDataSource()
+        val vm = CatalogViewModel(
+            materialRepository = MaterialRepository(materialDs),
+            materialCategoryRepository = MaterialCategoryRepository(categoryDs),
+            productRepository = ProductRepository(FakeProductRemoteDataSource())
+        )
+
+        // 1. Reject blank category
+        vm.onEvent(CatalogUiEvent.ResetForm(defaultIsProduct = false))
+        vm.onEvent(CatalogUiEvent.NameChanged("Tahu Mini"))
+        vm.onEvent(CatalogUiEvent.PriceChanged("400"))
+        vm.submitCatalogItem()
+        assertTrue(materialDs.materials.isEmpty())
+        assertNotNull(vm.state.value.addCatalogForm.errorMessage)
+
+        // 2. Reuse existing category case-insensitively ("tahu" -> cat_tahu)
+        vm.onEvent(CatalogUiEvent.CategoryInputChanged("tahu"))
+        vm.submitCatalogItem()
+        val savedTahu = materialDs.materials.values.firstOrNull { it.name == "Tahu Mini" }
+        assertNotNull(savedTahu)
+        assertEquals("cat_tahu", savedTahu?.categoryId)
+        assertEquals(3, categoryDs.categories.size)
+
+        // 3. Create new category automatically ("kemasan" -> cat_kemasan)
+        vm.onEvent(CatalogUiEvent.ResetForm(defaultIsProduct = false))
+        vm.onEvent(CatalogUiEvent.NameChanged("Kotak Kertas"))
+        vm.onEvent(CatalogUiEvent.PriceChanged("300"))
+        vm.onEvent(CatalogUiEvent.CategoryInputChanged("kemasan"))
+        vm.submitCatalogItem()
+        val savedBox = materialDs.materials.values.firstOrNull { it.name == "Kotak Kertas" }
+        assertNotNull(savedBox)
+        assertEquals("cat_kemasan", savedBox?.categoryId)
+        assertEquals(4, categoryDs.categories.size)
+        assertEquals("Kemasan", categoryDs.categories["cat_kemasan"]?.name)
+
+        // 4. Edit material and switch category case-insensitively ("SAUS" -> cat_saus)
+        val uiItem = vm.state.value.catalogItems.first { it.id == savedBox!!.id }
+        vm.onEvent(CatalogUiEvent.StartEditItem(uiItem))
+        assertEquals("Kemasan", vm.state.value.addCatalogForm.categoryInput)
+        vm.onEvent(CatalogUiEvent.CategoryInputChanged("SAUS"))
+        vm.submitCatalogItem()
+        assertEquals("cat_saus", materialDs.materials[savedBox!!.id]?.categoryId)
+        assertEquals(4, categoryDs.categories.size)
     }
 }

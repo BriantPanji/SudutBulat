@@ -13,6 +13,7 @@ import com.sudutcorp.sudutbulat.data.model.DistributionWithItems
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.FullDailyReport
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialCategory
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
@@ -21,6 +22,7 @@ import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.remote.DailyReportRemoteDataSource
+import com.sudutcorp.sudutbulat.data.remote.MaterialCategoryRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.MaterialDistributionRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.MaterialRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.OutletRemoteDataSource
@@ -144,6 +146,35 @@ class FakeOutletRemoteDataSource : OutletRemoteDataSource() {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val existing = outlets[outletId] ?: throw NoSuchElementException()
         outlets[outletId] = existing.copy(isOpen = isOpen)
+    }
+}
+
+class FakeMaterialCategoryRemoteDataSource(
+    initial: List<MaterialCategory> = listOf(
+        MaterialCategory("cat_bumbu", "Bumbu", "bumbu"),
+        MaterialCategory("cat_saus", "Saus", "saus"),
+        MaterialCategory("cat_tahu", "Tahu", "tahu")
+    )
+) : MaterialCategoryRemoteDataSource() {
+    val categories = initial.associateBy { it.id }.toMutableMap()
+    var shouldFail: Boolean = false
+
+    override fun getCategoriesFlow(): Flow<List<MaterialCategory>> =
+        flowOf(categories.values.sortedBy { it.nameLower })
+
+    override suspend fun findOrCreateByName(rawName: String): Result<MaterialCategory> = runCatching {
+        if (shouldFail) throw RuntimeException("Simulated network failure")
+        val normalized = normalizeCategoryDisplayName(rawName)
+        require(normalized.isNotBlank()) { "Nama kategori tidak boleh kosong." }
+        val lower = normalized.lowercase(java.util.Locale.ROOT)
+        categories.values.firstOrNull {
+            it.nameLower.equals(lower, ignoreCase = true) || it.name.trim().equals(lower, ignoreCase = true)
+        }?.let { return@runCatching it }
+
+        val slug = lower.replace(Regex("[^a-z0-9]+"), "_").trim('_').ifBlank { "${categories.size + 1}" }
+        val created = MaterialCategory(id = "cat_$slug", name = normalized, nameLower = lower)
+        categories[created.id] = created
+        created
     }
 }
 
@@ -430,6 +461,7 @@ class RepositoryTest {
         assertNotNull(container.authRepository)
         assertNotNull(container.userRepository)
         assertNotNull(container.outletRepository)
+        assertNotNull(container.materialCategoryRepository)
         assertNotNull(container.materialRepository)
         assertNotNull(container.productRepository)
         assertNotNull(container.materialDistributionRepository)
@@ -534,6 +566,27 @@ class RepositoryTest {
         val deleteRes = repo.deleteMaterial("mat_1")
         assertTrue(deleteRes.isSuccess)
         assertNull(repo.getMaterialById("mat_1").getOrNull())
+    }
+
+    @Test
+    fun testMaterialCategoryRepositoryFindOrCreateCaseInsensitive() = runBlocking {
+        val fakeDataSource = FakeMaterialCategoryRemoteDataSource()
+        val repo = MaterialCategoryRepository(fakeDataSource)
+
+        val existing = repo.findOrCreateByName("  TAHU  ").getOrThrow()
+        assertEquals("cat_tahu", existing.id)
+        assertEquals("Tahu", existing.name)
+        assertEquals(3, fakeDataSource.categories.size)
+
+        val created = repo.findOrCreateByName("kemasan").getOrThrow()
+        assertEquals("cat_kemasan", created.id)
+        assertEquals("Kemasan", created.name)
+        assertEquals("kemasan", created.nameLower)
+        assertEquals(4, fakeDataSource.categories.size)
+
+        val reused = repo.findOrCreateByName("KeMaSaN").getOrThrow()
+        assertEquals("cat_kemasan", reused.id)
+        assertEquals(4, fakeDataSource.categories.size)
     }
 
     @Test

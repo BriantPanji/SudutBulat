@@ -10,6 +10,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialCategory
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
@@ -95,11 +96,31 @@ object FirestoreMappers {
         "daily_target" to dailyTarget
     )
 
+    fun DocumentSnapshot.toMaterialCategory(): MaterialCategory {
+        val rawName = getString("name").orEmpty().trim()
+        val rawLower = getString("name_lower").orEmpty().trim().ifBlank { rawName.lowercase(java.util.Locale.ROOT) }
+        return MaterialCategory(
+            id = id,
+            name = rawName,
+            nameLower = rawLower
+        )
+    }
+
+    fun MaterialCategory.toFirestoreMap(): Map<String, Any?> {
+        val cleanName = name.trim()
+        val cleanLower = nameLower.trim().ifBlank { cleanName.lowercase(java.util.Locale.ROOT) }
+        return mapOf(
+            "name" to cleanName,
+            "name_lower" to cleanLower
+        )
+    }
+
     fun DocumentSnapshot.toMaterial(): Material = Material(
         id = id,
         name = getString("name").orEmpty(),
         cost = (getLong("cost") ?: 0L).coerceAtLeast(0L),
         unit = UnitType.fromString(getString("unit")) ?: UnitType.PCS,
+        categoryId = getString("category_id").orEmpty(),
         isActive = getBoolean("is_active") ?: true
     )
 
@@ -107,6 +128,7 @@ object FirestoreMappers {
         "name" to name,
         "cost" to cost,
         "unit" to unit.firestoreValue,
+        "category_id" to categoryId,
         "is_active" to isActive
     )
 

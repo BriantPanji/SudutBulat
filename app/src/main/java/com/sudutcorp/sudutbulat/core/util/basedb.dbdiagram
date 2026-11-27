@@ -30,11 +30,18 @@ Table outlets {
   target_percentage float [not null, default: 0]
 }
 
+Table material_categories {
+  id string [pk]
+  name string [not null]
+  name_lower string [not null, unique]
+}
+
 Table materials {
   id string [pk]
   name string [unique]
   cost int
   unit Unit
+  category_id string [not null, ref: > material_categories.id]
   is_active boolean [not null, default: true]
 }
 

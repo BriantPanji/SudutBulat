@@ -18,6 +18,10 @@ data class Material(
 
     val unit: UnitType = UnitType.PCS,
 
+    @get:PropertyName("category_id")
+    @set:PropertyName("category_id")
+    var categoryId: String = "",
+
     @get:PropertyName("is_active")
     @set:PropertyName("is_active")
     var isActive: Boolean = true
