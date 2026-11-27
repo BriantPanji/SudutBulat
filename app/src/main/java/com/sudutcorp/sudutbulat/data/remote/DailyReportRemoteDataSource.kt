@@ -140,21 +140,28 @@ open class DailyReportRemoteDataSource(
 
         val batch = firestore.batch()
 
-        val reportDoc = if (report.id.isNotBlank()) reportCol.document(report.id) else reportCol.document()
+        val isUpdate = report.id.isNotBlank()
+        val reportDoc = if (isUpdate) reportCol.document(report.id) else reportCol.document()
         val reportId = reportDoc.id
         val reportToSave = if (report.id.isBlank()) report.copy(id = reportId) else report
         batch.set(reportDoc, reportToSave.toFirestoreMap())
 
         if (products.isNotEmpty()) {
             batch.set(prodCol.document(reportId), products.toReportProductsDocMap(reportId))
+        } else if (isUpdate) {
+            batch.delete(prodCol.document(reportId))
         }
 
         if (expenses.isNotEmpty()) {
             batch.set(expCol.document(reportId), expenses.toReportExpensesDocMap(reportId))
+        } else if (isUpdate) {
+            batch.delete(expCol.document(reportId))
         }
 
         if (damagedMaterials.isNotEmpty()) {
             batch.set(dmgCol.document(reportId), damagedMaterials.toReportDamagedDocMap(reportId))
+        } else if (isUpdate) {
+            batch.delete(dmgCol.document(reportId))
         }
 
         batch.commit().await()

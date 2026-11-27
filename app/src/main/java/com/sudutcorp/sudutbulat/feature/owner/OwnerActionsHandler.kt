@@ -4,15 +4,10 @@ import com.google.firebase.firestore.GeoPoint
 import com.sudutcorp.sudutbulat.core.util.formatRawTimeToDisplay
 import com.sudutcorp.sudutbulat.core.util.isValidRawTime
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
-import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.Outlet
-import com.sudutcorp.sudutbulat.data.model.Product
-import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.User
-import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
-import com.sudutcorp.sudutbulat.data.repository.ProductRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,13 +19,11 @@ private fun Throwable.readableMessage(): String =
 
 /**
  * Handles validation and verified Firestore/Auth write operations for Owner CRUD flows
- * (outlets, users/staff, and catalog items). Never fakes local success when backend writes fail.
+ * (outlets and users/staff). Never fakes local success when backend writes fail.
  */
 class OwnerActionsHandler(
     private val outletRepository: OutletRepository,
     private val userRepository: UserRepository,
-    private val materialRepository: MaterialRepository,
-    private val productRepository: ProductRepository,
     private val authRepository: AuthRepository,
     private val state: MutableStateFlow<OwnerUiState>,
     private val effects: Channel<OwnerUiEffect>
@@ -258,124 +251,5 @@ class OwnerActionsHandler(
 
         effects.send(OwnerUiEffect.ShowSnackbar("Akun ${newUser.name} berhasil dibuat (kode: ${newUser.id})."))
         effects.send(OwnerUiEffect.NavigateBack)
-    }
-
-    suspend fun submitCatalogItem() {
-        val form = state.value.addCatalogForm
-        val cleanName = form.name.trim()
-        if (cleanName.isBlank()) {
-            state.update { it.copy(addCatalogForm = form.copy(errorMessage = "Nama barang wajib diisi.")) }
-            return
-        }
-
-        val resolvedPcsPerPack = if (form.isProduct && form.saleType == ProductSaleType.BUNGKUS) {
-            val parsed = form.pcsPerPackInput.toIntOrNull()
-            if (parsed == null || parsed < 2) {
-                state.update {
-                    it.copy(addCatalogForm = form.copy(errorMessage = "Jumlah pcs per bungkus minimal 2."))
-                }
-                return
-            }
-            parsed
-        } else {
-            1
-        }
-
-        state.update { it.copy(addCatalogForm = form.copy(isSaving = true, errorMessage = null)) }
-        val priceOrCost = form.priceOrCostInput.toLongOrNull() ?: 0L
-        val slug = cleanName.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "_").trim('_')
-            .ifBlank { "${System.currentTimeMillis()}" }
-        val isEdit = !form.editingItemId.isNullOrBlank()
-
-        if (form.isProduct) {
-            val product = Product(
-                id = form.editingItemId ?: "prod_$slug",
-                name = cleanName,
-                price = priceOrCost,
-                saleType = form.saleType,
-                pcsPerPack = resolvedPcsPerPack,
-                isActive = form.isActive
-            )
-            val result: Result<Any> = if (isEdit) {
-                productRepository.updateProduct(product)
-            } else {
-                productRepository.saveProduct(product)
-            }
-            if (result.isFailure) {
-                val msg = "Gagal menyimpan produk: ${result.exceptionOrNull()?.readableMessage()}"
-                state.update { it.copy(addCatalogForm = form.copy(isSaving = false, errorMessage = msg)) }
-                effects.send(OwnerUiEffect.ShowSnackbar(msg))
-                return
-            }
-            state.update { current ->
-                val updated = current.products.filterNot { it.id == product.id } + product
-                computeOwnerDerivedState(
-                    current.copy(products = updated, addCatalogForm = AddCatalogItemFormState(isProduct = true))
-                )
-            }
-        } else {
-            val material = Material(
-                id = form.editingItemId ?: "mat_$slug",
-                name = cleanName,
-                cost = priceOrCost,
-                unit = form.unit,
-                isActive = form.isActive
-            )
-            val result: Result<Any> = if (isEdit) {
-                materialRepository.updateMaterial(material)
-            } else {
-                materialRepository.saveMaterial(material)
-            }
-            if (result.isFailure) {
-                val msg = "Gagal menyimpan material: ${result.exceptionOrNull()?.readableMessage()}"
-                state.update { it.copy(addCatalogForm = form.copy(isSaving = false, errorMessage = msg)) }
-                effects.send(OwnerUiEffect.ShowSnackbar(msg))
-                return
-            }
-            state.update { current ->
-                val updated = current.materials.filterNot { it.id == material.id } + material
-                computeOwnerDerivedState(
-                    current.copy(materials = updated, addCatalogForm = AddCatalogItemFormState(isProduct = false))
-                )
-            }
-        }
-
-        val actionWord = if (isEdit) "diperbarui" else "ditambahkan ke katalog"
-        effects.send(OwnerUiEffect.ShowSnackbar("Barang $cleanName berhasil $actionWord."))
-        effects.send(OwnerUiEffect.CatalogSaved)
-    }
-
-    suspend fun toggleCatalogItemActive(item: CatalogItemUi) {
-        val nextActive = !item.isActive
-        val result = if (item.isProduct) {
-            productRepository.setProductActive(item.id, nextActive)
-        } else {
-            materialRepository.setMaterialActive(item.id, nextActive)
-        }
-
-        result.onSuccess {
-            state.update { current ->
-                if (item.isProduct) {
-                    val updated = current.products.map {
-                        if (it.id == item.id) it.copy(isActive = nextActive) else it
-                    }
-                    computeOwnerDerivedState(current.copy(products = updated))
-                } else {
-                    val updated = current.materials.map {
-                        if (it.id == item.id) it.copy(isActive = nextActive) else it
-                    }
-                    computeOwnerDerivedState(current.copy(materials = updated))
-                }
-            }
-            val label = when {
-                item.isProduct && nextActive -> "kembali dijual"
-                item.isProduct -> "dihentikan penjualannya"
-                nextActive -> "kembali dipakai"
-                else -> "dihentikan pemakaiannya"
-            }
-            effects.send(OwnerUiEffect.ShowSnackbar("${item.name} $label."))
-        }.onFailure { e ->
-            effects.send(OwnerUiEffect.ShowSnackbar("Gagal mengubah status ${item.name}: ${e.readableMessage()}"))
-        }
     }
 }

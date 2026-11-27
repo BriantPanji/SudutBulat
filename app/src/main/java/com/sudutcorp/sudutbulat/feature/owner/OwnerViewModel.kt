@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.core.util.sanitizeTimeDigits
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
-import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
@@ -43,8 +42,6 @@ class OwnerViewModel(
     private val actions = OwnerActionsHandler(
         outletRepository = outletRepository,
         userRepository = userRepository,
-        materialRepository = materialRepository,
-        productRepository = productRepository,
         authRepository = authRepository,
         state = _state,
         effects = _effects
@@ -172,65 +169,6 @@ class OwnerViewModel(
             is OwnerUiEvent.ReportSpecificDateSelected -> _state.update {
                 it.copy(reportSelectedDateMillis = event.dateMillis)
             }
-
-            is OwnerUiEvent.CatalogTabSelected -> _state.update { it.copy(catalogTabMode = event.mode) }
-            is OwnerUiEvent.CatalogSearchChanged -> _state.update { it.copy(catalogSearchQuery = event.query) }
-            is OwnerUiEvent.CatalogFilterSelected -> _state.update { it.copy(catalogCategoryFilter = event.category) }
-            is OwnerUiEvent.ProductStatusFilterSelected -> _state.update { it.copy(productStatusFilter = event.status) }
-            is OwnerUiEvent.MaterialSortChanged -> _state.update {
-                it.copy(materialSortField = event.field, materialSortDirection = event.direction)
-            }
-            is OwnerUiEvent.ProductSortChanged -> _state.update {
-                it.copy(productSortField = event.field, productSortDirection = event.direction)
-            }
-            is OwnerUiEvent.CatalogNameChanged -> _state.update {
-                it.copy(addCatalogForm = it.addCatalogForm.copy(name = event.name, errorMessage = null))
-            }
-            is OwnerUiEvent.CatalogTypeChanged -> _state.update {
-                it.copy(addCatalogForm = it.addCatalogForm.copy(isProduct = event.isProduct, errorMessage = null))
-            }
-            is OwnerUiEvent.CatalogPriceChanged -> _state.update {
-                it.copy(addCatalogForm = it.addCatalogForm.copy(priceOrCostInput = event.priceInput.filter(Char::isDigit), errorMessage = null))
-            }
-            is OwnerUiEvent.CatalogUnitChanged -> _state.update {
-                it.copy(addCatalogForm = it.addCatalogForm.copy(unit = event.unit, errorMessage = null))
-            }
-            is OwnerUiEvent.CatalogSaleTypeChanged -> _state.update {
-                it.copy(addCatalogForm = it.addCatalogForm.copy(saleType = event.saleType, errorMessage = null))
-            }
-            is OwnerUiEvent.CatalogPcsPerPackChanged -> _state.update {
-                it.copy(
-                    addCatalogForm = it.addCatalogForm.copy(
-                        pcsPerPackInput = event.pcsInput.filter(Char::isDigit),
-                        errorMessage = null
-                    )
-                )
-            }
-            is OwnerUiEvent.ResetCatalogForm -> _state.update {
-                it.copy(addCatalogForm = AddCatalogItemFormState(isProduct = event.defaultIsProduct))
-            }
-            is OwnerUiEvent.StartEditCatalogItem -> _state.update {
-                it.copy(
-                    addCatalogForm = AddCatalogItemFormState(
-                        editingItemId = event.item.id,
-                        name = event.item.name,
-                        isProduct = event.item.isProduct,
-                        priceOrCostInput = event.item.priceOrCost.toString(),
-                        unit = event.item.unit,
-                        saleType = event.item.saleType,
-                        pcsPerPackInput = if (event.item.saleType == ProductSaleType.BUNGKUS) {
-                            event.item.pcsPerPack.toString()
-                        } else {
-                            ""
-                        },
-                        isActive = event.item.isActive
-                    )
-                )
-            }
-            is OwnerUiEvent.ToggleCatalogItemActive -> viewModelScope.launch {
-                actions.toggleCatalogItemActive(event.item)
-            }
-            OwnerUiEvent.SubmitCatalogItem -> viewModelScope.launch { actions.submitCatalogItem() }
 
             is OwnerUiEvent.AddOutletNameChanged -> _state.update {
                 it.copy(addOutletForm = it.addOutletForm.copy(name = event.name, errorMessage = null))

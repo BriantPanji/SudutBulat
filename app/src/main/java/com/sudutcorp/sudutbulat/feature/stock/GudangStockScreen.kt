@@ -72,9 +72,6 @@ import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.feature.owner.CatalogItemUi
 import com.sudutcorp.sudutbulat.feature.owner.CatalogTabMode
 import com.sudutcorp.sudutbulat.feature.owner.MaterialSortField
-import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
-import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
-import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ProductSortField
 import com.sudutcorp.sudutbulat.feature.owner.SortDirection
 import com.sudutcorp.sudutbulat.feature.owner.sortMaterialCatalogItems
@@ -87,9 +84,9 @@ import kotlinx.coroutines.flow.emptyFlow
 fun GudangStockScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    uiState: OwnerUiState = OwnerUiState(),
-    effects: Flow<OwnerUiEffect> = emptyFlow(),
-    onEvent: (OwnerUiEvent) -> Unit = {},
+    uiState: CatalogUiState = CatalogUiState(),
+    effects: Flow<CatalogUiEffect> = emptyFlow(),
+    onEvent: (CatalogUiEvent) -> Unit = {},
     roleEyebrow: String = "Admin Gudang",
     initials: String = "AR",
     isStandaloneScreen: Boolean = false,
@@ -101,7 +98,7 @@ fun GudangStockScreen(
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
-            if (effect is OwnerUiEffect.CatalogSaved) {
+            if (effect is CatalogUiEffect.CatalogSaved) {
                 showAddSheet = false
             }
         }
@@ -166,12 +163,12 @@ fun GudangStockScreen(
             options = CatalogTabMode.entries,
             selected = uiState.catalogTabMode,
             labelOf = { it.label },
-            onSelected = { onEvent(OwnerUiEvent.CatalogTabSelected(it)) }
+            onSelected = { onEvent(CatalogUiEvent.TabSelected(it)) }
         )
 
         SBSearchBar(
             query = uiState.catalogSearchQuery,
-            onQueryChange = { onEvent(OwnerUiEvent.CatalogSearchChanged(it)) },
+            onQueryChange = { onEvent(CatalogUiEvent.SearchChanged(it)) },
             placeholder = if (isProductTab) "Cari produk jual..." else "Cari material atau kategori..."
         )
 
@@ -188,9 +185,9 @@ fun GudangStockScreen(
                 selectedKey = selectedChip,
                 onSelected = { option ->
                     if (isProductTab) {
-                        onEvent(OwnerUiEvent.ProductStatusFilterSelected(option))
+                        onEvent(CatalogUiEvent.ProductStatusFilterSelected(option))
                     } else {
-                        onEvent(OwnerUiEvent.CatalogFilterSelected(option))
+                        onEvent(CatalogUiEvent.MaterialCategoryFilterSelected(option))
                     }
                 }
             )
@@ -221,7 +218,7 @@ fun GudangStockScreen(
                             defaultDescendingFor = { it == ProductSortField.PRICE },
                             onSelectSort = { field, isDesc ->
                                 onEvent(
-                                    OwnerUiEvent.ProductSortChanged(
+                                    CatalogUiEvent.ProductSortChanged(
                                         field,
                                         if (isDesc) SortDirection.DESC else SortDirection.ASC
                                     )
@@ -238,7 +235,7 @@ fun GudangStockScreen(
                             defaultDescendingFor = { it == MaterialSortField.COST },
                             onSelectSort = { field, isDesc ->
                                 onEvent(
-                                    OwnerUiEvent.MaterialSortChanged(
+                                    CatalogUiEvent.MaterialSortChanged(
                                         field,
                                         if (isDesc) SortDirection.DESC else SortDirection.ASC
                                     )
@@ -249,7 +246,7 @@ fun GudangStockScreen(
 
                     TextButton(
                         onClick = {
-                            onEvent(OwnerUiEvent.ResetCatalogForm(defaultIsProduct = isProductTab))
+                            onEvent(CatalogUiEvent.ResetForm(defaultIsProduct = isProductTab))
                             showAddSheet = true
                         },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
@@ -291,11 +288,11 @@ fun GudangStockScreen(
                         CatalogInventoryRow(
                             item = item,
                             onEditClick = {
-                                onEvent(OwnerUiEvent.StartEditCatalogItem(item))
+                                onEvent(CatalogUiEvent.StartEditItem(item))
                                 showAddSheet = true
                             },
                             onToggleActiveClick = {
-                                onEvent(OwnerUiEvent.ToggleCatalogItemActive(item))
+                                onEvent(CatalogUiEvent.ToggleItemActive(item))
                             }
                         )
                         if (index < displayedItems.lastIndex) {
@@ -338,7 +335,7 @@ fun GudangStockScreen(
                         options = listOf(false, true),
                         selected = form.isProduct,
                         labelOf = { if (it) "Produk Jual" else "Material" },
-                        onSelected = { onEvent(OwnerUiEvent.CatalogTypeChanged(it)) }
+                        onSelected = { onEvent(CatalogUiEvent.TypeChanged(it)) }
                     )
                 }
 
@@ -349,7 +346,7 @@ fun GudangStockScreen(
                     leadingIconRes = R.drawable.ic_box,
                     imeAction = ImeAction.Next,
                     onImeAction = { focusManager.moveFocus(FocusDirection.Next) },
-                    onValueChange = { onEvent(OwnerUiEvent.CatalogNameChanged(it)) }
+                    onValueChange = { onEvent(CatalogUiEvent.NameChanged(it)) }
                 )
 
                 val isPackProduct = form.isProduct && form.saleType == ProductSaleType.BUNGKUS
@@ -369,7 +366,7 @@ fun GudangStockScreen(
                     onImeAction = {
                         if (isPackProduct) focusManager.moveFocus(FocusDirection.Next) else focusManager.clearFocus()
                     },
-                    onValueChange = { onEvent(OwnerUiEvent.CatalogPriceChanged(it)) }
+                    onValueChange = { onEvent(CatalogUiEvent.PriceChanged(it)) }
                 )
 
                 if (form.isProduct) {
@@ -383,7 +380,7 @@ fun GudangStockScreen(
                                 val isSelected = form.saleType == saleType
                                 FilterChip(
                                     selected = isSelected,
-                                    onClick = { onEvent(OwnerUiEvent.CatalogSaleTypeChanged(saleType)) },
+                                    onClick = { onEvent(CatalogUiEvent.SaleTypeChanged(saleType)) },
                                     label = { Text(saleType.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(9.dp),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -407,7 +404,7 @@ fun GudangStockScreen(
                             keyboardType = KeyboardType.Number,
                             imeAction = ImeAction.Done,
                             onImeAction = { focusManager.clearFocus() },
-                            onValueChange = { onEvent(OwnerUiEvent.CatalogPcsPerPackChanged(it)) }
+                            onValueChange = { onEvent(CatalogUiEvent.PcsPerPackChanged(it)) }
                         )
                     }
                 } else {
@@ -426,7 +423,7 @@ fun GudangStockScreen(
                                 val isSelected = form.unit == unitType
                                 FilterChip(
                                     selected = isSelected,
-                                    onClick = { onEvent(OwnerUiEvent.CatalogUnitChanged(unitType)) },
+                                    onClick = { onEvent(CatalogUiEvent.UnitChanged(unitType)) },
                                     label = { Text(unitLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) },
                                     shape = RoundedCornerShape(9.dp),
                                     colors = FilterChipDefaults.filterChipColors(
@@ -447,7 +444,7 @@ fun GudangStockScreen(
                 }
 
                 Button(
-                    onClick = { onEvent(OwnerUiEvent.SubmitCatalogItem) },
+                    onClick = { onEvent(CatalogUiEvent.SubmitItem) },
                     enabled = !form.isSaving,
                     modifier = Modifier
                         .fillMaxWidth()

@@ -275,21 +275,12 @@ data class OwnerUiState(
     val reportDateFilter: String = "Semua",
     val reportSelectedDateMillis: Long? = null,
 
-    val catalogTabMode: CatalogTabMode = CatalogTabMode.MATERIAL,
-    val catalogSearchQuery: String = "",
-    val catalogCategoryFilter: String = "Semua",
-    val productStatusFilter: String = "Semua",
-    val materialSortField: MaterialSortField = MaterialSortField.NAME,
-    val materialSortDirection: SortDirection = SortDirection.ASC,
-    val productSortField: ProductSortField = ProductSortField.NAME,
-    val productSortDirection: SortDirection = SortDirection.ASC,
     val catalogItems: List<CatalogItemUi> = emptyList(),
 
     val notifications: List<OwnerNotificationUi> = defaultNotifications(),
 
     val addOutletForm: AddOutletFormState = AddOutletFormState(),
     val addUserForm: AddUserFormState = AddUserFormState(),
-    val addCatalogForm: AddCatalogItemFormState = AddCatalogItemFormState(),
 
     val isLoading: Boolean = false,
     val backendError: String? = null
@@ -314,23 +305,6 @@ sealed interface OwnerUiEvent {
     data class ReportOutletFilterSelected(val outletId: String?) : OwnerUiEvent
     data class ReportDateFilterSelected(val filter: String) : OwnerUiEvent
     data class ReportSpecificDateSelected(val dateMillis: Long?) : OwnerUiEvent
-
-    data class CatalogTabSelected(val mode: CatalogTabMode) : OwnerUiEvent
-    data class CatalogSearchChanged(val query: String) : OwnerUiEvent
-    data class CatalogFilterSelected(val category: String) : OwnerUiEvent
-    data class ProductStatusFilterSelected(val status: String) : OwnerUiEvent
-    data class MaterialSortChanged(val field: MaterialSortField, val direction: SortDirection) : OwnerUiEvent
-    data class ProductSortChanged(val field: ProductSortField, val direction: SortDirection) : OwnerUiEvent
-    data class CatalogNameChanged(val name: String) : OwnerUiEvent
-    data class CatalogTypeChanged(val isProduct: Boolean) : OwnerUiEvent
-    data class CatalogPriceChanged(val priceInput: String) : OwnerUiEvent
-    data class CatalogUnitChanged(val unit: UnitType) : OwnerUiEvent
-    data class CatalogSaleTypeChanged(val saleType: ProductSaleType) : OwnerUiEvent
-    data class CatalogPcsPerPackChanged(val pcsInput: String) : OwnerUiEvent
-    data class ResetCatalogForm(val defaultIsProduct: Boolean = false) : OwnerUiEvent
-    data class StartEditCatalogItem(val item: CatalogItemUi) : OwnerUiEvent
-    data class ToggleCatalogItemActive(val item: CatalogItemUi) : OwnerUiEvent
-    data object SubmitCatalogItem : OwnerUiEvent
 
     data class AddOutletNameChanged(val name: String) : OwnerUiEvent
     data class AddOutletAddressChanged(val address: String) : OwnerUiEvent
@@ -357,5 +331,4 @@ sealed interface OwnerUiEvent {
 sealed interface OwnerUiEffect {
     data class ShowSnackbar(val message: String) : OwnerUiEffect
     data object NavigateBack : OwnerUiEffect
-    data object CatalogSaved : OwnerUiEffect
 }

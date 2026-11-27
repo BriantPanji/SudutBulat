@@ -1,5 +1,8 @@
 package com.sudutcorp.sudutbulat.data
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.remote.DailyReportRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.MaterialDistributionRemoteDataSource
@@ -13,6 +16,10 @@ import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.ProductRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
+import com.sudutcorp.sudutbulat.feature.outlet.OutletViewModel
+import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
+import com.sudutcorp.sudutbulat.feature.stock.CatalogViewModel
 
 /**
  * Dependency container providing single-point manual dependency injection.
@@ -25,6 +32,7 @@ interface AppContainer {
     val productRepository: ProductRepository
     val materialDistributionRepository: MaterialDistributionRepository
     val dailyReportRepository: DailyReportRepository
+    val viewModelFactory: ViewModelProvider.Factory
 }
 
 /**
@@ -67,5 +75,46 @@ class DefaultAppContainer : AppContainer {
 
     override val dailyReportRepository: DailyReportRepository by lazy {
         DailyReportRepository(dailyReportRemoteDataSource)
+    }
+
+    override val viewModelFactory: ViewModelProvider.Factory by lazy {
+        viewModelFactory {
+            initializer {
+                OwnerViewModel(
+                    outletRepository = outletRepository,
+                    userRepository = userRepository,
+                    dailyReportRepository = dailyReportRepository,
+                    materialRepository = materialRepository,
+                    productRepository = productRepository,
+                    authRepository = authRepository
+                )
+            }
+            initializer {
+                WarehouseViewModel(
+                    outletRepository = outletRepository,
+                    materialRepository = materialRepository,
+                    distributionRepository = materialDistributionRepository,
+                    userRepository = userRepository,
+                    authRepository = authRepository
+                )
+            }
+            initializer {
+                CatalogViewModel(
+                    materialRepository = materialRepository,
+                    productRepository = productRepository
+                )
+            }
+            initializer {
+                OutletViewModel(
+                    outletRepository = outletRepository,
+                    userRepository = userRepository,
+                    materialRepository = materialRepository,
+                    productRepository = productRepository,
+                    distributionRepository = materialDistributionRepository,
+                    dailyReportRepository = dailyReportRepository,
+                    authRepository = authRepository
+                )
+            }
+        }
     }
 }

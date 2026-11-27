@@ -29,14 +29,23 @@ import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.ProductRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
+import com.sudutcorp.sudutbulat.feature.stock.CatalogUiEvent
+import com.sudutcorp.sudutbulat.feature.stock.CatalogViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 private class FakeAuthRepository(var shouldFailRegister: Boolean = false) : AuthRepository() {
@@ -46,7 +55,18 @@ private class FakeAuthRepository(var shouldFailRegister: Boolean = false) : Auth
     }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class BackendPersistenceTest {
+
+    @Before
+    fun setUpMainDispatcher() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+    }
+
+    @After
+    fun tearDownMainDispatcher() {
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun firestoreMappersWriteCleanLowercaseEnumsAndNoComputedGetters() {
@@ -142,8 +162,6 @@ class BackendPersistenceTest {
         val handler = OwnerActionsHandler(
             outletRepository = OutletRepository(outletDs),
             userRepository = UserRepository(userDs),
-            materialRepository = MaterialRepository(FakeMaterialRemoteDataSource()),
-            productRepository = ProductRepository(FakeProductRemoteDataSource()),
             authRepository = FakeAuthRepository(),
             state = state,
             effects = effects
@@ -177,8 +195,6 @@ class BackendPersistenceTest {
         val handler = OwnerActionsHandler(
             outletRepository = OutletRepository(FakeOutletRemoteDataSource()),
             userRepository = UserRepository(userDs),
-            materialRepository = MaterialRepository(FakeMaterialRemoteDataSource()),
-            productRepository = ProductRepository(FakeProductRemoteDataSource()),
             authRepository = authRepo,
             state = state,
             effects = effects
@@ -204,54 +220,36 @@ class BackendPersistenceTest {
     @Test
     fun submitCatalogProductValidatesPackSizeAndPersistsSaleType() = runBlocking {
         val productDs = FakeProductRemoteDataSource()
-        val state = MutableStateFlow(
-            OwnerUiState(
-                addCatalogForm = AddCatalogItemFormState(
-                    name = "Tahu Keju Bungkus",
-                    isProduct = true,
-                    priceOrCostInput = "7000",
-                    saleType = ProductSaleType.BUNGKUS,
-                    pcsPerPackInput = "1"
-                )
-            )
-        )
-        val effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
-        val handler = OwnerActionsHandler(
-            outletRepository = OutletRepository(FakeOutletRemoteDataSource()),
-            userRepository = UserRepository(FakeUserRemoteDataSource()),
+        val vm = CatalogViewModel(
             materialRepository = MaterialRepository(FakeMaterialRemoteDataSource()),
-            productRepository = ProductRepository(productDs),
-            authRepository = FakeAuthRepository(),
-            state = state,
-            effects = effects
+            productRepository = ProductRepository(productDs)
         )
 
         // 1. Reject bungkus with < 2 pcs
-        handler.submitCatalogItem()
+        vm.onEvent(CatalogUiEvent.TypeChanged(true))
+        vm.onEvent(CatalogUiEvent.NameChanged("Tahu Keju Bungkus"))
+        vm.onEvent(CatalogUiEvent.PriceChanged("7000"))
+        vm.onEvent(CatalogUiEvent.SaleTypeChanged(ProductSaleType.BUNGKUS))
+        vm.onEvent(CatalogUiEvent.PcsPerPackChanged("1"))
+        vm.submitCatalogItem()
         assertTrue(productDs.products.isEmpty())
-        assertNotNull(state.value.addCatalogForm.errorMessage)
+        assertNotNull(vm.state.value.addCatalogForm.errorMessage)
 
         // 2. Accept bungkus with 5 pcs
-        state.value = state.value.copy(
-            addCatalogForm = state.value.addCatalogForm.copy(pcsPerPackInput = "5", errorMessage = null)
-        )
-        handler.submitCatalogItem()
+        vm.onEvent(CatalogUiEvent.PcsPerPackChanged("5"))
+        vm.submitCatalogItem()
         val savedPack = productDs.products.values.firstOrNull { it.name == "Tahu Keju Bungkus" }
         assertNotNull(savedPack)
         assertEquals(ProductSaleType.BUNGKUS, savedPack?.saleType)
         assertEquals(5, savedPack?.pcsPerPack)
 
         // 3. Satuan always persists pcsPerPack = 1
-        state.value = state.value.copy(
-            addCatalogForm = AddCatalogItemFormState(
-                name = "Tahu Ori Satuan",
-                isProduct = true,
-                priceOrCostInput = "1000",
-                saleType = ProductSaleType.SATUAN,
-                pcsPerPackInput = "9"
-            )
-        )
-        handler.submitCatalogItem()
+        vm.onEvent(CatalogUiEvent.ResetForm(defaultIsProduct = true))
+        vm.onEvent(CatalogUiEvent.NameChanged("Tahu Ori Satuan"))
+        vm.onEvent(CatalogUiEvent.PriceChanged("1000"))
+        vm.onEvent(CatalogUiEvent.SaleTypeChanged(ProductSaleType.SATUAN))
+        vm.onEvent(CatalogUiEvent.PcsPerPackChanged("9"))
+        vm.submitCatalogItem()
         val savedUnit = productDs.products.values.firstOrNull { it.name == "Tahu Ori Satuan" }
         assertNotNull(savedUnit)
         assertEquals(ProductSaleType.SATUAN, savedUnit?.saleType)

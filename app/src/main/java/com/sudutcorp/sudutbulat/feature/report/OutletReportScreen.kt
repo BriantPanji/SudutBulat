@@ -80,6 +80,8 @@ fun OutletReportScreen(
     val totalExpense = form.expenses.sumOf { it.amount }
     val netDeposit = (cashVal + qrisVal - totalExpense).coerceAtLeast(0L)
     val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, HH.mm", Locale.forLanguageTag("id-ID")) }
+    val dayOnlyFmt = remember { SimpleDateFormat("dd MMM yyyy", Locale.forLanguageTag("id-ID")) }
+    val isEditing = !form.editingReportId.isNullOrBlank()
 
     Column(
         modifier = modifier
@@ -119,6 +121,79 @@ fun OutletReportScreen(
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = SBColor.Primary_500
+                        )
+                    }
+                }
+            }
+        }
+
+        // Indikator status laporan hari ini / mode edit
+        if (isEditing) {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = SBColor.Primary_100),
+                border = BorderStroke(1.dp, SBColor.Primary_200)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Mode edit laporan",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Primary_550
+                        )
+                        val editDateLabel = form.editingReportDate?.let { dayOnlyFmt.format(Date(it.toDate().time)) } ?: "hari ini"
+                        Text(
+                            text = "Perubahan akan memperbarui laporan tanggal $editDateLabel.",
+                            fontSize = 12.sp,
+                            color = SBColor.Grey_700
+                        )
+                    }
+                    TextButton(onClick = { onEvent(OutletUiEvent.CancelEditDailyReport) }) {
+                        Text("Batal", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+                    }
+                }
+            }
+        } else if (uiState.todayReport != null) {
+            val today = uiState.todayReport
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = SBColor.Warning_100),
+                border = BorderStroke(1.dp, SBColor.Warning_600.copy(alpha = 0.25f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Laporan hari ini sudah terkirim",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Warning_600
+                        )
+                        Text(
+                            text = "${formatRupiah(today.totalRevenue)} • ${today.totalSold} pcs (${dateFmt.format(Date(today.date.toDate().time))})",
+                            fontSize = 12.sp,
+                            color = SBColor.Grey_700
+                        )
+                    }
+                    TextButton(
+                        enabled = !form.isLoadingExisting,
+                        onClick = { onEvent(OutletUiEvent.LoadExistingReportForEdit(today.id)) }
+                    ) {
+                        Text(
+                            text = if (form.isLoadingExisting) "Memuat..." else "Edit",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Primary_550
                         )
                     }
                 }
@@ -292,7 +367,7 @@ fun OutletReportScreen(
 
         Button(
             onClick = { onEvent(OutletUiEvent.SubmitDailyReport) },
-            enabled = !form.isSaving,
+            enabled = !form.isSaving && !form.isLoadingExisting,
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = SBColor.Primary_550, contentColor = Color.White)
@@ -300,7 +375,11 @@ fun OutletReportScreen(
             if (form.isSaving) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
             } else {
-                Text(text = "Kirim laporan harian", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (isEditing) "Perbarui laporan harian" else "Kirim laporan harian",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
 
@@ -309,6 +388,7 @@ fun OutletReportScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 uiState.recentReports.take(5).forEach { rep ->
                     OutlinedCard(
+                        onClick = { onEvent(OutletUiEvent.LoadExistingReportForEdit(rep.id)) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
@@ -321,7 +401,7 @@ fun OutletReportScreen(
                         ) {
                             Column {
                                 Text(dateFmt.format(Date(rep.date.toDate().time)), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
-                                Text("${rep.totalSold} pcs terjual", fontSize = 12.sp, color = SBColor.Grey_500)
+                                Text("${rep.totalSold} pcs terjual • Ketuk untuk edit", fontSize = 12.sp, color = SBColor.Grey_500)
                             }
                             Text(formatRupiah(rep.totalRevenue), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Success_600)
                         }
@@ -435,6 +515,52 @@ fun OutletReportScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showAddDamagedDialog = false }) { Text("Batal") }
+            }
+        )
+    }
+
+    val duplicateReport = form.pendingDuplicateReport
+    if (duplicateReport != null) {
+        val dupDateLabel = dayOnlyFmt.format(Date(duplicateReport.date.toDate().time))
+        AlertDialog(
+            onDismissRequest = { onEvent(OutletUiEvent.DismissDuplicateReportAlert) },
+            containerColor = Color.White,
+            title = { Text("Laporan sudah ada", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Laporan harian untuk tanggal $dupDateLabel sudah tercatat (${formatRupiah(duplicateReport.totalRevenue)}, ${duplicateReport.totalSold} pcs).",
+                        fontSize = 13.sp,
+                        color = SBColor.Grey_700
+                    )
+                    Text(
+                        text = "Sistem menolak pembuatan laporan baru di tanggal yang sama. Apakah Anda ingin memperbarui laporan tersebut?",
+                        fontSize = 13.sp,
+                        color = SBColor.Grey_600
+                    )
+                    TextButton(
+                        onClick = { onEvent(OutletUiEvent.LoadExistingReportForEdit(duplicateReport.id)) }
+                    ) {
+                        Text(
+                            text = "Muat data lama ke form untuk diedit",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SBColor.Primary_550
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { onEvent(OutletUiEvent.ConfirmOverwriteDuplicateReport(duplicateReport.id)) }
+                ) {
+                    Text("Ya, Perbarui", fontWeight = FontWeight.Bold, color = SBColor.Primary_550)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onEvent(OutletUiEvent.DismissDuplicateReportAlert) }) {
+                    Text("Batal", color = SBColor.Grey_600)
+                }
             }
         )
     }

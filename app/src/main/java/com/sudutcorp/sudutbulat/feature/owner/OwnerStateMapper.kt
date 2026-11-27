@@ -180,7 +180,7 @@ fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
     )
 }
 
-private fun buildCatalogItems(materials: List<Material>, products: List<Product>): List<CatalogItemUi> {
+fun buildCatalogItems(materials: List<Material>, products: List<Product>): List<CatalogItemUi> {
     val matItems = materials.map { mat ->
         val lower = mat.name.lowercase(Locale.ROOT)
         val category = when {

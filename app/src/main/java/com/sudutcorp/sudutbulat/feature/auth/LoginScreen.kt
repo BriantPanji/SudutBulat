@@ -54,7 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
@@ -80,23 +80,26 @@ private enum class FocusedLoginField {
     PASSWORD
 }
 
+// Plain non-snapshot holder so writing layout coordinates never triggers recomposition
+private class LoginCoordsRef {
+    var box: LayoutCoordinates? = null
+    var loginField: LayoutCoordinates? = null
+    var passwordField: LayoutCoordinates? = null
+}
+
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
     viewModel: AuthViewModel = remember { AuthViewModel() },
-    onLoginSuccess: (Role) -> Unit = {},
-    onNavigateToRegister: () -> Unit = {}
+    onLoginSuccess: (Role) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
     val collapseRangePx = with(density) { (HeaderMaxHeight - HeaderMinHeight).toPx() }
-    val collapseFraction = (scrollState.value / collapseRangePx).coerceIn(0f, 1f)
 
-    var boxCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    var loginFieldCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    var passwordFieldCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val coordsRef = remember { LoginCoordsRef() }
     var focusedField by remember { mutableStateOf<FocusedLoginField?>(null) }
     var showResetDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -106,10 +109,10 @@ fun LoginScreen(
     val isImeVisible = imeBottomPx > 0
 
     suspend fun scrollFocusedFieldToCenter(field: FocusedLoginField, currentImeBottomPx: Int) {
-        val containerCoords = boxCoords?.takeIf { it.isAttached } ?: return
+        val containerCoords = coordsRef.box?.takeIf { it.isAttached } ?: return
         val fieldCoords = when (field) {
-            FocusedLoginField.LOGIN -> loginFieldCoords
-            FocusedLoginField.PASSWORD -> passwordFieldCoords
+            FocusedLoginField.LOGIN -> coordsRef.loginField
+            FocusedLoginField.PASSWORD -> coordsRef.passwordField
         }?.takeIf { it.isAttached } ?: return
 
         val fieldCenterInBox = containerCoords.localPositionOf(
@@ -145,7 +148,7 @@ fun LoginScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .onGloballyPositioned { boxCoords = it }
+                .onPlaced { coordsRef.box = it }
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { focusManager.clearFocus() })
                 }
@@ -170,8 +173,8 @@ fun LoginScreen(
                         onPasswordChange = viewModel::onPasswordChanged,
                         onSubmit = { viewModel.login(onSuccess = onLoginSuccess) },
                         onForgotPasswordClick = { showResetDialog = true },
-                        onLoginPositioned = { loginFieldCoords = it },
-                        onPasswordPositioned = { passwordFieldCoords = it },
+                        onLoginPositioned = { coordsRef.loginField = it },
+                        onPasswordPositioned = { coordsRef.passwordField = it },
                         onLoginFocusChanged = { isFocused ->
                             if (isFocused) {
                                 focusedField = FocusedLoginField.LOGIN
@@ -194,7 +197,9 @@ fun LoginScreen(
                     Spacer(Modifier.height(32.dp))
                 }
             }
-            LoginHeader(collapseFraction = collapseFraction)
+            LoginHeader(
+                collapseFractionProvider = { (scrollState.value / collapseRangePx).coerceIn(0f, 1f) }
+            )
         }
     }
 
@@ -264,7 +269,12 @@ fun LoginScreen(
 }
 
 @Composable
-fun LoginHeader(modifier: Modifier = Modifier, collapseFraction: Float = 0f) {
+fun LoginHeader(
+    modifier: Modifier = Modifier,
+    collapseFractionProvider: () -> Float = { 0f }
+) {
+    // Reading scrollState inside LoginHeader isolates scroll recompositions from LoginScreen & LoginFormSection
+    val collapseFraction = collapseFractionProvider()
     val height = lerp(HeaderMaxHeight, HeaderMinHeight, collapseFraction)
     val corner = lerp(36.dp, 4.dp, collapseFraction)
     val logoSize = lerp(50.dp, 28.dp, collapseFraction)
@@ -342,7 +352,7 @@ fun LoginFormSection(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onGloballyPositioned(onLoginPositioned)
+                        .onPlaced(onLoginPositioned)
                         .onFocusChanged { onLoginFocusChanged(it.isFocused) },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -379,7 +389,7 @@ fun LoginFormSection(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onGloballyPositioned(onPasswordPositioned)
+                        .onPlaced(onPasswordPositioned)
                         .onFocusChanged { onPasswordFocusChanged(it.isFocused) },
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(

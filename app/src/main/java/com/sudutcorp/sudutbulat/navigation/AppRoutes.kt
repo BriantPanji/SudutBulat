@@ -7,9 +7,6 @@ sealed interface AppRoutes {
     data object Login : AppRoutes
 
     @Serializable
-    data object Register : AppRoutes
-
-    @Serializable
     data object Main : AppRoutes
 }
 

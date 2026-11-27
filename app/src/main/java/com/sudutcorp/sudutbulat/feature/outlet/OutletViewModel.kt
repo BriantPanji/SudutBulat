@@ -35,8 +35,34 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+internal fun isSameCalendarDay(a: Timestamp, b: Timestamp): Boolean {
+    val calA = Calendar.getInstance().apply { time = a.toDate() }
+    val calB = Calendar.getInstance().apply { time = b.toDate() }
+    return calA.get(Calendar.YEAR) == calB.get(Calendar.YEAR) &&
+        calA.get(Calendar.DAY_OF_YEAR) == calB.get(Calendar.DAY_OF_YEAR)
+}
+
+internal fun calendarDayBounds(reference: Timestamp): Pair<Timestamp, Timestamp> {
+    val start = Calendar.getInstance().apply {
+        time = reference.toDate()
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val end = Calendar.getInstance().apply {
+        time = reference.toDate()
+        set(Calendar.HOUR_OF_DAY, 23)
+        set(Calendar.MINUTE, 59)
+        set(Calendar.SECOND, 59)
+        set(Calendar.MILLISECOND, 999)
+    }
+    return Timestamp(start.time) to Timestamp(end.time)
+}
 
 data class OutletDistributionItemUi(
     val id: String,
@@ -80,6 +106,10 @@ data class StockRequestFormState(
 )
 
 data class DailyReportFormState(
+    val editingReportId: String? = null,
+    val editingReportDate: Timestamp? = null,
+    val pendingDuplicateReport: DailyReport? = null,
+    val isLoadingExisting: Boolean = false,
     val productQuantities: Map<String, String> = emptyMap(),
     val cashRevenueInput: String = "",
     val qrisRevenueInput: String = "",
@@ -96,6 +126,7 @@ data class OutletUiState(
     val activeProducts: List<Product> = emptyList(),
     val distributions: List<OutletDistributionUi> = emptyList(),
     val recentReports: List<DailyReport> = emptyList(),
+    val todayReport: DailyReport? = null,
     val requestForm: StockRequestFormState = StockRequestFormState(),
     val reportForm: DailyReportFormState = DailyReportFormState(),
     val isActionLoading: Boolean = false,
@@ -130,6 +161,10 @@ sealed interface OutletUiEvent {
     data class AddDraftDamaged(val materialId: String, val quantity: Int, val note: String) : OutletUiEvent
     data class RemoveDraftDamaged(val id: String) : OutletUiEvent
     data object SubmitDailyReport : OutletUiEvent
+    data class ConfirmOverwriteDuplicateReport(val reportId: String) : OutletUiEvent
+    data class LoadExistingReportForEdit(val reportId: String) : OutletUiEvent
+    data object DismissDuplicateReportAlert : OutletUiEvent
+    data object CancelEditDailyReport : OutletUiEvent
 }
 
 sealed interface OutletUiEffect {
@@ -268,7 +303,15 @@ class OutletViewModel(
                     )
                 )
             }
-            OutletUiEvent.SubmitDailyReport -> submitDailyReport()
+            OutletUiEvent.SubmitDailyReport -> submitDailyReport(overwriteReportId = null)
+            is OutletUiEvent.ConfirmOverwriteDuplicateReport -> submitDailyReport(overwriteReportId = event.reportId)
+            is OutletUiEvent.LoadExistingReportForEdit -> loadExistingReportForEdit(event.reportId)
+            OutletUiEvent.DismissDuplicateReportAlert -> _state.update {
+                it.copy(reportForm = it.reportForm.copy(pendingDuplicateReport = null))
+            }
+            OutletUiEvent.CancelEditDailyReport -> _state.update {
+                it.copy(reportForm = DailyReportFormState())
+            }
         }
     }
 
@@ -378,7 +421,79 @@ class OutletViewModel(
         }
     }
 
-    private fun submitDailyReport() {
+    private fun loadExistingReportForEdit(reportId: String) {
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    reportForm = it.reportForm.copy(
+                        isLoadingExisting = true,
+                        pendingDuplicateReport = null,
+                        errorMessage = null
+                    )
+                )
+            }
+            dailyReportRepository.getFullDailyReport(reportId)
+                .onSuccess { full ->
+                    if (full == null) {
+                        _state.update {
+                            it.copy(
+                                reportForm = it.reportForm.copy(
+                                    isLoadingExisting = false,
+                                    errorMessage = "Data laporan tidak ditemukan."
+                                )
+                            )
+                        }
+                        return@onSuccess
+                    }
+                    val matMap = _state.value.rawMaterials.associateBy { it.id }
+                    _state.update {
+                        it.copy(
+                            reportForm = DailyReportFormState(
+                                editingReportId = full.report.id,
+                                editingReportDate = full.report.date,
+                                productQuantities = full.products
+                                    .filter { p -> p.quantity > 0 }
+                                    .associate { p -> p.productId to p.quantity.toString() },
+                                cashRevenueInput = full.report.cashRevenue.toString(),
+                                qrisRevenueInput = full.report.qrisRevenue.toString(),
+                                expenses = full.expenses.mapIndexed { idx, exp ->
+                                    DraftExpenseEntry(
+                                        id = exp.id.ifBlank { "exp_edit_$idx" },
+                                        category = exp.category,
+                                        amount = exp.amount,
+                                        note = exp.note.orEmpty()
+                                    )
+                                },
+                                damagedMaterials = full.damagedMaterials.mapIndexed { idx, dmg ->
+                                    DraftDamagedEntry(
+                                        id = dmg.id.ifBlank { "dmg_edit_$idx" },
+                                        materialId = dmg.materialId,
+                                        materialName = matMap[dmg.materialId]?.name ?: dmg.materialId,
+                                        quantity = dmg.quantity,
+                                        note = dmg.note.orEmpty()
+                                    )
+                                }
+                            )
+                        )
+                    }
+                    _effects.send(OutletUiEffect.ShowSnackbar("Data laporan dimuat. Silakan ubah lalu simpan pembaruan."))
+                }
+                .onFailure { e ->
+                    val detail = e.localizedMessage?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+                    _state.update {
+                        it.copy(
+                            reportForm = it.reportForm.copy(
+                                isLoadingExisting = false,
+                                errorMessage = "Gagal memuat laporan: $detail"
+                            )
+                        )
+                    }
+                    _effects.send(OutletUiEffect.ShowSnackbar("Gagal memuat laporan: $detail"))
+                }
+        }
+    }
+
+    private fun submitDailyReport(overwriteReportId: String?) {
         val outlet = _state.value.assignedOutlet
         val form = _state.value.reportForm
         val productMap = _state.value.rawProducts.associateBy { it.id }
@@ -402,15 +517,48 @@ class OutletViewModel(
             else -> null
         }
         if (error != null) {
-            _state.update { it.copy(reportForm = form.copy(errorMessage = error)) }
+            _state.update { it.copy(reportForm = form.copy(errorMessage = error, pendingDuplicateReport = null)) }
             return
         }
 
         viewModelScope.launch {
-            _state.update { it.copy(reportForm = form.copy(isSaving = true, errorMessage = null)) }
+            _state.update {
+                it.copy(reportForm = form.copy(isSaving = true, errorMessage = null, pendingDuplicateReport = null))
+            }
+
+            val targetDate = form.editingReportDate ?: Timestamp.now()
+            val resolvedUpdateId = overwriteReportId ?: form.editingReportId
+
+            // Reject duplicate creation automatically unless the user explicitly confirmed update/edit
+            if (resolvedUpdateId.isNullOrBlank()) {
+                val (dayStart, dayEnd) = calendarDayBounds(targetDate)
+                val existingInMemory = _state.value.recentReports.firstOrNull {
+                    it.outletId == outlet!!.id && isSameCalendarDay(it.date, targetDate)
+                }
+                val existingReport = existingInMemory
+                    ?: dailyReportRepository.getDailyReportByOutletAndDate(outlet!!.id, dayStart, dayEnd).getOrNull()
+
+                if (existingReport != null) {
+                    _state.update {
+                        it.copy(
+                            reportForm = it.reportForm.copy(
+                                isSaving = false,
+                                pendingDuplicateReport = existingReport
+                            )
+                        )
+                    }
+                    return@launch
+                }
+            }
+
+            val existingForDate = resolvedUpdateId?.let { id ->
+                _state.value.recentReports.firstOrNull { it.id == id }
+                    ?: form.pendingDuplicateReport?.takeIf { it.id == id }
+            }
             val report = DailyReport(
+                id = resolvedUpdateId.orEmpty(),
                 outletId = outlet!!.id,
-                date = Timestamp.now(),
+                date = existingForDate?.date ?: targetDate,
                 cashRevenue = cashRev,
                 qrisRevenue = qrisRev,
                 totalSold = totalSold
@@ -424,11 +572,18 @@ class OutletViewModel(
 
             dailyReportRepository.createDailyReport(report, soldProducts, expenses, damaged)
                 .onSuccess {
-                    val dailyTarget = outlet.dailyTarget.coerceAtLeast(1L)
-                    val targetPct = (totalRev.toFloat() / dailyTarget.toFloat()).coerceIn(0f, 1f)
-                    outletRepository.updateOutletDailySummary(outlet.id, totalRev, totalSold, targetPct)
+                    if (isSameCalendarDay(report.date, Timestamp.now())) {
+                        val dailyTarget = outlet.dailyTarget.coerceAtLeast(1L)
+                        val targetPct = (totalRev.toFloat() / dailyTarget.toFloat()).coerceIn(0f, 1f)
+                        outletRepository.updateOutletDailySummary(outlet.id, totalRev, totalSold, targetPct)
+                    }
+                    val successMsg = if (resolvedUpdateId.isNullOrBlank()) {
+                        "Laporan harian berhasil disimpan ke Firestore."
+                    } else {
+                        "Laporan harian berhasil diperbarui."
+                    }
                     _state.update { it.copy(reportForm = DailyReportFormState()) }
-                    _effects.send(OutletUiEffect.ShowSnackbar("Laporan harian berhasil disimpan ke Firestore."))
+                    _effects.send(OutletUiEffect.ShowSnackbar(successMsg))
                     _effects.send(OutletUiEffect.DailyReportSaved)
                 }
                 .onFailure { e ->
@@ -480,6 +635,8 @@ class OutletViewModel(
         val outletReports = raw.rawReports
             .filter { assignedOutlet == null || it.outletId == assignedOutlet.id }
             .sortedByDescending { it.date.seconds }
+        val nowTs = Timestamp.now()
+        val todayReport = outletReports.firstOrNull { isSameCalendarDay(it.date, nowTs) }
 
         return raw.copy(
             staffName = matchedUser?.name?.takeIf { it.isNotBlank() } ?: "Dimas Pratama",
@@ -487,7 +644,8 @@ class OutletViewModel(
             activeMaterials = raw.rawMaterials.filter { it.isActive },
             activeProducts = raw.rawProducts.filter { it.isActive },
             distributions = outletDists,
-            recentReports = outletReports
+            recentReports = outletReports,
+            todayReport = todayReport
         )
     }
 }

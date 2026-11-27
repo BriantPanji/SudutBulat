@@ -5,6 +5,7 @@
 // nama document dari collection users adalah logincode untuk login
 Table users { //collection users
   id string [pk]
+  uid string // optional Firebase Auth UID
   name string [not null]
   email string [not null]
   username string [not null]
@@ -16,9 +17,17 @@ Table users { //collection users
 Table outlets {
   id string [pk]
   name string [not null]
-  address string  [not null]
+  address string [not null]
   coordinate geopoint [not null]
   is_active boolean [not null, default: true]
+  is_open boolean [not null, default: true]
+  open_time string [not null, default: '08.00']
+  close_time string [not null, default: '21.00']
+  daily_target int [not null, default: 2000000]
+  // denormalized daily summary cache (updated when daily report is submitted)
+  total_revenue int [not null, default: 0]
+  total_pieces_sold int [not null, default: 0]
+  target_percentage float [not null, default: 0]
 }
 
 Table materials {
@@ -26,12 +35,13 @@ Table materials {
   name string [unique]
   cost int
   unit Unit
+  is_active boolean [not null, default: true]
 }
 
 Table daily_reports {
   id string [pk]
   outlet_id string
-  date date
+  date timestamp
   cash_revenue int
   qris_revenue int
   total_sold int

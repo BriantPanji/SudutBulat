@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -54,23 +55,31 @@ import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.auth.LoginScreen
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiEffect
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseUiState
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
 import com.sudutcorp.sudutbulat.feature.home.WarehouseRoleBottomSheet
 import com.sudutcorp.sudutbulat.feature.notification.OwnerNotificationScreen
 import com.sudutcorp.sudutbulat.feature.outlet.AddOutletScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEffect
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiState
 import com.sudutcorp.sudutbulat.feature.outlet.OutletViewModel
 import com.sudutcorp.sudutbulat.feature.outlet.OwnerDetailOutletScreen
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
+import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
 import com.sudutcorp.sudutbulat.feature.report.OwnerDetailReportScreen
+import com.sudutcorp.sudutbulat.feature.report.defaultReportPeriodSummary
+import com.sudutcorp.sudutbulat.feature.stock.CatalogUiEffect
+import com.sudutcorp.sudutbulat.feature.stock.CatalogUiState
+import com.sudutcorp.sudutbulat.feature.stock.CatalogViewModel
 import com.sudutcorp.sudutbulat.feature.stock.GudangStockScreen
 import com.sudutcorp.sudutbulat.feature.user.AddUserScreen
 import com.sudutcorp.sudutbulat.feature.user.OwnerDetailStaffScreen
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 private val SmoothSlideEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -175,9 +184,6 @@ fun AppNavigation(
                             inclusive = true
                         }
                     }
-                },
-                onNavigateToRegister = {
-                    navController.navigateSingle(AppRoutes.Register)
                 }
             )
         }
@@ -211,39 +217,32 @@ fun MainScreen(
     val appContainer = remember(context) {
         (context.applicationContext as? SudutBulatApplication)?.container ?: DefaultAppContainer()
     }
-    val ownerViewModel = remember(appContainer) {
-        OwnerViewModel(
-            outletRepository = appContainer.outletRepository,
-            userRepository = appContainer.userRepository,
-            dailyReportRepository = appContainer.dailyReportRepository,
-            materialRepository = appContainer.materialRepository,
-            productRepository = appContainer.productRepository,
-            authRepository = appContainer.authRepository
-        )
+    val isDevAccount = userRole == Role.DEV
+    var activeViewRole by rememberSaveable(userRole) {
+        mutableStateOf(if (isDevAccount) Role.OWNER else userRole)
     }
-    val warehouseViewModel = remember(appContainer) {
-        WarehouseViewModel(
-            outletRepository = appContainer.outletRepository,
-            materialRepository = appContainer.materialRepository,
-            distributionRepository = appContainer.materialDistributionRepository,
-            userRepository = appContainer.userRepository,
-            authRepository = appContainer.authRepository
-        )
-    }
-    val outletViewModel = remember(appContainer) {
-        OutletViewModel(
-            outletRepository = appContainer.outletRepository,
-            userRepository = appContainer.userRepository,
-            materialRepository = appContainer.materialRepository,
-            productRepository = appContainer.productRepository,
-            distributionRepository = appContainer.materialDistributionRepository,
-            dailyReportRepository = appContainer.dailyReportRepository,
-            authRepository = appContainer.authRepository
-        )
-    }
-    val ownerUiState by ownerViewModel.state.collectAsStateWithLifecycle()
-    val warehouseUiState by warehouseViewModel.state.collectAsStateWithLifecycle()
-    val outletUiState by outletViewModel.state.collectAsStateWithLifecycle()
+    var showRoleBottomSheet by rememberSaveable { mutableStateOf(false) }
+
+    // Role-scoped ViewModels bound to AppRoutes.Main NavBackStackEntry lifecycle (survive rotation, clear on logout)
+    val needsOwnerVm = isDevAccount || activeViewRole == Role.OWNER || activeViewRole == Role.DEV
+    val needsWarehouseVm = isDevAccount || activeViewRole == Role.WAREHOUSE
+    val needsCatalogVm = isDevAccount || activeViewRole == Role.WAREHOUSE
+    val needsOutletVm = isDevAccount || activeViewRole == Role.OUTLET
+
+    val ownerViewModel: OwnerViewModel? =
+        if (needsOwnerVm) viewModel(factory = appContainer.viewModelFactory) else null
+    val warehouseViewModel: WarehouseViewModel? =
+        if (needsWarehouseVm) viewModel(factory = appContainer.viewModelFactory) else null
+    val catalogViewModel: CatalogViewModel? =
+        if (needsCatalogVm) viewModel(factory = appContainer.viewModelFactory) else null
+    val outletViewModel: OutletViewModel? =
+        if (needsOutletVm) viewModel(factory = appContainer.viewModelFactory) else null
+
+    val ownerUiState = ownerViewModel?.state?.collectAsStateWithLifecycle()?.value ?: OwnerUiState()
+    val warehouseUiState = warehouseViewModel?.state?.collectAsStateWithLifecycle()?.value ?: WarehouseUiState()
+    val catalogUiState = catalogViewModel?.state?.collectAsStateWithLifecycle()?.value ?: CatalogUiState()
+    val outletUiState = outletViewModel?.state?.collectAsStateWithLifecycle()?.value ?: OutletUiState()
+
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var snackbarJob by remember { mutableStateOf<Job?>(null) }
@@ -267,43 +266,54 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(ownerViewModel, warehouseViewModel, outletViewModel) {
-        launch {
-            ownerViewModel.effects.collect { effect ->
-                if (effect is OwnerUiEffect.ShowSnackbar) {
-                    showQuickSnackbar(effect.message)
+    LaunchedEffect(ownerViewModel, warehouseViewModel, catalogViewModel, outletViewModel) {
+        ownerViewModel?.let { vm ->
+            launch {
+                vm.effects.collect { effect ->
+                    if (effect is OwnerUiEffect.ShowSnackbar) {
+                        showQuickSnackbar(effect.message)
+                    }
                 }
             }
         }
-        launch {
-            warehouseViewModel.effects.collect { effect ->
-                if (effect is WarehouseUiEffect.ShowSnackbar) {
-                    showQuickSnackbar(effect.message)
+        warehouseViewModel?.let { vm ->
+            launch {
+                vm.effects.collect { effect ->
+                    if (effect is WarehouseUiEffect.ShowSnackbar) {
+                        showQuickSnackbar(effect.message)
+                    }
                 }
             }
         }
-        launch {
-            outletViewModel.effects.collect { effect ->
-                if (effect is OutletUiEffect.ShowSnackbar) {
-                    showQuickSnackbar(effect.message)
+        catalogViewModel?.let { vm ->
+            launch {
+                vm.effects.collect { effect ->
+                    if (effect is CatalogUiEffect.ShowSnackbar) {
+                        showQuickSnackbar(effect.message)
+                    }
+                }
+            }
+        }
+        outletViewModel?.let { vm ->
+            launch {
+                vm.effects.collect { effect ->
+                    if (effect is OutletUiEffect.ShowSnackbar) {
+                        showQuickSnackbar(effect.message)
+                    }
                 }
             }
         }
     }
+
     val currentReportSummary = remember(
+        ownerViewModel,
         ownerUiState.selectedReportPeriod,
         ownerUiState.expenses,
         ownerUiState.damagedMaterials,
         ownerUiState.materials
     ) {
-        ownerViewModel.getReportPeriodSummary(ownerUiState.selectedReportPeriod)
+        ownerViewModel?.getReportPeriodSummary(ownerUiState.selectedReportPeriod) ?: defaultReportPeriodSummary()
     }
-
-    val isDevAccount = userRole == Role.DEV
-    var activeViewRole by rememberSaveable(userRole) {
-        mutableStateOf(if (isDevAccount) Role.OWNER else userRole)
-    }
-    var showRoleBottomSheet by rememberSaveable { mutableStateOf(false) }
 
     val nestedNavController = rememberNavController()
     val pagerState = rememberPagerState(initialPage = 0) { 4 }
@@ -318,36 +328,9 @@ fun MainScreen(
         showQuickSnackbar(msg)
     }
 
-    val navItems = remember(
-        activeViewRole,
-        userEmail,
-        isDevAccount,
-        ownerUiState,
-        warehouseUiState,
-        outletUiState,
-        currentReportSummary
-    ) {
-        getNavItemsForRole(
-            role = activeViewRole,
-            userEmail = userEmail,
-            isDevAccount = isDevAccount,
-            onOpenRoleSwitcher = {
-                if (isDevAccount) showRoleBottomSheet = true
-            },
-            ownerUiState = ownerUiState,
-            ownerEffects = ownerViewModel.effects,
-            reportSummary = currentReportSummary,
-            onOwnerEvent = ownerViewModel::onEvent,
-            warehouseUiState = warehouseUiState,
-            warehouseEffects = warehouseViewModel.effects,
-            onWarehouseEvent = warehouseViewModel::onEvent,
-            outletUiState = outletUiState,
-            outletEffects = outletViewModel.effects,
-            onOutletEvent = outletViewModel::onEvent,
-            onUpdatePassword = appContainer.authRepository::updatePassword,
-            onShowMessage = onShowMessage,
-            onSelectTab = onSelectTab
-        )
+    val navItems = remember(activeViewRole) { getNavItemsForRole(activeViewRole) }
+    val onOwnerEvent: (OwnerUiEvent) -> Unit = remember(ownerViewModel) {
+        { event -> ownerViewModel?.onEvent(event) }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -422,33 +405,37 @@ fun MainScreen(
                         .padding(innerPadding),
                     label = "RoleWorkspaceTransition"
                 ) { targetRole ->
-                    val roleNavItems = getNavItemsForRole(
-                        role = targetRole,
-                        userEmail = userEmail,
-                        isDevAccount = isDevAccount,
-                        onOpenRoleSwitcher = {
-                            if (isDevAccount) showRoleBottomSheet = true
-                        },
-                        ownerUiState = ownerUiState,
-                        ownerEffects = ownerViewModel.effects,
-                        reportSummary = currentReportSummary,
-                        onOwnerEvent = ownerViewModel::onEvent,
-                        warehouseUiState = warehouseUiState,
-                        warehouseEffects = warehouseViewModel.effects,
-                        onWarehouseEvent = warehouseViewModel::onEvent,
-                        outletUiState = outletUiState,
-                        outletEffects = outletViewModel.effects,
-                        onOutletEvent = outletViewModel::onEvent,
-                        onUpdatePassword = appContainer.authRepository::updatePassword,
-                        onShowMessage = onShowMessage,
-                        onSelectTab = onSelectTab
-                    )
                     HorizontalPager(
                         state = pagerState,
                         beyondViewportPageCount = 1,
                         modifier = Modifier.fillMaxSize()
                     ) { pageIndex ->
-                        roleNavItems.getOrNull(pageIndex)?.screen?.invoke(nestedNavController, onLogout)
+                        RoleTabContent(
+                            role = targetRole,
+                            pageIndex = pageIndex,
+                            navController = nestedNavController,
+                            onLogout = onLogout,
+                            userEmail = userEmail,
+                            isDevAccount = isDevAccount,
+                            onOpenRoleSwitcher = {
+                                if (isDevAccount) showRoleBottomSheet = true
+                            },
+                            ownerUiState = ownerUiState,
+                            reportSummary = currentReportSummary,
+                            onOwnerEvent = onOwnerEvent,
+                            warehouseUiState = warehouseUiState,
+                            warehouseEffects = warehouseViewModel?.effects ?: emptyFlow(),
+                            onWarehouseEvent = { event -> warehouseViewModel?.onEvent(event) },
+                            catalogUiState = catalogUiState,
+                            catalogEffects = catalogViewModel?.effects ?: emptyFlow(),
+                            onCatalogEvent = { event -> catalogViewModel?.onEvent(event) },
+                            outletUiState = outletUiState,
+                            outletEffects = outletViewModel?.effects ?: emptyFlow(),
+                            onOutletEvent = { event -> outletViewModel?.onEvent(event) },
+                            onUpdatePassword = appContainer.authRepository::updatePassword,
+                            onShowMessage = onShowMessage,
+                            onSelectTab = onSelectTab
+                        )
                     }
                 }
             }
@@ -459,7 +446,7 @@ fun MainScreen(
                 OutletScreen(
                     navController = nestedNavController,
                     uiState = ownerUiState,
-                    onEvent = ownerViewModel::onEvent,
+                    onEvent = onOwnerEvent,
                     isDevMode = isDevAccount,
                     onSwitchRoleClick = { if (isDevAccount) showRoleBottomSheet = true },
                     onOutletClick = { outletId ->
@@ -468,7 +455,7 @@ fun MainScreen(
                     onAddOutletClick = {
                         nestedNavController.navigateSingle(
                             route = OwnerSubRoutes.AddOutlet,
-                            beforeNavigate = { ownerViewModel.onEvent(OwnerUiEvent.ResetAddOutletForm) }
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.ResetAddOutletForm) }
                         )
                     },
                     onStaffClick = { userId ->
@@ -477,7 +464,7 @@ fun MainScreen(
                     onAddStaffAccountClick = {
                         nestedNavController.navigateSingle(
                             route = OwnerSubRoutes.AddUser(null),
-                            beforeNavigate = { ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
                         )
                     },
                     isStandaloneListScreen = true,
@@ -493,7 +480,7 @@ fun MainScreen(
                     navController = nestedNavController,
                     outletId = route.outletId,
                     uiState = ownerUiState,
-                    onEvent = ownerViewModel::onEvent,
+                    onEvent = onOwnerEvent,
                     onReportClick = { reportId ->
                         nestedNavController.navigateSingle(
                             OwnerSubRoutes.DetailReport(
@@ -513,7 +500,7 @@ fun MainScreen(
                     navController = nestedNavController,
                     userId = route.userId,
                     uiState = ownerUiState,
-                    onEvent = ownerViewModel::onEvent,
+                    onEvent = onOwnerEvent,
                     onOutletClick = { outletId ->
                         nestedNavController.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
                     }
@@ -526,12 +513,12 @@ fun MainScreen(
                 AddOutletScreen(
                     navController = nestedNavController,
                     uiState = ownerUiState,
-                    effects = ownerViewModel.effects,
-                    onEvent = ownerViewModel::onEvent,
+                    effects = ownerViewModel?.effects ?: emptyFlow(),
+                    onEvent = onOwnerEvent,
                     onAddNewUserClick = {
                         nestedNavController.navigateSingle(
                             route = OwnerSubRoutes.AddUser(null),
-                            beforeNavigate = { ownerViewModel.onEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
                         )
                     }
                 )
@@ -545,16 +532,16 @@ fun MainScreen(
                     navController = nestedNavController,
                     preselectedOutletId = route.preselectedOutletId,
                     uiState = ownerUiState,
-                    effects = ownerViewModel.effects,
-                    onEvent = ownerViewModel::onEvent
+                    effects = ownerViewModel?.effects ?: emptyFlow(),
+                    onEvent = onOwnerEvent
                 )
             }
         }
 
         composable<OwnerSubRoutes.DetailReport> { backStackEntry ->
             val route = backStackEntry.toRoute<OwnerSubRoutes.DetailReport>()
-            val periodSummary = ownerViewModel.getReportPeriodSummary(route.period)
-            val singleReport = route.reportId?.let { ownerViewModel.getSingleReportDetail(it) }
+            val periodSummary = ownerViewModel?.getReportPeriodSummary(route.period) ?: defaultReportPeriodSummary()
+            val singleReport = route.reportId?.let { ownerViewModel?.getSingleReportDetail(it) }
             PredictiveBackScreenContainer {
                 OwnerDetailReportScreen(
                     navController = nestedNavController,
@@ -565,12 +552,21 @@ fun MainScreen(
         }
 
         composable<OwnerSubRoutes.Catalog> {
+            val routeCatalogVm: CatalogViewModel = viewModel(factory = appContainer.viewModelFactory)
+            val routeCatalogState by routeCatalogVm.state.collectAsStateWithLifecycle()
+            LaunchedEffect(routeCatalogVm) {
+                routeCatalogVm.effects.collect { effect ->
+                    if (effect is CatalogUiEffect.ShowSnackbar) {
+                        showQuickSnackbar(effect.message)
+                    }
+                }
+            }
             PredictiveBackScreenContainer {
                 GudangStockScreen(
                     navController = nestedNavController,
-                    uiState = ownerUiState,
-                    effects = ownerViewModel.effects,
-                    onEvent = ownerViewModel::onEvent,
+                    uiState = routeCatalogState,
+                    effects = routeCatalogVm.effects,
+                    onEvent = routeCatalogVm::onEvent,
                     roleEyebrow = if (activeViewRole == Role.WAREHOUSE) "Admin Gudang" else "Owner",
                     initials = if (isDevAccount) "DV" else ownerUiState.ownerInitials,
                     isStandaloneScreen = true,
@@ -584,7 +580,7 @@ fun MainScreen(
                 OwnerNotificationScreen(
                     navController = nestedNavController,
                     uiState = ownerUiState,
-                    onEvent = ownerViewModel::onEvent,
+                    onEvent = onOwnerEvent,
                     onNotificationClick = { notif ->
                         if (!notif.targetOutletId.isNullOrBlank()) {
                             nestedNavController.navigateSingle(OwnerSubRoutes.DetailOutlet(notif.targetOutletId))

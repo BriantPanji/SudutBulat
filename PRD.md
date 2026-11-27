@@ -87,12 +87,12 @@ Sumber acuan: [`basedb.dbdiagram`](file:///c:/Users/FASILKOMTIUSU/panjay/SudutBu
 
 | Nama Koleksi | Model Kotlin | Deskripsi & Aturan Penting |
 | :--- | :--- | :--- |
-| `users` | `User` | `id` (PK/UID/loginCode), `name`, `email`, `username`, `role` (`DEV`, `OWNER`, `WAREHOUSE`, `OUTLET`), `outlet_id` (nullable, wajib terisi untuk `OUTLET`), `is_active`. |
-| `outlets` | `Outlet` | `id`, `name`, `address`, `coordinate` (`GeoPoint`), `is_active`, `is_open`. |
-| `materials` | `Material` | Katalog bahan mentah/stok: `id`, `name` (unik), `cost` (Long $\ge 0$), `unit` (`PCS`, `GR`, `ML`, `UNIT`). **Tidak menyimpan stok gudang.** |
-| `products` | `Product` | Katalog barang siap jual: `id`, `name` (unik), `price` (Long $\ge 0$), `is_active`. |
+| `users` | `User` | `id` (PK/loginCode), `uid` (opsional, Firebase Auth UID), `name`, `email`, `username`, `role` (`DEV`, `OWNER`, `WAREHOUSE`, `OUTLET`), `outlet_id` (nullable, wajib terisi untuk `OUTLET`), `is_active`. |
+| `outlets` | `Outlet` | `id`, `name`, `address`, `coordinate` (`GeoPoint`), `is_active`, `is_open`, `open_time`, `close_time`, `daily_target`, serta cache ringkasan harian (`total_revenue`, `total_pieces_sold`, `target_percentage`). |
+| `materials` | `Material` | Katalog bahan mentah/stok: `id`, `name` (unik), `cost` (Long $\ge 0$), `unit` (`PCS`, `GR`, `ML`, `UNIT`), `is_active`. **Tidak menyimpan stok gudang.** |
+| `products` | `Product` | Katalog barang siap jual: `id`, `name` (unik), `price` (Long $\ge 0$), `sale_type` (`satuan`, `bungkus`), `pcs_per_pack` (Int $\ge 1$), `is_active`. |
 | `material_distributions` | `MaterialDistribution` | Dokumen distribusi/request stok ke outlet: `id`, `outlet_id`, `created_by`, `confirmed_by`, `status` (`DistributionStatus`), `note`, `confirmation_note`, `created_at`, `sent_at`, `confirmed_at`, serta `items` (array of map: `{ material_id, quantity_sent, quantity_received, note }`). |
-| `daily_reports` | `DailyReport` | Header laporan tutup toko harian: `id`, `outlet_id`, `date`, `cash_revenue`, `qris_revenue`, `total_sold`. Unik per `(outlet_id, date)`. |
+| `daily_reports` | `DailyReport` | Header laporan tutup toko harian: `id`, `outlet_id`, `date` (`Timestamp`), `cash_revenue`, `qris_revenue`, `total_sold`. Unik per `(outlet_id, date)` per tanggal kalender; pembuatan laporan ganda di tanggal sama ditolak otomatis dan diarahkan ke konfirmasi edit/update. |
 | `daily_report_products` | `DailyReportProduct` | 1 dokumen per `daily_report_id` (doc ID = `daily_report_id`) yang menyimpan array `items`: `[{ product_id, quantity, price }]`. |
 | `daily_report_expenses` | `DailyReportExpense` | 1 dokumen per `daily_report_id` (doc ID = `daily_report_id`) yang menyimpan array `items`: `[{ category, amount, note }]`. |
 | `daily_report_damaged_materials` | `DailyReportDamagedMaterial` | 1 dokumen per `daily_report_id` (doc ID = `daily_report_id`) yang menyimpan array `items`: `[{ material_id, quantity, note }]`. |
@@ -136,22 +136,16 @@ Bagian ini mengikat cara AI menulis dan memodifikasi kode di repositori ini:
 
 ---
 
-## 6. Peta Sinkronisasi Codebase Saat Ini vs PRD (Gap Analysis)
+## 6. Status Sinkronisasi Codebase Saat Ini vs PRD
 
-Saat mengerjakan fitur selanjutnya, perhatikan status kode eksisting berikut:
+Status implementasi aktual di repositori:
 
 1. **Lapisan Data (`data/model`, `data/remote`, `data/repository`):**
-   - Sudah diimplementasikan dengan baik, dilengkapi validasi `require(...)` dan unit test di `RepositoryTest.kt`.
-2. **Layar Gudang (`WarehouseHomeScreen.kt` & `GudangStockScreen.kt`):**
-   - *Kondisi Saat Ini:* Masih berupa UI statis yang menampilkan "Total stok tersedia 4.280 pcs", tombol "Stok masuk (Catat barang tiba)", dan sisa stok per bahan.
-   - *Target Sesuai PRD:*
-     - Di `WarehouseHomeScreen`: Ganti kartu "Total stok tersedia" & "Stok masuk" menjadi ringkasan **Progres Distribusi Pagi Hari Ini** (berapa outlet sudah/belum dikirim) dan **Daftar Request Tambahan Stok dari Outlet** (untuk di-Approve/Reject).
-     - Di `GudangStockScreen`: Ubah menjadi layar **Katalog Bahan Mentah (`Material`) & Produk (`Product`)** (menampilkan nama bahan, satuan, harga modal/jual, serta tombol tambah/edit katalog), tanpa angka sisa stok gudang.
-3. **Layar Staf Outlet (`OutletHomeScreen.kt`, `OutletStockScreen.kt`, `OutletReportScreen.kt`):**
-   - *Kondisi Saat Ini:* Masih menggunakan data *hardcoded* dan menampilkan progress bar sisa stok di `OutletStockScreen`.
-   - *Target Sesuai PRD:*
-     - `OutletStockScreen` fokus pada **Konfirmasi Penerimaan Distribusi dari Gudang** dan **Pengajuan Request Tambahan Stok ke Gudang** (beserta riwayat status request-nya).
-     - `OutletReportScreen` fokus pada form input & riwayat **Laporan Harian (Closing)**: produk terjual, pendapatan Cash & QRIS, pengeluaran mandiri outlet, dan bahan mentah yang rusak.
-4. **Layar Owner (`HomeScreen.kt`, `OutletScreen.kt`, `OwnerReportScreen.kt`):**
-   - *Kondisi Saat Ini:* Masih menggunakan data *hardcoded*.
-   - *Target Sesuai PRD:* Hubungkan ke `DailyReportRepository`, `OutletRepository`, dan `UserRepository` serta tambahkan aksi **CRUD Outlet** dan **CRUD User/Akun**.
+   - Sudah diimplementasikan lengkap dengan validasi `require(...)`, mapper eksplisit (`FirestoreMappers.kt`), skema array tersemat (`items`), dan unit test di `RepositoryTest.kt` & `BackendPersistenceTest.kt`.
+2. **Layar Owner (`HomeScreen.kt`, `OutletScreen.kt`, `OwnerReportScreen.kt`, `OwnerDetailOutletScreen.kt`, `OwnerDetailStaffScreen.kt`, `AddOutletScreen.kt`, `AddUserScreen.kt`):**
+   - Sudah terhubung ke Firestore melalui `OwnerViewModel` (MVI), mencakup CRUD Outlet, CRUD Akun User/Staf, filter tanggal laporan, dan detail laporan harian. Akun baru dibuat dari Owner (tidak ada fitur self-register).
+3. **Layar Gudang (`WarehouseHomeScreen.kt`, `DistributionScreen.kt`) & Katalog (`GudangStockScreen.kt`):**
+   - `WarehouseHomeScreen` & `DistributionScreen` sudah terhubung ke `WarehouseViewModel` (progres distribusi pagi hari ini, kirim distribusi, dan Approve/Reject request stok dari outlet).
+   - `GudangStockScreen` (Katalog `Material` & `Product`) dipisahkan ke `CatalogViewModel` tersendiri sehingga dapat dipakai bersama oleh Gudang maupun Owner tanpa menginstansiasi `OwnerViewModel` di role Gudang.
+4. **Layar Staf Outlet (`OutletHomeScreen.kt`, `OutletStockScreen.kt`, `OutletReportScreen.kt`):**
+   - Sudah terhubung ke Firestore melalui `OutletViewModel` (toggle status buka/tutup outlet, konfirmasi penerimaan distribusi, pengajuan request tambahan stok, dan form input/update Laporan Harian dengan penolakan otomatis duplikasi per tanggal).

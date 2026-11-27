@@ -72,6 +72,9 @@ import com.sudutcorp.sudutbulat.feature.profile.ProfileScreen
 import com.sudutcorp.sudutbulat.feature.report.OutletReportScreen
 import com.sudutcorp.sudutbulat.feature.report.OwnerReportScreen
 import com.sudutcorp.sudutbulat.feature.report.defaultReportPeriodSummary
+import com.sudutcorp.sudutbulat.feature.stock.CatalogUiEffect
+import com.sudutcorp.sudutbulat.feature.stock.CatalogUiEvent
+import com.sudutcorp.sudutbulat.feature.stock.CatalogUiState
 import com.sudutcorp.sudutbulat.feature.stock.GudangStockScreen
 import com.sudutcorp.sudutbulat.feature.stock.OutletStockScreen
 import kotlinx.coroutines.flow.Flow
@@ -81,218 +84,226 @@ data class NavItem(
     val title: String,
     val icon: Int,
     val roles: List<Role>,
-    val route: TabRoutes,
-    val screen: @Composable (navController: NavHostController, onLogout: () -> Unit) -> Unit
+    val route: TabRoutes
 )
 
-fun getNavItemsForRole(
+private val OwnerNavItems = listOf(
+    NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER, Role.DEV), TabRoutes.Home),
+    NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER, Role.DEV), TabRoutes.Outlet),
+    NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER, Role.DEV), TabRoutes.OwnerReport),
+    NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER, Role.DEV), TabRoutes.Profile)
+)
+
+private val WarehouseNavItems = listOf(
+    NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home),
+    NavItem("Stok", R.drawable.ic_box, listOf(Role.WAREHOUSE), TabRoutes.GudangStock),
+    NavItem("Distribusi", R.drawable.ic_truck, listOf(Role.WAREHOUSE), TabRoutes.Distribution),
+    NavItem("Profil", R.drawable.ic_user, listOf(Role.WAREHOUSE), TabRoutes.Profile)
+)
+
+private val OutletNavItems = listOf(
+    NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home),
+    NavItem("Stok", R.drawable.ic_box, listOf(Role.OUTLET), TabRoutes.OutletStock),
+    NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OUTLET), TabRoutes.OutletReport),
+    NavItem("Profil", R.drawable.ic_user, listOf(Role.OUTLET), TabRoutes.Profile)
+)
+
+fun getNavItemsForRole(role: Role): List<NavItem> = when (role) {
+    Role.DEV, Role.OWNER -> OwnerNavItems
+    Role.WAREHOUSE -> WarehouseNavItems
+    Role.OUTLET -> OutletNavItems
+}
+
+@Composable
+fun RoleTabContent(
     role: Role,
+    pageIndex: Int,
+    navController: NavHostController,
+    onLogout: () -> Unit,
     userEmail: String? = null,
     isDevAccount: Boolean = false,
     onOpenRoleSwitcher: () -> Unit = {},
     ownerUiState: OwnerUiState = OwnerUiState(),
-    ownerEffects: Flow<OwnerUiEffect> = emptyFlow(),
     reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
     onOwnerEvent: (OwnerUiEvent) -> Unit = {},
     warehouseUiState: WarehouseUiState = WarehouseUiState(),
     warehouseEffects: Flow<WarehouseUiEffect> = emptyFlow(),
     onWarehouseEvent: (WarehouseUiEvent) -> Unit = {},
+    catalogUiState: CatalogUiState = CatalogUiState(),
+    catalogEffects: Flow<CatalogUiEffect> = emptyFlow(),
+    onCatalogEvent: (CatalogUiEvent) -> Unit = {},
     outletUiState: OutletUiState = OutletUiState(),
     outletEffects: Flow<OutletUiEffect> = emptyFlow(),
     onOutletEvent: (OutletUiEvent) -> Unit = {},
-    onUpdatePassword: suspend (String, String) -> Result<Unit> = { _, _ -> Result.failure(IllegalStateException("Tidak tersedia")) },
+    onUpdatePassword: suspend (String, String) -> Result<Unit> = { _, _ ->
+        Result.failure(IllegalStateException("Tidak tersedia"))
+    },
     onShowMessage: (String) -> Unit = {},
     onSelectTab: (Int) -> Unit = {}
-): List<NavItem> {
-    return when (role) {
+) {
+    when (role) {
         Role.DEV,
-        Role.OWNER -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OWNER, Role.DEV), TabRoutes.Home) { nav, _ ->
-                HomeScreen(
-                    navController = nav,
-                    uiState = ownerUiState,
-                    isDevMode = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    onSeeAllOutletsClick = {
-                        onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.PERFORMANCE))
-                        onSelectTab(1)
-                    },
-                    onOutletClick = { outletId ->
-                        nav.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
-                    },
-                    onReviewReportsClick = {
-                        nav.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
-                    }
-                )
-            },
-            NavItem("Outlet", R.drawable.ic_store, listOf(Role.OWNER, Role.DEV), TabRoutes.Outlet) { nav, _ ->
-                OutletScreen(
-                    navController = nav,
-                    uiState = ownerUiState,
-                    onEvent = onOwnerEvent,
-                    isDevMode = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    onOutletClick = { outletId ->
-                        nav.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
-                    },
-                    onAddOutletClick = {
-                        nav.navigateSingle(
-                            route = OwnerSubRoutes.AddOutlet,
-                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.ResetAddOutletForm) }
-                        )
-                    },
-                    onStaffClick = { userId ->
-                        nav.navigateSingle(OwnerSubRoutes.DetailStaff(userId))
-                    },
-                    onAddStaffAccountClick = {
-                        nav.navigateSingle(
-                            route = OwnerSubRoutes.AddUser(null),
-                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
-                        )
-                    }
-                )
-            },
-            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OWNER, Role.DEV), TabRoutes.OwnerReport) { nav, _ ->
-                OwnerReportScreen(
-                    navController = nav,
-                    uiState = ownerUiState,
-                    reportSummary = reportSummary,
-                    onEvent = onOwnerEvent,
-                    isDevMode = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    onSeeDetailClick = { period ->
-                        nav.navigateSingle(OwnerSubRoutes.DetailReport(period = period, reportId = null))
-                    },
-                    onReportItemClick = { reportId ->
-                        nav.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod, reportId = reportId))
-                    }
-                )
-            },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.OWNER, Role.DEV), TabRoutes.Profile) { nav, onLogout ->
-                ProfileScreen(
-                    navController = nav,
-                    onLogout = onLogout,
-                    userRole = role,
-                    userEmail = userEmail,
-                    isDevAccount = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    ownerUiState = ownerUiState,
-                    onNavigateToNotifications = {
-                        nav.navigateSingle(OwnerSubRoutes.Notification)
-                    },
-                    onNavigateToAddUser = {
-                        nav.navigateSingle(
-                            route = OwnerSubRoutes.AddUser(null),
-                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
-                        )
-                    },
-                    onNavigateToOutletList = {
-                        nav.navigateSingle(
-                            route = OwnerSubRoutes.OutletList,
-                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.OUTLET_LIST)) }
-                        )
-                    },
-                    onNavigateToCatalog = {
-                        nav.navigateSingle(OwnerSubRoutes.Catalog)
-                    },
-                    onUpdatePassword = onUpdatePassword,
-                    onPasswordUpdated = onShowMessage
-                )
-            }
-        )
-        Role.WAREHOUSE -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.WAREHOUSE), TabRoutes.Home) { nav, _ ->
-                WarehouseHomeScreen(
-                    navController = nav,
-                    uiState = warehouseUiState,
-                    effects = warehouseEffects,
-                    onEvent = onWarehouseEvent,
-                    isDevMode = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    onOpenCatalogTab = { onSelectTab(1) },
-                    onOpenDistributionTab = { onSelectTab(2) }
-                )
-            },
-            NavItem("Stok", R.drawable.ic_box, listOf(Role.WAREHOUSE), TabRoutes.GudangStock) { nav, _ ->
-                GudangStockScreen(
-                    navController = nav,
-                    uiState = ownerUiState,
-                    effects = ownerEffects,
-                    onEvent = onOwnerEvent,
-                    roleEyebrow = "Admin Gudang",
-                    initials = if (isDevAccount) "DV" else "BS"
-                )
-            },
-            NavItem("Distribusi", R.drawable.ic_truck, listOf(Role.WAREHOUSE), TabRoutes.Distribution) { nav, _ ->
-                DistributionScreen(
-                    navController = nav,
-                    uiState = warehouseUiState,
-                    effects = warehouseEffects,
-                    onEvent = onWarehouseEvent,
-                    initials = if (isDevAccount) "DV" else "BS"
-                )
-            },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.WAREHOUSE), TabRoutes.Profile) { nav, onLogout ->
-                ProfileScreen(
-                    navController = nav,
-                    onLogout = onLogout,
-                    userRole = role,
-                    userEmail = userEmail,
-                    isDevAccount = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    ownerUiState = ownerUiState,
-                    onNavigateToNotifications = {
-                        nav.navigateSingle(OwnerSubRoutes.Notification)
-                    },
-                    onUpdatePassword = onUpdatePassword,
-                    onPasswordUpdated = onShowMessage
-                )
-            }
-        )
-        Role.OUTLET -> listOf(
-            NavItem("Beranda", R.drawable.ic_home, listOf(Role.OUTLET), TabRoutes.Home) { nav, _ ->
-                OutletHomeScreen(
-                    navController = nav,
-                    uiState = outletUiState,
-                    onEvent = onOutletEvent,
-                    isDevMode = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    onOpenStockTab = { onSelectTab(1) },
-                    onOpenReportTab = { onSelectTab(2) }
-                )
-            },
-            NavItem("Stok", R.drawable.ic_box, listOf(Role.OUTLET), TabRoutes.OutletStock) { nav, _ ->
-                OutletStockScreen(
-                    navController = nav,
-                    uiState = outletUiState,
-                    effects = outletEffects,
-                    onEvent = onOutletEvent
-                )
-            },
-            NavItem("Laporan", R.drawable.ic_bar_chart, listOf(Role.OUTLET), TabRoutes.OutletReport) { nav, _ ->
-                OutletReportScreen(
-                    navController = nav,
-                    uiState = outletUiState,
-                    onEvent = onOutletEvent
-                )
-            },
-            NavItem("Profil", R.drawable.ic_user, listOf(Role.OUTLET), TabRoutes.Profile) { nav, onLogout ->
-                ProfileScreen(
-                    navController = nav,
-                    onLogout = onLogout,
-                    userRole = role,
-                    userEmail = userEmail,
-                    isDevAccount = isDevAccount,
-                    onSwitchRoleClick = onOpenRoleSwitcher,
-                    ownerUiState = ownerUiState,
-                    onNavigateToNotifications = {
-                        nav.navigateSingle(OwnerSubRoutes.Notification)
-                    },
-                    onUpdatePassword = onUpdatePassword,
-                    onPasswordUpdated = onShowMessage
-                )
-            }
-        )
+        Role.OWNER -> when (pageIndex) {
+            0 -> HomeScreen(
+                navController = navController,
+                uiState = ownerUiState,
+                isDevMode = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                onSeeAllOutletsClick = {
+                    onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.PERFORMANCE))
+                    onSelectTab(1)
+                },
+                onOutletClick = { outletId ->
+                    navController.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
+                },
+                onReviewReportsClick = {
+                    navController.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
+                }
+            )
+            1 -> OutletScreen(
+                navController = navController,
+                uiState = ownerUiState,
+                onEvent = onOwnerEvent,
+                isDevMode = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                onOutletClick = { outletId ->
+                    navController.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
+                },
+                onAddOutletClick = {
+                    navController.navigateSingle(
+                        route = OwnerSubRoutes.AddOutlet,
+                        beforeNavigate = { onOwnerEvent(OwnerUiEvent.ResetAddOutletForm) }
+                    )
+                },
+                onStaffClick = { userId ->
+                    navController.navigateSingle(OwnerSubRoutes.DetailStaff(userId))
+                },
+                onAddStaffAccountClick = {
+                    navController.navigateSingle(
+                        route = OwnerSubRoutes.AddUser(null),
+                        beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                    )
+                }
+            )
+            2 -> OwnerReportScreen(
+                navController = navController,
+                uiState = ownerUiState,
+                reportSummary = reportSummary,
+                onEvent = onOwnerEvent,
+                isDevMode = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                onSeeDetailClick = { period ->
+                    navController.navigateSingle(OwnerSubRoutes.DetailReport(period = period, reportId = null))
+                },
+                onReportItemClick = { reportId ->
+                    navController.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod, reportId = reportId))
+                }
+            )
+            3 -> ProfileScreen(
+                navController = navController,
+                onLogout = onLogout,
+                userRole = role,
+                userEmail = userEmail,
+                isDevAccount = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                ownerUiState = ownerUiState,
+                onNavigateToNotifications = {
+                    navController.navigateSingle(OwnerSubRoutes.Notification)
+                },
+                onNavigateToAddUser = {
+                    navController.navigateSingle(
+                        route = OwnerSubRoutes.AddUser(null),
+                        beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                    )
+                },
+                onNavigateToOutletList = {
+                    navController.navigateSingle(
+                        route = OwnerSubRoutes.OutletList,
+                        beforeNavigate = { onOwnerEvent(OwnerUiEvent.OutletTabSelected(OutletTabMode.OUTLET_LIST)) }
+                    )
+                },
+                onNavigateToCatalog = {
+                    navController.navigateSingle(OwnerSubRoutes.Catalog)
+                },
+                onUpdatePassword = onUpdatePassword,
+                onPasswordUpdated = onShowMessage
+            )
+        }
+        Role.WAREHOUSE -> when (pageIndex) {
+            0 -> WarehouseHomeScreen(
+                navController = navController,
+                uiState = warehouseUiState,
+                effects = warehouseEffects,
+                onEvent = onWarehouseEvent,
+                isDevMode = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                onOpenCatalogTab = { onSelectTab(1) },
+                onOpenDistributionTab = { onSelectTab(2) }
+            )
+            1 -> GudangStockScreen(
+                navController = navController,
+                uiState = catalogUiState,
+                effects = catalogEffects,
+                onEvent = onCatalogEvent,
+                roleEyebrow = "Admin Gudang",
+                initials = if (isDevAccount) "DV" else "BS"
+            )
+            2 -> DistributionScreen(
+                navController = navController,
+                uiState = warehouseUiState,
+                effects = warehouseEffects,
+                onEvent = onWarehouseEvent,
+                initials = if (isDevAccount) "DV" else "BS"
+            )
+            3 -> ProfileScreen(
+                navController = navController,
+                onLogout = onLogout,
+                userRole = role,
+                userEmail = userEmail,
+                isDevAccount = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                onNavigateToNotifications = {
+                    navController.navigateSingle(OwnerSubRoutes.Notification)
+                },
+                onUpdatePassword = onUpdatePassword,
+                onPasswordUpdated = onShowMessage
+            )
+        }
+        Role.OUTLET -> when (pageIndex) {
+            0 -> OutletHomeScreen(
+                navController = navController,
+                uiState = outletUiState,
+                onEvent = onOutletEvent,
+                isDevMode = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                onOpenStockTab = { onSelectTab(1) },
+                onOpenReportTab = { onSelectTab(2) }
+            )
+            1 -> OutletStockScreen(
+                navController = navController,
+                uiState = outletUiState,
+                effects = outletEffects,
+                onEvent = onOutletEvent
+            )
+            2 -> OutletReportScreen(
+                navController = navController,
+                uiState = outletUiState,
+                onEvent = onOutletEvent
+            )
+            3 -> ProfileScreen(
+                navController = navController,
+                onLogout = onLogout,
+                userRole = role,
+                userEmail = userEmail,
+                isDevAccount = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher,
+                onNavigateToNotifications = {
+                    navController.navigateSingle(OwnerSubRoutes.Notification)
+                },
+                onUpdatePassword = onUpdatePassword,
+                onPasswordUpdated = onShowMessage
+            )
+        }
     }
 }
 
