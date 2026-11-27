@@ -152,7 +152,7 @@ class WarehouseViewModel(
     private val _effects = Channel<WarehouseUiEffect>(Channel.BUFFERED)
     val effects: Flow<WarehouseUiEffect> = _effects.receiveAsFlow().shareIn(viewModelScope, SharingStarted.Eagerly)
 
-    private val autoRejectingIds = mutableSetOf<String>()
+    private val reconcilingDraftIds = mutableSetOf<String>()
 
     init {
         observeStreams()
@@ -187,7 +187,7 @@ class WarehouseViewModel(
                 .catch { e -> reportError("memuat distribusi", e) }
                 .collect { list ->
                     _state.update { recompute(it.copy(distributions = list)) }
-                    autoRejectExpiredRequests(list)
+                    reconcileExpiredDrafts(list)
                 }
         }
     }
@@ -199,10 +199,20 @@ class WarehouseViewModel(
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis / 1000L
 
-    private fun autoRejectExpiredRequests(distributions: List<MaterialDistribution>) {
-        val expired = findExpiredPendingDistributions(distributions, startOfTodaySeconds())
-        expired.forEach { dist ->
-            if (dist.id.isBlank() || !autoRejectingIds.add(dist.id)) return@forEach
+    private fun reconcileExpiredDrafts(distributions: List<MaterialDistribution>) {
+        val actions = partitionExpiredDraftDistributions(distributions, startOfTodaySeconds())
+        actions.routineToDelete.forEach { dist ->
+            if (dist.id.isBlank() || !reconcilingDraftIds.add(dist.id)) return@forEach
+            viewModelScope.launch {
+                distributionRepository.deleteDistribution(dist.id)
+                    .onFailure { e ->
+                        reconcilingDraftIds.remove(dist.id)
+                        Log.e("WarehouseViewModel", "Gagal menghapus draft rutin kadaluarsa (${dist.id})", e)
+                    }
+            }
+        }
+        actions.additionalToReject.forEach { dist ->
+            if (dist.id.isBlank() || !reconcilingDraftIds.add(dist.id)) return@forEach
             viewModelScope.launch {
                 distributionRepository.updateDistributionStatus(
                     id = dist.id,
@@ -211,7 +221,7 @@ class WarehouseViewModel(
                     confirmationNote = "Ditolak otomatis karena melewati batas tanggal permintaan",
                     confirmedAt = Timestamp.now()
                 ).onFailure { e ->
-                    autoRejectingIds.remove(dist.id)
+                    reconcilingDraftIds.remove(dist.id)
                     Log.e("WarehouseViewModel", "Gagal auto-reject permintaan kadaluarsa (${dist.id})", e)
                 }
             }
@@ -520,7 +530,7 @@ class WarehouseViewModel(
             .toSet()
 
         val pendingMorning = activeOutlets.filter { it.id !in outletsWithTodayRoutine }
-        val pendingRequests = cards.filter { it.status == DistributionStatus.DRAFT }
+        val pendingRequests = cards.filter { it.isToday && it.status == DistributionStatus.DRAFT }
         val todayPendingAdditionalCount = cards.count {
             it.isToday && it.type == DistributionType.ADDITIONAL && it.status == DistributionStatus.DRAFT
         }

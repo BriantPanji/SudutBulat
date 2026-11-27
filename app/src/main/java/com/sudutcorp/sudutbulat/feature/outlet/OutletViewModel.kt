@@ -24,7 +24,7 @@ import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.ProductRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
-import com.sudutcorp.sudutbulat.feature.distribution.findExpiredPendingDistributions
+import com.sudutcorp.sudutbulat.feature.distribution.partitionExpiredDraftDistributions
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -192,7 +192,7 @@ class OutletViewModel(
     private val _effects = Channel<OutletUiEffect>(Channel.BUFFERED)
     val effects: Flow<OutletUiEffect> = _effects.receiveAsFlow().shareIn(viewModelScope, SharingStarted.Eagerly)
 
-    private val autoRejectingIds = mutableSetOf<String>()
+    private val reconcilingDraftIds = mutableSetOf<String>()
 
     init {
         observeStreams()
@@ -232,7 +232,7 @@ class OutletViewModel(
                 .catch { e -> reportError("memuat distribusi", e) }
                 .collect { list ->
                     _state.update { recompute(it.copy(rawDistributions = list)) }
-                    autoRejectExpiredRequests(list)
+                    reconcileExpiredDrafts(list)
                 }
         }
         viewModelScope.launch {
@@ -242,7 +242,7 @@ class OutletViewModel(
         }
     }
 
-    private fun autoRejectExpiredRequests(distributions: List<MaterialDistribution>) {
+    private fun reconcileExpiredDrafts(distributions: List<MaterialDistribution>) {
         val startOfTodaySec = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
@@ -250,8 +250,19 @@ class OutletViewModel(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis / 1000L
 
-        findExpiredPendingDistributions(distributions, startOfTodaySec).forEach { dist ->
-            if (dist.id.isBlank() || !autoRejectingIds.add(dist.id)) return@forEach
+        val actions = partitionExpiredDraftDistributions(distributions, startOfTodaySec)
+        actions.routineToDelete.forEach { dist ->
+            if (dist.id.isBlank() || !reconcilingDraftIds.add(dist.id)) return@forEach
+            viewModelScope.launch {
+                distributionRepository.deleteDistribution(dist.id)
+                    .onFailure { e ->
+                        reconcilingDraftIds.remove(dist.id)
+                        Log.e("OutletViewModel", "Gagal menghapus draft rutin kadaluarsa (${dist.id})", e)
+                    }
+            }
+        }
+        actions.additionalToReject.forEach { dist ->
+            if (dist.id.isBlank() || !reconcilingDraftIds.add(dist.id)) return@forEach
             viewModelScope.launch {
                 distributionRepository.updateDistributionStatus(
                     id = dist.id,
@@ -260,7 +271,7 @@ class OutletViewModel(
                     confirmationNote = "Ditolak otomatis karena melewati batas tanggal permintaan",
                     confirmedAt = Timestamp.now()
                 ).onFailure { e ->
-                    autoRejectingIds.remove(dist.id)
+                    reconcilingDraftIds.remove(dist.id)
                     Log.e("OutletViewModel", "Gagal auto-reject permintaan kadaluarsa (${dist.id})", e)
                 }
             }

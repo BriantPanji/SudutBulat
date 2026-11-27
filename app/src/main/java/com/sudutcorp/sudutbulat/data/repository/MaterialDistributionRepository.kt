@@ -102,4 +102,8 @@ class MaterialDistributionRepository(
             status = status
         )
     }
+
+    suspend fun deleteDistribution(id: String): Result<Unit> {
+        return remoteDataSource.deleteDistribution(id)
+    }
 }

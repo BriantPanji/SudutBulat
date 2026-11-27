@@ -363,6 +363,11 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
             items = itemsList
         )
     }
+
+    override suspend fun deleteDistribution(id: String): Result<Unit> = runCatching {
+        if (shouldFail) throw RuntimeException("Simulated network failure")
+        distributions.remove(id)
+    }
 }
 
 class FakeDailyReportRemoteDataSource : DailyReportRemoteDataSource() {
@@ -676,6 +681,9 @@ class RepositoryTest {
         assertEquals(DistributionStatus.PARTIALLY_RECEIVED, updatedComposite.distribution.status)
         assertEquals("outlet_user", updatedComposite.distribution.confirmedBy)
         assertEquals(98, updatedComposite.items[0].quantityReceived)
+
+        assertTrue(repo.deleteDistribution("dist_101").isSuccess)
+        assertNull(repo.getDistributionById("dist_101").getOrNull())
     }
 
     @Test

@@ -35,12 +35,11 @@ enum class DistributionStatusFilter(
     CANCELLED("Batal", DistributionStatus.CANCELLED);
 
     companion object {
-        fun optionsForTab(tab: WarehouseDistributionTab): List<DistributionStatusFilter> =
-            if (tab == WarehouseDistributionTab.ROUTINE) {
-                entries
-            } else {
-                entries.filterNot { it == NOT_SENT }
-            }
+        fun optionsForTab(tab: WarehouseDistributionTab): List<DistributionStatusFilter> = when (tab) {
+            WarehouseDistributionTab.ROUTINE -> entries
+            WarehouseDistributionTab.ADDITIONAL -> entries.filterNot { it == NOT_SENT }
+            WarehouseDistributionTab.HISTORY -> entries.filterNot { it == NOT_SENT || it == PENDING }
+        }
     }
 }
 
@@ -108,7 +107,9 @@ fun filterAndSortDistributions(
         val matchesTabScope = when (tab) {
             WarehouseDistributionTab.ROUTINE -> card.isToday && card.type == DistributionType.ROUTINE
             WarehouseDistributionTab.ADDITIONAL -> card.isToday && card.type == DistributionType.ADDITIONAL
-            WarehouseDistributionTab.HISTORY -> filter.typeFilter.type == null || card.type == filter.typeFilter.type
+            WarehouseDistributionTab.HISTORY -> !card.isToday &&
+                card.status != DistributionStatus.DRAFT &&
+                (filter.typeFilter.type == null || card.type == filter.typeFilter.type)
         }
         if (!matchesTabScope) return@filter false
 
@@ -184,11 +185,23 @@ fun formatDistributionUtcDate(dateMillis: Long): String =
         .toLocalDate()
         .format(DIST_DATE_CHIP_FORMATTER)
 
-fun findExpiredPendingDistributions(
+data class ExpiredDraftActions(
+    val routineToDelete: List<MaterialDistribution>,
+    val additionalToReject: List<MaterialDistribution>
+)
+
+fun partitionExpiredDraftDistributions(
     distributions: List<MaterialDistribution>,
     startOfTodaySec: Long
-): List<MaterialDistribution> = distributions.filter {
-    it.status == DistributionStatus.DRAFT && it.createdAt.seconds < startOfTodaySec
+): ExpiredDraftActions {
+    val expired = distributions.filter {
+        it.status == DistributionStatus.DRAFT && it.createdAt.seconds < startOfTodaySec
+    }
+    val (routine, additional) = expired.partition { it.type == DistributionType.ROUTINE }
+    return ExpiredDraftActions(
+        routineToDelete = routine,
+        additionalToReject = additional
+    )
 }
 
 fun presetQuantitiesForOutlet(

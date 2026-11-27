@@ -53,7 +53,7 @@ class WarehouseDistributionFilterTest {
     )
 
     @Test
-    fun `routine and additional tabs strictly show today only while history shows all dates`() {
+    fun `routine and additional tabs strictly show today only while history shows only before today and excludes DRAFT`() {
         val todayMillis = LocalDate.of(2026, 11, 27).atTime(7, 0).atZone(jakartaZone).toInstant().toEpochMilli()
         val yesterdayMillis = LocalDate.of(2026, 11, 26).atTime(7, 0).atZone(jakartaZone).toInstant().toEpochMilli()
 
@@ -61,7 +61,8 @@ class WarehouseDistributionFilterTest {
             card("r_today", type = DistributionType.ROUTINE, createdAtMillis = todayMillis, isToday = true),
             card("r_old", type = DistributionType.ROUTINE, createdAtMillis = yesterdayMillis, isToday = false),
             card("a_today", type = DistributionType.ADDITIONAL, status = DistributionStatus.DRAFT, createdAtMillis = todayMillis + 1000, isToday = true),
-            card("a_old", type = DistributionType.ADDITIONAL, status = DistributionStatus.RECEIVED, createdAtMillis = yesterdayMillis + 1000, isToday = false)
+            card("a_old", type = DistributionType.ADDITIONAL, status = DistributionStatus.RECEIVED, createdAtMillis = yesterdayMillis + 1000, isToday = false),
+            card("old_draft", type = DistributionType.ADDITIONAL, status = DistributionStatus.DRAFT, createdAtMillis = yesterdayMillis + 2000, isToday = false)
         )
 
         val routineIds = filterAndSortDistributions(cards, WarehouseDistributionTab.ROUTINE, DistributionTabFilterState(), jakartaZone).map { it.id }
@@ -70,7 +71,11 @@ class WarehouseDistributionFilterTest {
 
         assertEquals(listOf("r_today"), routineIds)
         assertEquals(listOf("a_today"), additionalIds)
-        assertEquals(listOf("a_today", "r_today", "a_old", "r_old"), historyIds)
+        assertEquals(listOf("a_old", "r_old"), historyIds)
+        assertEquals(
+            false,
+            DistributionStatusFilter.optionsForTab(WarehouseDistributionTab.HISTORY).contains(DistributionStatusFilter.PENDING)
+        )
     }
 
     @Test
@@ -102,9 +107,9 @@ class WarehouseDistributionFilterTest {
 
     @Test
     fun `search, status, type, and sort order work together`() {
-        val base = LocalDate.of(2026, 11, 27).atTime(6, 0).atZone(jakartaZone).toInstant().toEpochMilli()
+        val base = LocalDate.of(2026, 11, 25).atTime(6, 0).atZone(jakartaZone).toInstant().toEpochMilli()
         val cards = listOf(
-            card("c1", outletName = "Outlet Tebet", status = DistributionStatus.RECEIVED, type = DistributionType.ROUTINE, totalQuantity = 200, createdAtMillis = base),
+            card("c1", outletName = "Outlet Tebet", status = DistributionStatus.RECEIVED, type = DistributionType.ROUTINE, totalQuantity = 200, createdAtMillis = base, isToday = false),
             card(
                 "c2",
                 outletName = "Outlet Cikini",
@@ -112,9 +117,10 @@ class WarehouseDistributionFilterTest {
                 type = DistributionType.ADDITIONAL,
                 totalQuantity = 500,
                 createdAtMillis = base + 60_000,
+                isToday = false,
                 note = "Stok chilly oil habis"
             ),
-            card("c3", outletName = "Outlet Gajah Mada", status = DistributionStatus.DRAFT, type = DistributionType.ADDITIONAL, totalQuantity = 150, createdAtMillis = base + 120_000)
+            card("c3", outletName = "Outlet Gajah Mada", status = DistributionStatus.SENT, type = DistributionType.ADDITIONAL, totalQuantity = 150, createdAtMillis = base + 120_000, isToday = false)
         )
 
         val cancelledSearch = filterAndSortDistributions(
@@ -176,11 +182,18 @@ class WarehouseDistributionFilterTest {
     }
 
     @Test
-    fun `findExpiredPendingDistributions only flags DRAFT requests before today`() {
+    fun `partitionExpiredDraftDistributions deletes expired ROUTINE drafts and rejects expired ADDITIONAL drafts`() {
         val startOfTodaySec = 1_764_200_000L
         val list = listOf(
             MaterialDistribution(
-                id = "expired_draft",
+                id = "expired_routine_draft",
+                outletId = "o1",
+                status = DistributionStatus.DRAFT,
+                type = DistributionType.ROUTINE,
+                createdAt = Timestamp(startOfTodaySec - 120, 0)
+            ),
+            MaterialDistribution(
+                id = "expired_additional_draft",
                 outletId = "o1",
                 status = DistributionStatus.DRAFT,
                 type = DistributionType.ADDITIONAL,
@@ -202,8 +215,9 @@ class WarehouseDistributionFilterTest {
             )
         )
 
-        val expired = findExpiredPendingDistributions(list, startOfTodaySec)
-        assertEquals(listOf("expired_draft"), expired.map { it.id })
+        val actions = partitionExpiredDraftDistributions(list, startOfTodaySec)
+        assertEquals(listOf("expired_routine_draft"), actions.routineToDelete.map { it.id })
+        assertEquals(listOf("expired_additional_draft"), actions.additionalToReject.map { it.id })
     }
 
     @Test

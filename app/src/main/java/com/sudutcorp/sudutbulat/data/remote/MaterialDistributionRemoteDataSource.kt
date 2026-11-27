@@ -166,4 +166,9 @@ open class MaterialDistributionRemoteDataSource(
         }
         distCol.document(distributionId).update(updates).await()
     }
+
+    open suspend fun deleteDistribution(id: String): Result<Unit> = runCatching {
+        val col = distributionsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
+        col.document(id).delete().await()
+    }
 }
