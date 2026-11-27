@@ -9,6 +9,7 @@ import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
 
@@ -76,7 +77,8 @@ data class OutletPerformanceUi(
     val expenseCount: Int,
     val damagedCount: Int,
     val damagedReportCount: Int,
-    val netDepositEstimate: Long
+    val netDepositEstimate: Long,
+    val routinePreset: List<RoutinePresetItem> = emptyList()
 )
 
 data class StaffItemUi(
@@ -294,6 +296,7 @@ sealed interface OwnerUiEvent {
     data class OutletSortChanged(val field: OutletSortField, val direction: SortDirection) : OwnerUiEvent
     data class OutletTabSelected(val mode: OutletTabMode) : OwnerUiEvent
     data class ToggleOutletOpenStatus(val outletId: String) : OwnerUiEvent
+    data class SaveOutletRoutinePreset(val outletId: String, val items: List<RoutinePresetItem>) : OwnerUiEvent
 
     data class StaffSearchChanged(val query: String) : OwnerUiEvent
     data class StaffRoleFilterSelected(val filter: String) : OwnerUiEvent

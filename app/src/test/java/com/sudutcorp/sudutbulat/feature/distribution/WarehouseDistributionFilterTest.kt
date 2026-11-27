@@ -1,8 +1,11 @@
 package com.sudutcorp.sudutbulat.feature.distribution
 
+import com.google.firebase.Timestamp
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
+import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.feature.owner.SortDirection
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -170,5 +173,52 @@ class WarehouseDistributionFilterTest {
             filter = DistributionTabFilterState(statusFilter = DistributionStatusFilter.RECEIVED)
         )
         assertEquals(emptyList<String>(), hiddenOnReceived.map { it.id })
+    }
+
+    @Test
+    fun `findExpiredPendingDistributions only flags DRAFT requests before today`() {
+        val startOfTodaySec = 1_764_200_000L
+        val list = listOf(
+            MaterialDistribution(
+                id = "expired_draft",
+                outletId = "o1",
+                status = DistributionStatus.DRAFT,
+                type = DistributionType.ADDITIONAL,
+                createdAt = Timestamp(startOfTodaySec - 60, 0)
+            ),
+            MaterialDistribution(
+                id = "today_draft",
+                outletId = "o1",
+                status = DistributionStatus.DRAFT,
+                type = DistributionType.ADDITIONAL,
+                createdAt = Timestamp(startOfTodaySec + 60, 0)
+            ),
+            MaterialDistribution(
+                id = "yesterday_sent",
+                outletId = "o1",
+                status = DistributionStatus.SENT,
+                type = DistributionType.ROUTINE,
+                createdAt = Timestamp(startOfTodaySec - 3600, 0)
+            )
+        )
+
+        val expired = findExpiredPendingDistributions(list, startOfTodaySec)
+        assertEquals(listOf("expired_draft"), expired.map { it.id })
+    }
+
+    @Test
+    fun `presetQuantitiesForOutlet filters inactive materials and zero quantities`() {
+        val outlet = Outlet(
+            id = "o1",
+            name = "Sudirman",
+            routinePreset = listOf(
+                RoutinePresetItem("mat_1", 500),
+                RoutinePresetItem("mat_2", 0),
+                RoutinePresetItem("mat_inactive", 200)
+            )
+        )
+
+        val map = presetQuantitiesForOutlet(outlet, setOf("mat_1", "mat_2"))
+        assertEquals(mapOf("mat_1" to "500"), map)
     }
 }

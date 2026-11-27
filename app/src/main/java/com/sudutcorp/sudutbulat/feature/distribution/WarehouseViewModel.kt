@@ -11,6 +11,7 @@ import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.repository.MaterialDistributionRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
@@ -119,6 +120,11 @@ sealed interface WarehouseUiEvent {
     ) : WarehouseUiEvent
     data class SelectCreateType(val type: DistributionType) : WarehouseUiEvent
     data class SelectOutlet(val outletId: String) : WarehouseUiEvent
+    data object ApplyOutletPresetToForm : WarehouseUiEvent
+    data class SaveOutletRoutinePreset(
+        val outletId: String,
+        val items: List<RoutinePresetItem>
+    ) : WarehouseUiEvent
     data class UpdateItemQuantity(val materialId: String, val qtyInput: String) : WarehouseUiEvent
     data class UpdateNote(val note: String) : WarehouseUiEvent
     data object SubmitCreateDistribution : WarehouseUiEvent
@@ -129,6 +135,7 @@ sealed interface WarehouseUiEvent {
 sealed interface WarehouseUiEffect {
     data class ShowSnackbar(val message: String) : WarehouseUiEffect
     data object DistributionSaved : WarehouseUiEffect
+    data object RoutinePresetSaved : WarehouseUiEffect
 }
 
 class WarehouseViewModel(
@@ -144,6 +151,8 @@ class WarehouseViewModel(
 
     private val _effects = Channel<WarehouseUiEffect>(Channel.BUFFERED)
     val effects: Flow<WarehouseUiEffect> = _effects.receiveAsFlow().shareIn(viewModelScope, SharingStarted.Eagerly)
+
+    private val autoRejectingIds = mutableSetOf<String>()
 
     init {
         observeStreams()
@@ -176,8 +185,43 @@ class WarehouseViewModel(
         viewModelScope.launch {
             distributionRepository.getDistributionsFlow(outletId = null)
                 .catch { e -> reportError("memuat distribusi", e) }
-                .collect { list -> _state.update { recompute(it.copy(distributions = list)) } }
+                .collect { list ->
+                    _state.update { recompute(it.copy(distributions = list)) }
+                    autoRejectExpiredRequests(list)
+                }
         }
+    }
+
+    private fun startOfTodaySeconds(): Long = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis / 1000L
+
+    private fun autoRejectExpiredRequests(distributions: List<MaterialDistribution>) {
+        val expired = findExpiredPendingDistributions(distributions, startOfTodaySeconds())
+        expired.forEach { dist ->
+            if (dist.id.isBlank() || !autoRejectingIds.add(dist.id)) return@forEach
+            viewModelScope.launch {
+                distributionRepository.updateDistributionStatus(
+                    id = dist.id,
+                    status = DistributionStatus.CANCELLED,
+                    confirmedBy = "system",
+                    confirmationNote = "Ditolak otomatis karena melewati batas tanggal permintaan",
+                    confirmedAt = Timestamp.now()
+                ).onFailure { e ->
+                    autoRejectingIds.remove(dist.id)
+                    Log.e("WarehouseViewModel", "Gagal auto-reject permintaan kadaluarsa (${dist.id})", e)
+                }
+            }
+        }
+    }
+
+    private fun presetMapFor(state: WarehouseUiState, outletId: String): Map<String, String> {
+        val outlet = state.outlets.firstOrNull { it.id == outletId }
+        val activeMatIds = state.activeMaterials.map { it.id }.toSet()
+        return presetQuantitiesForOutlet(outlet, activeMatIds)
     }
 
     private fun updateTabFilter(
@@ -225,19 +269,56 @@ class WarehouseViewModel(
                         null
                     }
                     ?: current.activeOutlets.firstOrNull()?.id.orEmpty()
+                val initialQuantities = if (event.defaultType == DistributionType.ROUTINE) {
+                    presetMapFor(current, outletId)
+                } else {
+                    emptyMap()
+                }
                 current.copy(
                     createForm = CreateDistributionFormState(
                         selectedOutletId = outletId,
-                        distributionType = event.defaultType
+                        distributionType = event.defaultType,
+                        itemQuantities = initialQuantities
                     )
                 )
             }
-            is WarehouseUiEvent.SelectCreateType -> _state.update {
-                it.copy(createForm = it.createForm.copy(distributionType = event.type, errorMessage = null))
+            is WarehouseUiEvent.SelectCreateType -> _state.update { current ->
+                val nextQuantities = if (event.type == DistributionType.ROUTINE) {
+                    presetMapFor(current, current.createForm.selectedOutletId)
+                } else {
+                    emptyMap()
+                }
+                current.copy(
+                    createForm = current.createForm.copy(
+                        distributionType = event.type,
+                        itemQuantities = nextQuantities,
+                        errorMessage = null
+                    )
+                )
             }
-            is WarehouseUiEvent.SelectOutlet -> _state.update {
-                it.copy(createForm = it.createForm.copy(selectedOutletId = event.outletId, errorMessage = null))
+            is WarehouseUiEvent.SelectOutlet -> _state.update { current ->
+                val nextQuantities = if (current.createForm.distributionType == DistributionType.ROUTINE) {
+                    presetMapFor(current, event.outletId)
+                } else {
+                    current.createForm.itemQuantities
+                }
+                current.copy(
+                    createForm = current.createForm.copy(
+                        selectedOutletId = event.outletId,
+                        itemQuantities = nextQuantities,
+                        errorMessage = null
+                    )
+                )
             }
+            WarehouseUiEvent.ApplyOutletPresetToForm -> _state.update { current ->
+                current.copy(
+                    createForm = current.createForm.copy(
+                        itemQuantities = presetMapFor(current, current.createForm.selectedOutletId),
+                        errorMessage = null
+                    )
+                )
+            }
+            is WarehouseUiEvent.SaveOutletRoutinePreset -> saveOutletRoutinePreset(event.outletId, event.items)
             is WarehouseUiEvent.UpdateItemQuantity -> _state.update { current ->
                 val digits = event.qtyInput.filter(Char::isDigit)
                 val updated = current.createForm.itemQuantities.toMutableMap()
@@ -307,6 +388,21 @@ class WarehouseViewModel(
                     val msg = "Gagal menyimpan distribusi: $detail"
                     _state.update { it.copy(createForm = form.copy(isSaving = false, errorMessage = msg)) }
                     _effects.send(WarehouseUiEffect.ShowSnackbar(msg))
+                }
+        }
+    }
+
+    private fun saveOutletRoutinePreset(outletId: String, items: List<RoutinePresetItem>) {
+        viewModelScope.launch {
+            _state.update { it.copy(isActionLoading = true) }
+            outletRepository.updateRoutinePreset(outletId, items)
+                .onSuccess {
+                    _state.update { it.copy(isActionLoading = false) }
+                    _effects.send(WarehouseUiEffect.ShowSnackbar("Preset distribusi rutin berhasil disimpan."))
+                    _effects.send(WarehouseUiEffect.RoutinePresetSaved)
+                }
+                .onFailure { e ->
+                    reportError("menyimpan preset distribusi rutin", e)
                 }
         }
     }

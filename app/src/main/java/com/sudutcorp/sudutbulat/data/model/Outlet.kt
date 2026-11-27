@@ -48,5 +48,9 @@ data class Outlet(
 
     @get:PropertyName("daily_target")
     @set:PropertyName("daily_target")
-    var dailyTarget: Long = 2_000_000L
+    var dailyTarget: Long = 2_000_000L,
+
+    @get:PropertyName("routine_preset")
+    @set:PropertyName("routine_preset")
+    var routinePreset: List<RoutinePresetItem> = emptyList()
 )

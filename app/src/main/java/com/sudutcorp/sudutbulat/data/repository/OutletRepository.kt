@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.data.repository
 
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.remote.OutletRemoteDataSource
 import kotlinx.coroutines.flow.Flow
 
@@ -55,5 +56,12 @@ class OutletRepository(
             totalPiecesSold = totalPiecesSold,
             targetPercentage = targetPercentage
         )
+    }
+
+    suspend fun updateRoutinePreset(
+        outletId: String,
+        items: List<RoutinePresetItem>
+    ): Result<Unit> {
+        return remoteDataSource.updateRoutinePreset(outletId, items)
     }
 }

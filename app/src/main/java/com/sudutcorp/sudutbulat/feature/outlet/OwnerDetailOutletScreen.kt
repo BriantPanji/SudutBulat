@@ -62,7 +62,10 @@ import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
 import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.Role
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
+import com.sudutcorp.sudutbulat.feature.distribution.RoutinePresetEditorBottomSheet
 import com.sudutcorp.sudutbulat.feature.owner.DailyReportListItemUi
 import com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
@@ -83,6 +86,9 @@ fun OwnerDetailOutletScreen(
     val allOutletStaff = remember(uiState.staffItems) {
         uiState.staffItems.filter { it.role == Role.OUTLET && it.isActive }
     }
+    val activeMaterials = remember(uiState.materials) {
+        uiState.materials.filter { it.isActive }
+    }
     val recentOutletReports = remember(uiState.reportListItems, outlet?.id) {
         val targetId = outlet?.id ?: outletId
         uiState.reportListItems.filter { it.outletId == targetId }.take(3)
@@ -92,6 +98,7 @@ fun OwnerDetailOutletScreen(
         modifier = modifier,
         outlet = outlet,
         allOutletStaff = allOutletStaff,
+        activeMaterials = activeMaterials,
         recentReports = recentOutletReports,
         onBackClick = { navController.popBackStackSafe() },
         onToggleOpenStatus = {
@@ -99,6 +106,9 @@ fun OwnerDetailOutletScreen(
         },
         onSaveStaffAssignment = { selectedIds ->
             if (outlet != null) onEvent(OwnerUiEvent.AssignStaffToOutlet(outlet.id, selectedIds))
+        },
+        onSaveRoutinePreset = { items ->
+            if (outlet != null) onEvent(OwnerUiEvent.SaveOutletRoutinePreset(outlet.id, items))
         },
         onReportClick = onReportClick
     )
@@ -110,10 +120,12 @@ fun OwnerDetailOutletContent(
     modifier: Modifier = Modifier,
     outlet: OutletPerformanceUi? = null,
     allOutletStaff: List<StaffItemUi> = emptyList(),
+    activeMaterials: List<Material> = emptyList(),
     recentReports: List<DailyReportListItemUi> = emptyList(),
     onBackClick: () -> Unit = {},
     onToggleOpenStatus: () -> Unit = {},
     onSaveStaffAssignment: (Set<String>) -> Unit = {},
+    onSaveRoutinePreset: (List<RoutinePresetItem>) -> Unit = {},
     onReportClick: (String) -> Unit = {}
 ) {
     val outletName = outlet?.name ?: "Sudirman"
@@ -126,6 +138,7 @@ fun OwnerDetailOutletContent(
 
     var showOverrideStatusDialog by rememberSaveable { mutableStateOf(false) }
     var showStaffPickerSheet by rememberSaveable { mutableStateOf(false) }
+    var showRoutinePresetSheet by rememberSaveable { mutableStateOf(false) }
     var draftSelectedStaffIds by remember(outlet?.id, outlet?.staffIds) {
         mutableStateOf(outlet?.staffIds?.toSet() ?: emptySet())
     }
@@ -328,6 +341,33 @@ fun OwnerDetailOutletContent(
             )
         }
 
+        // Preset Distribusi Rutin Outlet
+        val materialMap = remember(activeMaterials) { activeMaterials.associateBy { it.id } }
+        val presetItems = outlet?.routinePreset.orEmpty().filter { it.quantity > 0 }
+        SBSectionCard(
+            title = "Preset distribusi rutin",
+            actionText = "Atur preset",
+            onActionClick = { showRoutinePresetSheet = true }
+        ) {
+            if (presetItems.isEmpty()) {
+                Text(
+                    text = "Belum ada preset rutin. Atur jumlah bahan default agar Gudang cukup menyesuaikan saat kirim pagi.",
+                    fontSize = 13.sp,
+                    color = SBColor.Grey_500
+                )
+            } else {
+                presetItems.forEach { preset ->
+                    val mat = materialMap[preset.materialId]
+                    val matName = mat?.name ?: preset.materialId
+                    val unitText = mat?.unit?.firestoreValue ?: "pcs"
+                    SBKeyValueRow(
+                        label = matName,
+                        value = "${preset.quantity} $unitText"
+                    )
+                }
+            }
+        }
+
         // Laporan Harian Terbaru
         if (recentReports.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -477,5 +517,19 @@ fun OwnerDetailOutletContent(
                 }
             }
         }
+    }
+
+    if (showRoutinePresetSheet) {
+        RoutinePresetEditorBottomSheet(
+            outletName = "Outlet $outletName",
+            activeMaterials = activeMaterials,
+            initialPreset = outlet?.routinePreset.orEmpty(),
+            isSaving = false,
+            onDismiss = { showRoutinePresetSheet = false },
+            onSave = { items ->
+                onSaveRoutinePreset(items)
+                showRoutinePresetSheet = false
+            }
+        )
     }
 }

@@ -65,6 +65,16 @@ Jalankan seluruh command di bawah ini dari dalam folder `firestore-tools/`:
   npm run migrate:fresh -- --seed
   ```
 
+### Generator Data Harian Acak (Otomatis Tanggal Hari Ini)
+Mengenerate data operasional harian acak (**distribusi rutin**, **request tambahan stok**, dan **laporan harian**) berdasarkan master data aktif yang sudah ada di Firestore — **tidak pernah** membuat akun, outlet, material, atau produk baru.
+```bash
+npm run generate:daily                         # Semua fitur harian (hari ini)
+npm run generate:daily -- routine              # Distribusi rutin hari ini saja
+npm run generate:daily -- requests --count=3   # 3 request tambahan stok hari ini
+npm run generate:daily -- distributions        # Rutin + request tambahan hari ini
+npm run generate:daily -- reports --overwrite  # Laporan harian hari ini (timpa jika sudah ada)
+```
+
 ---
 
 ## 3. Data Default Seeder (Sesuai `PRD.md`)

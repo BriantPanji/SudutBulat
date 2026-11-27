@@ -18,6 +18,7 @@ import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
 import com.sudutcorp.sudutbulat.data.model.Role
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
 
@@ -73,19 +74,36 @@ object FirestoreMappers {
         }
     }
 
-    fun DocumentSnapshot.toOutlet(): Outlet = Outlet(
-        id = id,
-        name = getString("name").orEmpty(),
-        address = getString("address").orEmpty(),
-        coordinate = getGeoPoint("coordinate") ?: GeoPoint(0.0, 0.0),
-        isActive = getBoolean("is_active") ?: true,
-        isOpen = getBoolean("is_open") ?: true,
-        targetPercentage = (getDouble("target_percentage") ?: 0.0).toFloat(),
-        totalRevenue = getLong("total_revenue") ?: 0L,
-        totalPiecesSold = (getLong("total_pieces_sold") ?: 0L).toInt(),
-        openTime = getString("open_time").orEmpty().ifBlank { "08.00" },
-        closeTime = getString("close_time").orEmpty().ifBlank { "21.00" },
-        dailyTarget = getLong("daily_target") ?: 2_000_000L
+    @Suppress("UNCHECKED_CAST")
+    fun DocumentSnapshot.toOutlet(): Outlet {
+        val rawPreset = (get("routine_preset") as? List<*>)
+            ?.mapNotNull { it as? Map<String, Any?> }
+            ?.mapNotNull { raw ->
+                val matId = (raw["material_id"] as? String)?.trim().orEmpty()
+                val qty = (raw["quantity"] as? Number)?.toInt() ?: 0
+                if (matId.isNotBlank() && qty > 0) RoutinePresetItem(materialId = matId, quantity = qty) else null
+            }
+            ?: emptyList()
+        return Outlet(
+            id = id,
+            name = getString("name").orEmpty(),
+            address = getString("address").orEmpty(),
+            coordinate = getGeoPoint("coordinate") ?: GeoPoint(0.0, 0.0),
+            isActive = getBoolean("is_active") ?: true,
+            isOpen = getBoolean("is_open") ?: true,
+            targetPercentage = (getDouble("target_percentage") ?: 0.0).toFloat(),
+            totalRevenue = getLong("total_revenue") ?: 0L,
+            totalPiecesSold = (getLong("total_pieces_sold") ?: 0L).toInt(),
+            openTime = getString("open_time").orEmpty().ifBlank { "08.00" },
+            closeTime = getString("close_time").orEmpty().ifBlank { "21.00" },
+            dailyTarget = getLong("daily_target") ?: 2_000_000L,
+            routinePreset = rawPreset
+        )
+    }
+
+    fun RoutinePresetItem.toFirestoreMap(): Map<String, Any> = mapOf(
+        "material_id" to materialId,
+        "quantity" to quantity
     )
 
     fun Outlet.toFirestoreMap(): Map<String, Any?> = mapOf(
@@ -99,7 +117,8 @@ object FirestoreMappers {
         "total_pieces_sold" to totalPiecesSold,
         "open_time" to openTime,
         "close_time" to closeTime,
-        "daily_target" to dailyTarget
+        "daily_target" to dailyTarget,
+        "routine_preset" to routinePreset.filter { it.materialId.isNotBlank() && it.quantity > 0 }.map { it.toFirestoreMap() }
     )
 
     fun DocumentSnapshot.toMaterialCategory(): MaterialCategory {

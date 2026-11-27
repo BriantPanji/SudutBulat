@@ -2,6 +2,7 @@ package com.sudutcorp.sudutbulat.data.remote
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreMap
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toOutlet
 import kotlinx.coroutines.channels.awaitClose
@@ -108,5 +109,14 @@ open class OutletRemoteDataSource(
                 "target_percentage" to targetPercentage.toDouble()
             )
         ).await()
+    }
+
+    open suspend fun updateRoutinePreset(
+        outletId: String,
+        items: List<RoutinePresetItem>
+    ): Result<Unit> = runCatching {
+        val col = outletsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
+        val normalized = items.filter { it.materialId.isNotBlank() && it.quantity > 0 }.map { it.toFirestoreMap() }
+        col.document(outletId).update("routine_preset", normalized).await()
     }
 }

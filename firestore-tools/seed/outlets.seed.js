@@ -18,6 +18,13 @@ function buildOutlets(admin) {
       open_time: "09.00",
       close_time: "21.00",
       daily_target: 2900000,
+      routine_preset: [
+        { material_id: "mat_tahu_original", quantity: 550 },
+        { material_id: "mat_tahu_pedas", quantity: 320 },
+        { material_id: "mat_tahu_keju", quantity: 200 },
+        { material_id: "mat_saus_sambal", quantity: 50 },
+        { material_id: "mat_chilly_oil", quantity: 5 },
+      ],
     },
     {
       id: "outlet_gajah_mada",
@@ -32,6 +39,13 @@ function buildOutlets(admin) {
       open_time: "08.00",
       close_time: "21.00",
       daily_target: 2500000,
+      routine_preset: [
+        { material_id: "mat_tahu_original", quantity: 420 },
+        { material_id: "mat_tahu_pedas", quantity: 260 },
+        { material_id: "mat_tahu_keju", quantity: 140 },
+        { material_id: "mat_saus_sambal", quantity: 40 },
+        { material_id: "mat_chilly_oil", quantity: 4 },
+      ],
     },
     {
       // ID tetap `outlet_cikini` agar FK di users.seed.js (staff_cikini) tidak putus.
@@ -48,6 +62,13 @@ function buildOutlets(admin) {
       open_time: "10.00",
       close_time: "22.00",
       daily_target: 2600000,
+      routine_preset: [
+        { material_id: "mat_tahu_original", quantity: 480 },
+        { material_id: "mat_tahu_pedas", quantity: 320 },
+        { material_id: "mat_tahu_keju", quantity: 180 },
+        { material_id: "mat_saus_sambal", quantity: 45 },
+        { material_id: "mat_bumbu_balado", quantity: 400 },
+      ],
     },
     {
       // ID tetap `outlet_tebet` agar FK di users.seed.js (staff_tebet) tidak putus.
@@ -64,6 +85,13 @@ function buildOutlets(admin) {
       open_time: "10.00",
       close_time: "22.00",
       daily_target: 2200000,
+      routine_preset: [
+        { material_id: "mat_tahu_original", quantity: 380 },
+        { material_id: "mat_tahu_pedas", quantity: 220 },
+        { material_id: "mat_tahu_keju", quantity: 120 },
+        { material_id: "mat_saus_sambal", quantity: 35 },
+        { material_id: "mat_bumbu_bbq", quantity: 350 },
+      ],
     },
   ];
 }

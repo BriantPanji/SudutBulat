@@ -28,6 +28,7 @@ Table outlets {
   total_revenue int [not null, default: 0]
   total_pieces_sold int [not null, default: 0]
   target_percentage float [not null, default: 0]
+  routine_preset array // list of { material_id, quantity } set by Owner/Warehouse
 }
 
 Table material_categories {

@@ -152,6 +152,7 @@ class OwnerViewModel(
             }
             is OwnerUiEvent.OutletTabSelected -> _state.update { it.copy(outletTabMode = event.mode) }
             is OwnerUiEvent.ToggleOutletOpenStatus -> viewModelScope.launch { actions.toggleOutletOpenStatus(event.outletId) }
+            is OwnerUiEvent.SaveOutletRoutinePreset -> viewModelScope.launch { actions.saveOutletRoutinePreset(event.outletId, event.items) }
 
             is OwnerUiEvent.StaffSearchChanged -> _state.update { it.copy(staffSearchQuery = event.query) }
             is OwnerUiEvent.StaffRoleFilterSelected -> _state.update { it.copy(staffRoleFilter = event.filter) }

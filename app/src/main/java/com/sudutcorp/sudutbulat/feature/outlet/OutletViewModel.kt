@@ -24,6 +24,7 @@ import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.ProductRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
+import com.sudutcorp.sudutbulat.feature.distribution.findExpiredPendingDistributions
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -191,6 +192,8 @@ class OutletViewModel(
     private val _effects = Channel<OutletUiEffect>(Channel.BUFFERED)
     val effects: Flow<OutletUiEffect> = _effects.receiveAsFlow().shareIn(viewModelScope, SharingStarted.Eagerly)
 
+    private val autoRejectingIds = mutableSetOf<String>()
+
     init {
         observeStreams()
     }
@@ -227,12 +230,40 @@ class OutletViewModel(
         viewModelScope.launch {
             distributionRepository.getDistributionsFlow(outletId = null)
                 .catch { e -> reportError("memuat distribusi", e) }
-                .collect { list -> _state.update { recompute(it.copy(rawDistributions = list)) } }
+                .collect { list ->
+                    _state.update { recompute(it.copy(rawDistributions = list)) }
+                    autoRejectExpiredRequests(list)
+                }
         }
         viewModelScope.launch {
             dailyReportRepository.getDailyReportsFlow(outletId = null)
                 .catch { e -> reportError("memuat laporan harian", e) }
                 .collect { list -> _state.update { recompute(it.copy(rawReports = list)) } }
+        }
+    }
+
+    private fun autoRejectExpiredRequests(distributions: List<MaterialDistribution>) {
+        val startOfTodaySec = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis / 1000L
+
+        findExpiredPendingDistributions(distributions, startOfTodaySec).forEach { dist ->
+            if (dist.id.isBlank() || !autoRejectingIds.add(dist.id)) return@forEach
+            viewModelScope.launch {
+                distributionRepository.updateDistributionStatus(
+                    id = dist.id,
+                    status = DistributionStatus.CANCELLED,
+                    confirmedBy = "system",
+                    confirmationNote = "Ditolak otomatis karena melewati batas tanggal permintaan",
+                    confirmedAt = Timestamp.now()
+                ).onFailure { e ->
+                    autoRejectingIds.remove(dist.id)
+                    Log.e("OutletViewModel", "Gagal auto-reject permintaan kadaluarsa (${dist.id})", e)
+                }
+            }
         }
     }
 

@@ -102,7 +102,8 @@ fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
             expenseCount = outletExpenses.size.takeIf { it > 0 } ?: 3,
             damagedCount = damagedQty,
             damagedReportCount = outletDamaged.size.takeIf { it > 0 } ?: 1,
-            netDepositEstimate = (revenue - expenseTotal).coerceAtLeast(0L)
+            netDepositEstimate = (revenue - expenseTotal).coerceAtLeast(0L),
+            routinePreset = outlet.routinePreset
         )
     }
 

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -25,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -75,9 +77,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBBottomCtaBar
 import com.sudutcorp.sudutbulat.core.components.SBDatePickerDialog
 import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
@@ -86,6 +90,7 @@ import com.sudutcorp.sudutbulat.core.components.SBSearchBar
 import com.sudutcorp.sudutbulat.core.components.SBSegmentedTabs
 import com.sudutcorp.sudutbulat.core.components.SBSelectField
 import com.sudutcorp.sudutbulat.core.components.SBSortDropdownButton
+import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.ui.theme.SudutBulatTheme
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
@@ -110,14 +115,18 @@ fun DistributionScreen(
 
     var showCreateSheet by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showOutletPresetListSheet by rememberSaveable { mutableStateOf(false) }
+    var editingPresetOutletId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
     var rejectingDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
     var showHistoryTypeMenu by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
-            if (effect is WarehouseUiEffect.DistributionSaved) {
-                showCreateSheet = false
+            when (effect) {
+                WarehouseUiEffect.DistributionSaved -> showCreateSheet = false
+                WarehouseUiEffect.RoutinePresetSaved -> editingPresetOutletId = null
+                else -> Unit
             }
         }
     }
@@ -206,6 +215,7 @@ fun DistributionScreen(
                     completedCount = uiState.outletsCompletedMorningCount,
                     totalActiveCount = uiState.activeOutlets.size,
                     pendingCount = uiState.outletsPendingMorning.size,
+                    onManagePresets = { showOutletPresetListSheet = true },
                     onQuickCreate = { openCreateSheet(null, DistributionType.ROUTINE) }
                 )
             }
@@ -469,7 +479,8 @@ fun DistributionScreen(
             ) { outlet ->
                 PendingRoutineOutletCard(
                     outlet = outlet,
-                    onSendClick = { openCreateSheet(outlet.id, DistributionType.ROUTINE) }
+                    onSendClick = { openCreateSheet(outlet.id, DistributionType.ROUTINE) },
+                    onEditPresetClick = { editingPresetOutletId = outlet.id }
                 )
             }
 
@@ -519,6 +530,38 @@ fun DistributionScreen(
             uiState = uiState,
             onEvent = onEvent,
             onDismiss = { if (!uiState.createForm.isSaving) showCreateSheet = false }
+        )
+    }
+
+    if (showOutletPresetListSheet) {
+        OutletPresetListBottomSheet(
+            outlets = uiState.activeOutlets,
+            onDismiss = { showOutletPresetListSheet = false },
+            onSelectOutlet = { outletId ->
+                showOutletPresetListSheet = false
+                editingPresetOutletId = outletId
+            }
+        )
+    }
+
+    val editingPresetOutlet = editingPresetOutletId?.let { id ->
+        uiState.activeOutlets.firstOrNull { it.id == id } ?: uiState.outlets.firstOrNull { it.id == id }
+    }
+    if (editingPresetOutlet != null) {
+        val displayName = if (editingPresetOutlet.name.startsWith("Outlet", ignoreCase = true)) {
+            editingPresetOutlet.name
+        } else {
+            "Outlet ${editingPresetOutlet.name}"
+        }
+        RoutinePresetEditorBottomSheet(
+            outletName = displayName,
+            activeMaterials = uiState.activeMaterials,
+            initialPreset = editingPresetOutlet.routinePreset,
+            isSaving = uiState.isActionLoading,
+            onDismiss = { editingPresetOutletId = null },
+            onSave = { items ->
+                onEvent(WarehouseUiEvent.SaveOutletRoutinePreset(editingPresetOutlet.id, items))
+            }
         )
     }
 
@@ -572,6 +615,7 @@ private fun RoutineProgressCard(
     completedCount: Int,
     totalActiveCount: Int,
     pendingCount: Int,
+    onManagePresets: () -> Unit,
     onQuickCreate: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -622,21 +666,41 @@ private fun RoutineProgressCard(
                     )
                 }
 
-                Button(
-                    onClick = onQuickCreate,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SBColor.Primary_550,
-                        contentColor = Color.White
-                    ),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    modifier = Modifier.height(38.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "+ Kirim",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    OutlinedButton(
+                        onClick = onManagePresets,
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, if (allDone) SBColor.Success_300 else SBColor.Primary_200),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Text(
+                            text = "Preset",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Grey_700
+                        )
+                    }
+                    Button(
+                        onClick = onQuickCreate,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SBColor.Primary_550,
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Text(
+                            text = "+ Kirim",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -668,8 +732,12 @@ private fun RoutineProgressCard(
 private fun PendingRoutineOutletCard(
     outlet: Outlet,
     onSendClick: () -> Unit,
+    onEditPresetClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val presetCount = outlet.routinePreset.count { it.quantity > 0 }
+    val presetTotalQty = outlet.routinePreset.sumOf { it.quantity }
+
     OutlinedCard(
         onClick = onSendClick,
         modifier = modifier.fillMaxWidth(),
@@ -717,25 +785,137 @@ private fun PendingRoutineOutletCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = outlet.address.ifBlank { "Belum ada distribusi rutin hari ini" },
+                    text = if (presetCount > 0) {
+                        "Preset: $presetCount bahan • $presetTotalQty unit"
+                    } else {
+                        "Preset belum diatur"
+                    },
                     fontSize = 12.sp,
-                    color = SBColor.Grey_500,
+                    color = if (presetCount > 0) SBColor.Grey_500 else SBColor.Warning_600,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
 
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = SBColor.Primary_100
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Surface(
+                    onClick = onEditPresetClick,
+                    shape = RoundedCornerShape(8.dp),
+                    color = SBColor.Grey_100
+                ) {
+                    Text(
+                        text = "Preset",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SBColor.Grey_700,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+                Surface(
+                    onClick = onSendClick,
+                    shape = RoundedCornerShape(8.dp),
+                    color = SBColor.Primary_100
+                ) {
+                    Text(
+                        text = "Kirim",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_550,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OutletPresetListBottomSheet(
+    outlets: List<Outlet>,
+    onDismiss: () -> Unit,
+    onSelectOutlet: (String) -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "Kirim",
-                    fontSize = 12.sp,
+                    text = "Preset distribusi rutin",
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SBColor.Primary_550,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    color = SBColor.Grey_700
                 )
+                Text(
+                    text = "Pilih outlet untuk mengatur jumlah bahan default pengiriman rutin.",
+                    fontSize = 12.sp,
+                    color = SBColor.Grey_500
+                )
+            }
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(
+                    items = outlets,
+                    key = { it.id },
+                    contentType = { "preset_outlet_item" }
+                ) { outlet ->
+                    val count = outlet.routinePreset.count { it.quantity > 0 }
+                    val total = outlet.routinePreset.sumOf { it.quantity }
+                    val title = if (outlet.name.startsWith("Outlet", ignoreCase = true)) {
+                        outlet.name
+                    } else {
+                        "Outlet ${outlet.name}"
+                    }
+                    OutlinedCard(
+                        onClick = { onSelectOutlet(outlet.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, SBColor.Grey_100)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                                Text(
+                                    text = if (count > 0) "$count bahan • $total unit" else "Belum diatur",
+                                    fontSize = 12.sp,
+                                    color = if (count > 0) SBColor.Grey_500 else SBColor.Warning_600
+                                )
+                            }
+                            Text(
+                                text = "Atur",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SBColor.Primary_550
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -816,7 +996,6 @@ private fun EmptyDistributionCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateDistributionBottomSheet(
     uiState: WarehouseUiState,
@@ -824,204 +1003,259 @@ fun CreateDistributionBottomSheet(
     onDismiss: () -> Unit
 ) {
     val form = uiState.createForm
+    val focusManager = LocalFocusManager.current
+    val listState = rememberLazyListState()
     var showOutletPicker by rememberSaveable { mutableStateOf(false) }
     val selectedOutlet = uiState.activeOutlets.firstOrNull { it.id == form.selectedOutletId }
     val selectedItemCount = remember(form.itemQuantities) {
         form.itemQuantities.values.count { (it.toIntOrNull() ?: 0) > 0 }
     }
+    val ctaLabel = if (selectedItemCount > 0) {
+        "Kirim ${form.distributionType.label.lowercase()} ($selectedItemCount bahan)"
+    } else {
+        "Kirim distribusi sekarang"
+    }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    Dialog(
+        onDismissRequest = { if (!form.isSaving) onDismiss() },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.White
         ) {
-            Text(
-                text = "Buat distribusi ke outlet",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = SBColor.Grey_700
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "Jenis distribusi",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_700
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .imePadding()
+                    .pointerInput(Unit) { detectTapGestures(onTap = { focusManager.clearFocus() }) }
+            ) {
+                SBSubHeader(
+                    eyebrow = "Admin Gudang",
+                    title = "Buat distribusi",
+                    onBackClick = { if (!form.isSaving) onDismiss() },
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
                 )
-                SBSegmentedTabs(
-                    options = DistributionType.entries,
-                    selected = form.distributionType,
-                    labelOf = { it.label },
-                    onSelected = { onEvent(WarehouseUiEvent.SelectCreateType(it)) }
-                )
-            }
 
-            SBSelectField(
-                label = "Outlet tujuan",
-                valueText = selectedOutlet?.let {
-                    if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
-                } ?: "Pilih outlet tujuan",
-                isPlaceholder = selectedOutlet == null,
-                onClick = { showOutletPicker = !showOutletPicker }
-            )
+                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
 
-            if (showOutletPicker) {
-                OutlinedCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, SBColor.Grey_100)
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Column {
-                        uiState.activeOutlets.forEachIndexed { idx, outlet ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        onEvent(WarehouseUiEvent.SelectOutlet(outlet.id))
-                                        showOutletPicker = false
+                    item(key = "create_type", contentType = "type") {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Jenis distribusi",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SBColor.Grey_700
+                            )
+                            SBSegmentedTabs(
+                                options = DistributionType.entries,
+                                selected = form.distributionType,
+                                labelOf = { it.label },
+                                onSelected = { onEvent(WarehouseUiEvent.SelectCreateType(it)) }
+                            )
+                        }
+                    }
+
+                    item(key = "create_outlet", contentType = "outlet") {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SBSelectField(
+                                label = "Outlet tujuan",
+                                valueText = selectedOutlet?.let {
+                                    if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
+                                } ?: "Pilih outlet tujuan",
+                                isPlaceholder = selectedOutlet == null,
+                                onClick = { showOutletPicker = !showOutletPicker }
+                            )
+
+                            if (showOutletPicker) {
+                                OutlinedCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                                    border = BorderStroke(1.dp, SBColor.Grey_100)
+                                ) {
+                                    Column {
+                                        uiState.activeOutlets.forEachIndexed { idx, outlet ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        onEvent(WarehouseUiEvent.SelectOutlet(outlet.id))
+                                                        showOutletPicker = false
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = if (outlet.name.startsWith("Outlet", ignoreCase = true)) outlet.name else "Outlet ${outlet.name}",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = SBColor.Grey_700
+                                                )
+                                                RadioButton(
+                                                    selected = outlet.id == form.selectedOutletId,
+                                                    onClick = {
+                                                        onEvent(WarehouseUiEvent.SelectOutlet(outlet.id))
+                                                        showOutletPicker = false
+                                                    },
+                                                    colors = RadioButtonDefaults.colors(selectedColor = SBColor.Primary_550)
+                                                )
+                                            }
+                                            if (idx < uiState.activeOutlets.lastIndex) {
+                                                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                                            }
+                                        }
                                     }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (outlet.name.startsWith("Outlet", ignoreCase = true)) outlet.name else "Outlet ${outlet.name}",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = SBColor.Grey_700
-                                )
-                                RadioButton(
-                                    selected = outlet.id == form.selectedOutletId,
-                                    onClick = {
-                                        onEvent(WarehouseUiEvent.SelectOutlet(outlet.id))
-                                        showOutletPicker = false
-                                    },
-                                    colors = RadioButtonDefaults.colors(selectedColor = SBColor.Primary_550)
-                                )
-                            }
-                            if (idx < uiState.activeOutlets.lastIndex) {
-                                HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                                }
                             }
                         }
                     }
-                }
-            }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Jumlah bahan mentah",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SBColor.Grey_700
-                )
-                if (selectedItemCount > 0) {
-                    Text(
-                        text = "$selectedItemCount bahan dipilih",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Primary_550
-                    )
-                }
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 220.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(
-                    items = uiState.activeMaterials,
-                    key = { it.id },
-                    contentType = { "dist_material_input" }
-                ) { mat ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                            Text(mat.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
-                            Text("Satuan: ${mat.unit.firestoreValue}", fontSize = 12.sp, color = SBColor.Grey_500)
+                    if (form.distributionType == DistributionType.ROUTINE && selectedOutlet != null) {
+                        item(key = "create_preset_banner", contentType = "preset_banner") {
+                            val hasPreset = selectedOutlet.routinePreset.any { it.quantity > 0 }
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (hasPreset) SBColor.Success_100.copy(alpha = 0.7f) else SBColor.Warning_100
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (hasPreset) {
+                                            "Terisi otomatis dari preset (dapat disesuaikan)"
+                                        } else {
+                                            "Preset rutin outlet ini belum diatur"
+                                        },
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (hasPreset) SBColor.Success_600 else SBColor.Warning_600,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (hasPreset) {
+                                        Text(
+                                            text = "Reset",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SBColor.Primary_550,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable { onEvent(WarehouseUiEvent.ApplyOutletPresetToForm) }
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
+                    }
+
+                    item(key = "create_materials_header", contentType = "section_header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Jumlah bahan mentah",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SBColor.Grey_700
+                            )
+                            if (selectedItemCount > 0) {
+                                Text(
+                                    text = "$selectedItemCount bahan dipilih",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SBColor.Primary_550
+                                )
+                            }
+                        }
+                    }
+
+                    items(
+                        items = uiState.activeMaterials,
+                        key = { it.id },
+                        contentType = { "dist_material_input" }
+                    ) { mat ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                                Text(mat.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                Text("Satuan: ${mat.unit.firestoreValue}", fontSize = 12.sp, color = SBColor.Grey_500)
+                            }
+                            OutlinedTextField(
+                                value = form.itemQuantities[mat.id].orEmpty(),
+                                onValueChange = { onEvent(WarehouseUiEvent.UpdateItemQuantity(mat.id, it)) },
+                                modifier = Modifier.width(108.dp),
+                                placeholder = { Text("0", fontSize = 13.sp) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = SBColor.Primary_550,
+                                    unfocusedBorderColor = SBColor.Grey_200
+                                )
+                            )
+                        }
+                    }
+
+                    item(key = "create_note", contentType = "note") {
                         OutlinedTextField(
-                            value = form.itemQuantities[mat.id].orEmpty(),
-                            onValueChange = { onEvent(WarehouseUiEvent.UpdateItemQuantity(mat.id, it)) },
-                            modifier = Modifier.width(100.dp),
-                            placeholder = { Text("0", fontSize = 13.sp) },
+                            value = form.note,
+                            onValueChange = { onEvent(WarehouseUiEvent.UpdateNote(it)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Catatan pengiriman (opsional)") },
+                            placeholder = {
+                                Text(
+                                    if (form.distributionType == DistributionType.ROUTINE) {
+                                        "Distribusi rutin pagi hari"
+                                    } else {
+                                        "Tambahan stok siang hari"
+                                    }
+                                )
+                            },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = SBColor.Primary_550,
                                 unfocusedBorderColor = SBColor.Grey_200
                             )
                         )
                     }
-                }
-            }
 
-            OutlinedTextField(
-                value = form.note,
-                onValueChange = { onEvent(WarehouseUiEvent.UpdateNote(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Catatan pengiriman (opsional)") },
-                placeholder = {
-                    Text(
-                        if (form.distributionType == DistributionType.ROUTINE) {
-                            "Distribusi rutin pagi hari"
-                        } else {
-                            "Tambahan stok siang hari"
+                    form.errorMessage?.let { err ->
+                        item(key = "create_error", contentType = "error") {
+                            Text(text = err, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
                         }
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SBColor.Primary_550,
-                    unfocusedBorderColor = SBColor.Grey_200
-                )
-            )
-
-            form.errorMessage?.let { err ->
-                Text(text = err, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Primary_550)
-            }
-
-            Button(
-                onClick = { onEvent(WarehouseUiEvent.SubmitCreateDistribution) },
-                enabled = !form.isSaving,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SBColor.Primary_550)
-            ) {
-                if (form.isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
-                } else {
-                    val ctaLabel = if (selectedItemCount > 0) {
-                        "Kirim ${form.distributionType.label.lowercase()} ($selectedItemCount bahan)"
-                    } else {
-                        "Kirim distribusi sekarang"
                     }
-                    Text(ctaLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
+
+                SBBottomCtaBar(
+                    label = ctaLabel,
+                    isLoading = form.isSaving,
+                    onClick = { onEvent(WarehouseUiEvent.SubmitCreateDistribution) }
+                )
             }
         }
     }

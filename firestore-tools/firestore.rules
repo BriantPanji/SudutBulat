@@ -21,9 +21,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function isValidOutlet() {
+      let data = request.resource.data;
+      return !('routine_preset' in data) || data.routine_preset is list;
+    }
+
     // Operational collections: require authenticated Firebase Auth session.
     match /outlets/{docId} {
-      allow read, write: if isSignedIn();
+      allow read, delete: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidOutlet();
     }
 
     match /material_categories/{docId} {

@@ -2,6 +2,7 @@ package com.sudutcorp.sudutbulat.feature.distribution
 
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
+import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.feature.owner.SortDirection
 import java.time.Instant
@@ -182,3 +183,18 @@ fun formatDistributionUtcDate(dateMillis: Long): String =
         .atZone(ZoneOffset.UTC)
         .toLocalDate()
         .format(DIST_DATE_CHIP_FORMATTER)
+
+fun findExpiredPendingDistributions(
+    distributions: List<MaterialDistribution>,
+    startOfTodaySec: Long
+): List<MaterialDistribution> = distributions.filter {
+    it.status == DistributionStatus.DRAFT && it.createdAt.seconds < startOfTodaySec
+}
+
+fun presetQuantitiesForOutlet(
+    outlet: Outlet?,
+    activeMaterialIds: Set<String>
+): Map<String, String> = outlet?.routinePreset
+    ?.filter { it.quantity > 0 && it.materialId in activeMaterialIds }
+    ?.associate { it.materialId to it.quantity.toString() }
+    ?: emptyMap()

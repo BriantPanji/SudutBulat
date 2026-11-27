@@ -6,6 +6,7 @@ import com.sudutcorp.sudutbulat.core.util.isValidRawTime
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Role
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
@@ -45,6 +46,22 @@ class OwnerActionsHandler(
             }
             .onFailure { e ->
                 effects.send(OwnerUiEffect.ShowSnackbar("Gagal mengubah status outlet: ${e.readableMessage()}"))
+            }
+    }
+
+    suspend fun saveOutletRoutinePreset(outletId: String, items: List<RoutinePresetItem>) {
+        outletRepository.updateRoutinePreset(outletId, items)
+            .onSuccess {
+                state.update { current ->
+                    val updated = current.outlets.map {
+                        if (it.id == outletId) it.copy(routinePreset = items) else it
+                    }
+                    computeOwnerDerivedState(current.copy(outlets = updated))
+                }
+                effects.send(OwnerUiEffect.ShowSnackbar("Preset distribusi rutin outlet berhasil disimpan."))
+            }
+            .onFailure { e ->
+                effects.send(OwnerUiEffect.ShowSnackbar("Gagal menyimpan preset rutin: ${e.readableMessage()}"))
             }
     }
 

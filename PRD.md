@@ -88,7 +88,7 @@ Sumber acuan: [`basedb.dbdiagram`](file:///c:/Users/FASILKOMTIUSU/panjay/SudutBu
 | Nama Koleksi | Model Kotlin | Deskripsi & Aturan Penting |
 | :--- | :--- | :--- |
 | `users` | `User` | `id` (PK/loginCode), `uid` (opsional, Firebase Auth UID), `name`, `email`, `username`, `role` (`DEV`, `OWNER`, `WAREHOUSE`, `OUTLET`), `outlet_id` (nullable, wajib terisi untuk `OUTLET`), `is_active`. |
-| `outlets` | `Outlet` | `id`, `name`, `address`, `coordinate` (`GeoPoint`), `is_active`, `is_open`, `open_time`, `close_time`, `daily_target`, serta cache ringkasan harian (`total_revenue`, `total_pieces_sold`, `target_percentage`). |
+| `outlets` | `Outlet` | `id`, `name`, `address`, `coordinate` (`GeoPoint`), `is_active`, `is_open`, `open_time`, `close_time`, `daily_target`, `routine_preset` (array `{ material_id, quantity }` untuk auto-fill distribusi rutin per outlet, diatur oleh Owner/Gudang), serta cache ringkasan harian (`total_revenue`, `total_pieces_sold`, `target_percentage`). |
 | `materials` | `Material` | Katalog bahan mentah/stok: `id`, `name` (unik), `cost` (Long $\ge 0$), `unit` (`PCS`, `GR`, `ML`, `UNIT`), `is_active`. **Tidak menyimpan stok gudang.** |
 | `products` | `Product` | Katalog barang siap jual: `id`, `name` (unik), `price` (Long $\ge 0$), `sale_type` (`satuan`, `bungkus`), `pcs_per_pack` (Int $\ge 1$), `is_active`. |
 | `material_distributions` | `MaterialDistribution` | Dokumen distribusi/request stok ke outlet: `id`, `outlet_id`, `created_by`, `confirmed_by`, `status` (`DistributionStatus`), `type` (`DistributionType`: `ROUTINE`, `ADDITIONAL`), `note`, `confirmation_note`, `created_at`, `sent_at`, `confirmed_at`, serta `items` (array of map: `{ material_id, quantity_sent, quantity_received, note }`). |

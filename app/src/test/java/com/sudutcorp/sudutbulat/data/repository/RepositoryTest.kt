@@ -19,6 +19,7 @@ import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.Role
+import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.remote.DailyReportRemoteDataSource
@@ -146,6 +147,15 @@ class FakeOutletRemoteDataSource : OutletRemoteDataSource() {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val existing = outlets[outletId] ?: throw NoSuchElementException()
         outlets[outletId] = existing.copy(isOpen = isOpen)
+    }
+
+    override suspend fun updateRoutinePreset(
+        outletId: String,
+        items: List<RoutinePresetItem>
+    ): Result<Unit> = runCatching {
+        if (shouldFail) throw RuntimeException("Simulated network failure")
+        val existing = outlets[outletId] ?: throw NoSuchElementException()
+        outlets[outletId] = existing.copy(routinePreset = items)
     }
 }
 
@@ -536,6 +546,10 @@ class RepositoryTest {
 
         repo.setOutletOpen("out_1", false)
         assertFalse(repo.getOutletById("out_1").getOrNull()!!.isOpen)
+
+        val preset = listOf(RoutinePresetItem("mat_1", 400))
+        assertTrue(repo.updateRoutinePreset("out_1", preset).isSuccess)
+        assertEquals(preset, repo.getOutletById("out_1").getOrNull()!!.routinePreset)
 
         val activeList = repo.getOutlets(onlyActive = true).getOrNull()
         assertEquals(1, activeList?.size)
