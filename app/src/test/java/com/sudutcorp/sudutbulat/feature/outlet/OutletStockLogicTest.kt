@@ -1,9 +1,15 @@
 package com.sudutcorp.sudutbulat.feature.outlet
 
+import com.google.firebase.Timestamp
+import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
+import com.sudutcorp.sudutbulat.data.model.Outlet
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Date
 
 class OutletStockLogicTest {
 
@@ -82,5 +88,101 @@ class OutletStockLogicTest {
         assertEquals(listOf("d2"), filterOutletDistributions(sample, OutletStockFilter.ALL, "pedas").map { it.id })
         assertEquals(listOf("d3"), filterOutletDistributions(sample, OutletStockFilter.ALL, "botol").map { it.id })
         assertEquals(listOf("d1", "d3"), filterOutletDistributions(sample, OutletStockFilter.ALL, "budi").map { it.id })
+    }
+
+    @Test
+    fun computeOutletDashboardMetrics_separatesTodayReportFromLastReportAndCountsStock() {
+        val outlet = Outlet(
+            id = "outlet_sudirman",
+            name = "Sudirman",
+            dailyTarget = 2_000_000L,
+            totalRevenue = 1_800_000L,
+            totalPiecesSold = 350
+        )
+        val now = Date(1_760_000_000_000L)
+        val yesterdayReport = DailyReport(
+            id = "rep_yday",
+            outletId = "outlet_sudirman",
+            date = Timestamp(Date(now.time - 86_400_000L)),
+            cashRevenue = 1_000_000L,
+            qrisRevenue = 700_000L,
+            totalSold = 320
+        )
+        val todayReport = DailyReport(
+            id = "rep_today",
+            outletId = "outlet_sudirman",
+            date = Timestamp(now),
+            cashRevenue = 900_000L,
+            qrisRevenue = 600_000L,
+            totalSold = 290
+        )
+        val dists = listOf(
+            OutletDistributionUi(
+                id = "dist_routine",
+                status = DistributionStatus.RECEIVED,
+                type = DistributionType.ROUTINE,
+                timeLabel = "Hari ini, 07.00",
+                isToday = true,
+                note = null,
+                confirmationNote = null,
+                items = emptyList(),
+                totalSent = 500,
+                totalReceived = 490
+            ),
+            OutletDistributionUi(
+                id = "dist_extra_sent",
+                status = DistributionStatus.SENT,
+                type = DistributionType.ADDITIONAL,
+                timeLabel = "Hari ini, 13.00",
+                isToday = true,
+                note = null,
+                confirmationNote = null,
+                items = emptyList(),
+                totalSent = 150
+            ),
+            OutletDistributionUi(
+                id = "dist_req_draft",
+                status = DistributionStatus.DRAFT,
+                type = DistributionType.ADDITIONAL,
+                timeLabel = "Hari ini, 14.00",
+                isToday = true,
+                note = null,
+                confirmationNote = null,
+                items = emptyList(),
+                totalSent = 80
+            )
+        )
+
+        // Case 1: Today report not yet submitted -> todayRevenue is 0, lastReport falls back to yesterdayReport
+        val withoutToday = computeOutletDashboardMetrics(
+            assignedOutlet = outlet,
+            todayReport = null,
+            recentReports = listOf(yesterdayReport),
+            distributions = dists,
+            nowDate = now
+        )
+        assertFalse(withoutToday.hasTodayReport)
+        assertEquals(0L, withoutToday.todayRevenue)
+        assertEquals(0, withoutToday.targetPercent)
+        assertEquals(1_700_000L, withoutToday.lastReportRevenue)
+        assertEquals(320, withoutToday.lastReportSold)
+        assertEquals(1, withoutToday.pendingConfirmCount)
+        assertEquals(1, withoutToday.pendingRequestCount)
+        assertEquals(640, withoutToday.todayReceivedUnits)
+        assertEquals("Rutin pagi diterima", withoutToday.morningRoutineStatusLabel)
+
+        // Case 2: Today report submitted -> todayRevenue reflects cash + QRIS and target %
+        val withToday = computeOutletDashboardMetrics(
+            assignedOutlet = outlet,
+            todayReport = todayReport,
+            recentReports = listOf(todayReport, yesterdayReport),
+            distributions = dists,
+            nowDate = now
+        )
+        assertTrue(withToday.hasTodayReport)
+        assertEquals(1_500_000L, withToday.todayRevenue)
+        assertEquals(900_000L, withToday.todayCashRevenue)
+        assertEquals(600_000L, withToday.todayQrisRevenue)
+        assertEquals(75, withToday.targetPercent)
     }
 }

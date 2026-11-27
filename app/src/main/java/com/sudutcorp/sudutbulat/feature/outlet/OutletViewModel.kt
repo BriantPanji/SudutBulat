@@ -174,6 +174,92 @@ data class DailyReportFormState(
     val errorMessage: String? = null
 )
 
+data class OutletDashboardMetrics(
+    val todayDateLabel: String = "",
+    val hasTodayReport: Boolean = false,
+    val todayReportTimeLabel: String? = null,
+    val todayRevenue: Long = 0L,
+    val todayCashRevenue: Long = 0L,
+    val todayQrisRevenue: Long = 0L,
+    val todaySoldPieces: Int = 0,
+    val dailyTarget: Long = 2_000_000L,
+    val targetProgress: Float = 0f,
+    val targetPercent: Int = 0,
+    val lastReportDateLabel: String? = null,
+    val lastReportRevenue: Long = 0L,
+    val lastReportSold: Int = 0,
+    val pendingConfirmCount: Int = 0,
+    val pendingRequestCount: Int = 0,
+    val todayReceivedUnits: Int = 0,
+    val morningRoutineStatusLabel: String = "Belum dikirim Gudang"
+)
+
+internal fun computeOutletDashboardMetrics(
+    assignedOutlet: Outlet?,
+    todayReport: DailyReport?,
+    recentReports: List<DailyReport>,
+    distributions: List<OutletDistributionUi>,
+    nowDate: Date = Date()
+): OutletDashboardMetrics {
+    val idLocale = Locale.forLanguageTag("id-ID")
+    val headerDateFmt = SimpleDateFormat("EEEE, dd MMM yyyy", idLocale)
+    val shortDateFmt = SimpleDateFormat("dd MMM", idLocale)
+    val hourFmt = SimpleDateFormat("HH.mm", idLocale)
+
+    val dailyTarget = (assignedOutlet?.dailyTarget ?: 2_000_000L).coerceAtLeast(1L)
+    val todayRev = todayReport?.totalRevenue ?: 0L
+    val targetProgress = (todayRev.toFloat() / dailyTarget.toFloat()).coerceIn(0f, 1f)
+    val targetPercent = (targetProgress * 100f).toInt().coerceIn(0, 100)
+
+    val previousReport = if (todayReport != null) {
+        recentReports.firstOrNull { it.id != todayReport.id }
+    } else {
+        recentReports.firstOrNull()
+    }
+
+    val pendingConfirmCount = distributions.count { it.status == DistributionStatus.SENT }
+    val pendingRequestCount = distributions.count { it.status == DistributionStatus.DRAFT }
+
+    val todayDists = distributions.filter { it.isToday }
+    val todayReceivedUnits = todayDists.sumOf { dist ->
+        when (dist.status) {
+            DistributionStatus.RECEIVED,
+            DistributionStatus.PARTIALLY_RECEIVED -> dist.totalReceived ?: dist.totalSent
+            DistributionStatus.SENT -> dist.totalSent
+            else -> 0
+        }
+    }
+
+    val todayRoutine = todayDists.firstOrNull { it.type == DistributionType.ROUTINE }
+    val morningRoutineStatusLabel = when (todayRoutine?.status) {
+        DistributionStatus.RECEIVED -> "Rutin pagi diterima"
+        DistributionStatus.PARTIALLY_RECEIVED -> "Rutin diterima sebagian"
+        DistributionStatus.SENT -> "Rutin menunggu konfirmasi"
+        DistributionStatus.NOT_RECEIVED -> "Rutin tidak diterima"
+        else -> "Rutin belum dikirim"
+    }
+
+    return OutletDashboardMetrics(
+        todayDateLabel = headerDateFmt.format(nowDate),
+        hasTodayReport = todayReport != null,
+        todayReportTimeLabel = todayReport?.let { hourFmt.format(it.date.toDate()) },
+        todayRevenue = todayRev,
+        todayCashRevenue = todayReport?.cashRevenue ?: 0L,
+        todayQrisRevenue = todayReport?.qrisRevenue ?: 0L,
+        todaySoldPieces = todayReport?.totalSold ?: 0,
+        dailyTarget = dailyTarget,
+        targetProgress = targetProgress,
+        targetPercent = targetPercent,
+        lastReportDateLabel = previousReport?.let { shortDateFmt.format(it.date.toDate()) },
+        lastReportRevenue = previousReport?.totalRevenue ?: (assignedOutlet?.totalRevenue ?: 0L),
+        lastReportSold = previousReport?.totalSold ?: (assignedOutlet?.totalPiecesSold ?: 0),
+        pendingConfirmCount = pendingConfirmCount,
+        pendingRequestCount = pendingRequestCount,
+        todayReceivedUnits = todayReceivedUnits,
+        morningRoutineStatusLabel = morningRoutineStatusLabel
+    )
+}
+
 data class OutletUiState(
     val staffName: String = "Staf Outlet",
     val assignedOutlet: Outlet? = null,
@@ -182,6 +268,9 @@ data class OutletUiState(
     val distributions: List<OutletDistributionUi> = emptyList(),
     val recentReports: List<DailyReport> = emptyList(),
     val todayReport: DailyReport? = null,
+    val dashboardMetrics: OutletDashboardMetrics = OutletDashboardMetrics(),
+    val selectedStockFilter: OutletStockFilter = OutletStockFilter.ALL,
+    val showStockRequestSheet: Boolean = false,
     val requestForm: StockRequestFormState = StockRequestFormState(),
     val reportForm: DailyReportFormState = DailyReportFormState(),
     val isActionLoading: Boolean = false,
@@ -203,6 +292,8 @@ sealed interface OutletUiEvent {
         val note: String
     ) : OutletUiEvent
 
+    data class SelectStockFilter(val filter: OutletStockFilter) : OutletUiEvent
+    data class SetStockRequestSheetVisible(val visible: Boolean) : OutletUiEvent
     data object ResetStockRequestForm : OutletUiEvent
     data class UpdateRequestQty(val materialId: String, val qtyInput: String) : OutletUiEvent
     data class UpdateRequestNote(val note: String) : OutletUiEvent
@@ -341,6 +432,15 @@ class OutletViewModel(
                 event.receivedByItemId,
                 event.note
             )
+            is OutletUiEvent.SelectStockFilter -> _state.update {
+                it.copy(selectedStockFilter = event.filter)
+            }
+            is OutletUiEvent.SetStockRequestSheetVisible -> _state.update {
+                it.copy(
+                    showStockRequestSheet = event.visible,
+                    requestForm = if (event.visible) StockRequestFormState() else it.requestForm
+                )
+            }
             OutletUiEvent.ResetStockRequestForm -> _state.update {
                 it.copy(requestForm = StockRequestFormState())
             }
@@ -530,7 +630,12 @@ class OutletViewModel(
             )
             distributionRepository.createDistribution(distribution, items)
                 .onSuccess {
-                    _state.update { it.copy(requestForm = StockRequestFormState()) }
+                    _state.update {
+                        it.copy(
+                            showStockRequestSheet = false,
+                            requestForm = StockRequestFormState()
+                        )
+                    }
                     _effects.send(OutletUiEffect.ShowSnackbar("Permintaan tambahan stok berhasil dikirim ke Gudang."))
                     _effects.send(OutletUiEffect.StockRequestSaved)
                 }
@@ -788,6 +893,13 @@ class OutletViewModel(
             .filter { assignedOutlet == null || it.outletId == assignedOutlet.id }
             .sortedByDescending { it.date.seconds }
         val todayReport = outletReports.firstOrNull { isSameCalendarDay(it.date, nowTs) }
+        val dashboardMetrics = computeOutletDashboardMetrics(
+            assignedOutlet = assignedOutlet,
+            todayReport = todayReport,
+            recentReports = outletReports,
+            distributions = outletDists,
+            nowDate = nowTs.toDate()
+        )
 
         return raw.copy(
             staffName = matchedUser?.name?.takeIf { it.isNotBlank() } ?: "Dimas Pratama",
@@ -796,7 +908,8 @@ class OutletViewModel(
             activeProducts = raw.rawProducts.filter { it.isActive },
             distributions = outletDists,
             recentReports = outletReports,
-            todayReport = todayReport
+            todayReport = todayReport,
+            dashboardMetrics = dashboardMetrics
         )
     }
 }

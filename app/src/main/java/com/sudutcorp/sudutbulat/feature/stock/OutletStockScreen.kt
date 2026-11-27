@@ -117,21 +117,18 @@ fun OutletStockScreen(
     val focusManager = LocalFocusManager.current
     val listState = rememberLazyListState()
 
-    var selectedFilterName by rememberSaveable { mutableStateOf(OutletStockFilter.ALL.name) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var showRequestSheet by rememberSaveable { mutableStateOf(false) }
     var confirmingDistId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailDistId by rememberSaveable { mutableStateOf<String?>(null) }
     var cancellingDistId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val selectedFilter = remember(selectedFilterName) {
-        OutletStockFilter.entries.firstOrNull { it.name == selectedFilterName } ?: OutletStockFilter.ALL
-    }
+    val selectedFilter = uiState.selectedStockFilter
+    val showRequestSheet = uiState.showStockRequestSheet
 
     LaunchedEffect(effects) {
         effects.collect { effect ->
             when (effect) {
-                OutletUiEffect.StockRequestSaved -> showRequestSheet = false
+                OutletUiEffect.StockRequestSaved -> onEvent(OutletUiEvent.SetStockRequestSheetVisible(false))
                 OutletUiEffect.DistributionConfirmed -> {
                     confirmingDistId = null
                     detailDistId = null
@@ -218,7 +215,7 @@ fun OutletStockScreen(
                         if (pendingConfirmDists.size == 1) {
                             confirmingDistId = latest.id
                         } else {
-                            selectedFilterName = OutletStockFilter.NEED_CONFIRM.name
+                            onEvent(OutletUiEvent.SelectStockFilter(OutletStockFilter.NEED_CONFIRM))
                         }
                     }
                 )
@@ -227,10 +224,7 @@ fun OutletStockScreen(
 
         item(key = "outlet_stock_request_cta", contentType = "cta") {
             Button(
-                onClick = {
-                    onEvent(OutletUiEvent.ResetStockRequestForm)
-                    showRequestSheet = true
-                },
+                onClick = { onEvent(OutletUiEvent.SetStockRequestSheetVisible(true)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -270,7 +264,10 @@ fun OutletStockScreen(
             SBFilterChipRow(
                 options = filterChipOptions,
                 selectedKey = selectedFilter.name,
-                onSelected = { selectedFilterName = it }
+                onSelected = { name ->
+                    val chosen = OutletStockFilter.entries.firstOrNull { it.name == name } ?: OutletStockFilter.ALL
+                    onEvent(OutletUiEvent.SelectStockFilter(chosen))
+                }
             )
         }
 
@@ -295,7 +292,7 @@ fun OutletStockScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .clickable {
-                                selectedFilterName = OutletStockFilter.ALL.name
+                                onEvent(OutletUiEvent.SelectStockFilter(OutletStockFilter.ALL))
                                 searchQuery = ""
                             }
                             .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -310,13 +307,10 @@ fun OutletStockScreen(
                     hasActiveFilter = hasActiveFilter,
                     filter = selectedFilter,
                     onResetFilter = {
-                        selectedFilterName = OutletStockFilter.ALL.name
+                        onEvent(OutletUiEvent.SelectStockFilter(OutletStockFilter.ALL))
                         searchQuery = ""
                     },
-                    onRequestClick = {
-                        onEvent(OutletUiEvent.ResetStockRequestForm)
-                        showRequestSheet = true
-                    }
+                    onRequestClick = { onEvent(OutletUiEvent.SetStockRequestSheetVisible(true)) }
                 )
             }
         } else {
@@ -340,7 +334,11 @@ fun OutletStockScreen(
         StockRequestBottomSheet(
             activeMaterials = uiState.activeMaterials,
             form = uiState.requestForm,
-            onDismiss = { if (!uiState.requestForm.isSaving) showRequestSheet = false },
+            onDismiss = {
+                if (!uiState.requestForm.isSaving) {
+                    onEvent(OutletUiEvent.SetStockRequestSheetVisible(false))
+                }
+            },
             onUpdateQty = { matId, qty -> onEvent(OutletUiEvent.UpdateRequestQty(matId, qty)) },
             onUpdateNote = { onEvent(OutletUiEvent.UpdateRequestNote(it)) },
             onResetForm = { onEvent(OutletUiEvent.ResetStockRequestForm) },
