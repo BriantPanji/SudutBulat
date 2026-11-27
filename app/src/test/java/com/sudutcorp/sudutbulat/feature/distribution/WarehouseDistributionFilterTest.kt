@@ -235,4 +235,55 @@ class WarehouseDistributionFilterTest {
         val map = presetQuantitiesForOutlet(outlet, setOf("mat_1", "mat_2"))
         assertEquals(mapOf("mat_1" to "500"), map)
     }
+
+    @Test
+    fun `computeWarehouseDashboardMetrics aggregates today statuses, items sent, presets, and completion`() {
+        val todayMillis = LocalDate.of(2026, 11, 27).atTime(8, 0).atZone(jakartaZone).toInstant().toEpochMilli()
+        val yesterdayMillis = LocalDate.of(2026, 11, 26).atTime(8, 0).atZone(jakartaZone).toInstant().toEpochMilli()
+
+        val activeOutlets = listOf(
+            Outlet(id = "o1", name = "Sudirman", routinePreset = listOf(RoutinePresetItem("m1", 200))),
+            Outlet(id = "o2", name = "Tebet", routinePreset = listOf(RoutinePresetItem("m_inactive", 100))),
+            Outlet(id = "o3", name = "Cikini", routinePreset = listOf(RoutinePresetItem("m1", 0))),
+            Outlet(id = "o4", name = "Kemang", routinePreset = listOf(RoutinePresetItem("m2", 50)))
+        )
+
+        val cards = listOf(
+            card("sent_today", status = DistributionStatus.SENT, totalQuantity = 200, createdAtMillis = todayMillis, isToday = true),
+            card("recv_today", status = DistributionStatus.RECEIVED, totalQuantity = 150, createdAtMillis = todayMillis, isToday = true),
+            card("partial_today", status = DistributionStatus.PARTIALLY_RECEIVED, totalQuantity = 100, createdAtMillis = todayMillis, isToday = true),
+            card("not_recv_today", status = DistributionStatus.NOT_RECEIVED, totalQuantity = 50, createdAtMillis = todayMillis, isToday = true),
+            card("draft_today", status = DistributionStatus.DRAFT, totalQuantity = 999, createdAtMillis = todayMillis, isToday = true),
+            card("cancel_today", status = DistributionStatus.CANCELLED, totalQuantity = 888, createdAtMillis = todayMillis, isToday = true),
+            card("sent_yesterday", status = DistributionStatus.SENT, totalQuantity = 777, createdAtMillis = yesterdayMillis, isToday = false)
+        )
+
+        val metrics = computeWarehouseDashboardMetrics(
+            activeOutlets = activeOutlets,
+            activeMaterialIds = setOf("m1", "m2"),
+            cards = cards,
+            completedMorningCount = 3
+        )
+
+        assertEquals(1, metrics.todayInTransitCount)
+        assertEquals(1, metrics.todayConfirmedCount)
+        assertEquals(2, metrics.todayIssueCount)
+        assertEquals(500, metrics.todayTotalItemsSent)
+        assertEquals(2, metrics.outletsWithPresetCount)
+        assertEquals(75, metrics.completionPercent)
+    }
+
+    @Test
+    fun `computeWarehouseDashboardMetrics handles empty active outlets without division by zero`() {
+        val metrics = computeWarehouseDashboardMetrics(
+            activeOutlets = emptyList(),
+            activeMaterialIds = emptySet(),
+            cards = emptyList(),
+            completedMorningCount = 0
+        )
+
+        assertEquals(0, metrics.completionPercent)
+        assertEquals(0, metrics.outletsWithPresetCount)
+        assertEquals(0, metrics.todayTotalItemsSent)
+    }
 }

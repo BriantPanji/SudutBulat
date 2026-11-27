@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
+import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
@@ -75,6 +76,9 @@ data class CreateDistributionFormState(
 )
 
 data class WarehouseUiState(
+    val adminName: String = "Admin Gudang",
+    val adminInitials: String = "GD",
+    val todayDateLabel: String = "",
     val outlets: List<Outlet> = emptyList(),
     val materials: List<Material> = emptyList(),
     val users: List<User> = emptyList(),
@@ -85,6 +89,9 @@ data class WarehouseUiState(
     val outletsCompletedMorningCount: Int = 0,
     val pendingRequests: List<DistributionCardUi> = emptyList(),
     val todayPendingAdditionalCount: Int = 0,
+    val todayIssueCards: List<DistributionCardUi> = emptyList(),
+    val todayRecentCards: List<DistributionCardUi> = emptyList(),
+    val dashboardMetrics: WarehouseDashboardMetrics = WarehouseDashboardMetrics(),
     val distributionCards: List<DistributionCardUi> = emptyList(),
     val selectedTab: WarehouseDistributionTab = WarehouseDistributionTab.ROUTINE,
     val routineFilter: DistributionTabFilterState = DistributionTabFilterState(),
@@ -468,6 +475,14 @@ class WarehouseViewModel(
         val idLocale = Locale.forLanguageTag("id-ID")
         val dateTimeFmt = SimpleDateFormat("dd MMM, HH.mm", idLocale)
         val clockFmt = SimpleDateFormat("HH.mm", idLocale)
+        val todayDateLabel = SimpleDateFormat("EEEE, dd MMM yyyy", idLocale).format(Date())
+
+        val currentEmail = authRepository.getCurrentUserEmail()
+        val matchedUser = raw.users.firstOrNull {
+            !currentEmail.isNullOrBlank() && it.email.equals(currentEmail, ignoreCase = true)
+        }
+        val adminName = matchedUser?.name?.takeIf { it.isNotBlank() } ?: "Admin Gudang"
+        val adminInitials = matchedUser?.name?.takeIf { it.isNotBlank() }?.let(::buildInitials) ?: "GD"
 
         val cards = raw.distributions.map { dist ->
             val detailItems = dist.items.map { item ->
@@ -530,18 +545,44 @@ class WarehouseViewModel(
             .toSet()
 
         val pendingMorning = activeOutlets.filter { it.id !in outletsWithTodayRoutine }
+        val completedMorningCount = activeOutlets.size - pendingMorning.size
         val pendingRequests = cards.filter { it.isToday && it.status == DistributionStatus.DRAFT }
         val todayPendingAdditionalCount = cards.count {
             it.isToday && it.type == DistributionType.ADDITIONAL && it.status == DistributionStatus.DRAFT
         }
+        val todayIssueCards = cards
+            .filter {
+                it.isToday && (
+                    it.status == DistributionStatus.PARTIALLY_RECEIVED ||
+                        it.status == DistributionStatus.NOT_RECEIVED
+                    )
+            }
+            .sortedByDescending { it.createdAtMillis }
+        val todayRecentCards = cards
+            .filter { it.isToday && it.status != DistributionStatus.DRAFT }
+            .sortedByDescending { it.createdAtMillis }
+            .take(4)
+        val activeMaterialIds = activeMaterials.map { it.id }.toSet()
+        val dashboardMetrics = computeWarehouseDashboardMetrics(
+            activeOutlets = activeOutlets,
+            activeMaterialIds = activeMaterialIds,
+            cards = cards,
+            completedMorningCount = completedMorningCount
+        )
 
         return raw.copy(
+            adminName = adminName,
+            adminInitials = adminInitials,
+            todayDateLabel = todayDateLabel,
             activeOutlets = activeOutlets,
             activeMaterials = activeMaterials,
             outletsPendingMorning = pendingMorning,
-            outletsCompletedMorningCount = activeOutlets.size - pendingMorning.size,
+            outletsCompletedMorningCount = completedMorningCount,
             pendingRequests = pendingRequests,
             todayPendingAdditionalCount = todayPendingAdditionalCount,
+            todayIssueCards = todayIssueCards,
+            todayRecentCards = todayRecentCards,
+            dashboardMetrics = dashboardMetrics,
             distributionCards = cards
         )
     }

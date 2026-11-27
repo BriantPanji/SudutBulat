@@ -834,7 +834,7 @@ private fun PendingRoutineOutletCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OutletPresetListBottomSheet(
+internal fun OutletPresetListBottomSheet(
     outlets: List<Outlet>,
     onDismiss: () -> Unit,
     onSelectOutlet: (String) -> Unit
@@ -1263,7 +1263,7 @@ fun CreateDistributionBottomSheet(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DistributionDetailBottomSheet(
+internal fun DistributionDetailBottomSheet(
     card: DistributionCardUi,
     isActionLoading: Boolean,
     onDismiss: () -> Unit,
@@ -1463,7 +1463,7 @@ private fun DistributionDetailBottomSheet(
 }
 
 @Composable
-private fun RejectDistributionDialog(
+internal fun RejectDistributionDialog(
     outletName: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit

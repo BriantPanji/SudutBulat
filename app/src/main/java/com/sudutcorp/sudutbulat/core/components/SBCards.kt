@@ -97,14 +97,10 @@ fun SBMetricCard(
     title: String,
     value: String,
     subtitle: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
-    OutlinedCard(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, SBColor.Grey_100)
-    ) {
+    val cardContent: @Composable ColumnScope.() -> Unit = {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -143,6 +139,25 @@ fun SBMetricCard(
                 )
             }
         }
+    }
+
+    if (onClick != null) {
+        OutlinedCard(
+            onClick = onClick,
+            modifier = modifier,
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SBColor.Grey_100),
+            content = cardContent
+        )
+    } else {
+        OutlinedCard(
+            modifier = modifier,
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SBColor.Grey_100),
+            content = cardContent
+        )
     }
 }
 

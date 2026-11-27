@@ -211,3 +211,45 @@ fun presetQuantitiesForOutlet(
     ?.filter { it.quantity > 0 && it.materialId in activeMaterialIds }
     ?.associate { it.materialId to it.quantity.toString() }
     ?: emptyMap()
+
+data class WarehouseDashboardMetrics(
+    val todayInTransitCount: Int = 0,
+    val todayConfirmedCount: Int = 0,
+    val todayIssueCount: Int = 0,
+    val todayTotalItemsSent: Int = 0,
+    val outletsWithPresetCount: Int = 0,
+    val completionPercent: Int = 0
+)
+
+fun computeWarehouseDashboardMetrics(
+    activeOutlets: List<Outlet>,
+    activeMaterialIds: Set<String>,
+    cards: List<DistributionCardUi>,
+    completedMorningCount: Int
+): WarehouseDashboardMetrics {
+    val todayCards = cards.filter { it.isToday }
+    val todayInTransitCount = todayCards.count { it.status == DistributionStatus.SENT }
+    val todayConfirmedCount = todayCards.count { it.status == DistributionStatus.RECEIVED }
+    val todayIssueCount = todayCards.count {
+        it.status == DistributionStatus.PARTIALLY_RECEIVED || it.status == DistributionStatus.NOT_RECEIVED
+    }
+    val todayTotalItemsSent = todayCards
+        .filter { it.status != DistributionStatus.DRAFT && it.status != DistributionStatus.CANCELLED }
+        .sumOf { it.totalQuantity }
+    val outletsWithPresetCount = activeOutlets.count { outlet ->
+        outlet.routinePreset.any { it.quantity > 0 && it.materialId in activeMaterialIds }
+    }
+    val completionPercent = if (activeOutlets.isNotEmpty()) {
+        ((completedMorningCount.toFloat() / activeOutlets.size.toFloat()) * 100f).toInt().coerceIn(0, 100)
+    } else {
+        0
+    }
+    return WarehouseDashboardMetrics(
+        todayInTransitCount = todayInTransitCount,
+        todayConfirmedCount = todayConfirmedCount,
+        todayIssueCount = todayIssueCount,
+        todayTotalItemsSent = todayTotalItemsSent,
+        outletsWithPresetCount = outletsWithPresetCount,
+        completionPercent = completionPercent
+    )
+}
