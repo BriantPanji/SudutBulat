@@ -60,7 +60,12 @@ service cloud.firestore {
     }
 
     match /daily_reports/{docId} {
-      allow read, write: if isSignedIn();
+      allow read, delete: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.date >= request.time - duration.value(8, 'd')
+        && request.resource.data.date <= request.time + duration.value(1, 'd');
+      allow update: if isSignedIn()
+        && resource.data.date >= request.time - duration.value(4, 'd');
     }
 
     match /daily_report_products/{docId} {

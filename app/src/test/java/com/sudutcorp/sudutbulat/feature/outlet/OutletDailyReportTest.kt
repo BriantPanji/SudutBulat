@@ -48,6 +48,13 @@ class OutletDailyReportTest {
         Dispatchers.resetMain()
     }
 
+    private fun daysAgoTimestamp(daysAgo: Int): Timestamp {
+        val cal = Calendar.getInstance().apply {
+            add(Calendar.DAY_OF_YEAR, -daysAgo)
+        }
+        return Timestamp(cal.time)
+    }
+
     @Test
     fun isSameCalendarDayDistinguishesTodayAndYesterday() {
         val now = Calendar.getInstance()
@@ -60,6 +67,90 @@ class OutletDailyReportTest {
 
         assertTrue(isSameCalendarDay(Timestamp(now.time), Timestamp(sameDayDifferentHour.time)))
         assertFalse(isSameCalendarDay(Timestamp(now.time), Timestamp(yesterday.time)))
+    }
+
+    @Test
+    fun editWindowAllowsOnlyLastThreeDaysAndCreateWindowAllowsMissingDatesWithinSevenDays() {
+        val nowTs = Timestamp.now()
+
+        assertTrue(isReportEditable(daysAgoTimestamp(0), nowTs))
+        assertTrue(isReportEditable(daysAgoTimestamp(1), nowTs))
+        assertTrue(isReportEditable(daysAgoTimestamp(3), nowTs))
+        assertFalse(isReportEditable(daysAgoTimestamp(4), nowTs))
+        assertFalse(isReportEditable(daysAgoTimestamp(10), nowTs))
+
+        val existingReports = listOf(
+            DailyReport(id = "r_today", outletId = "o1", date = daysAgoTimestamp(0)),
+            DailyReport(id = "r_2d", outletId = "o1", date = daysAgoTimestamp(2))
+        )
+
+        val candidates = buildReportDateCandidates(existingReports, nowTs)
+        assertEquals(8, candidates.size) // 0..7 days ago
+        assertTrue(candidates[0].hasExistingReport)
+        assertFalse(candidates[1].hasExistingReport)
+        assertTrue(candidates[2].hasExistingReport)
+
+        assertFalse(isReportDateCreatable(daysAgoTimestamp(0), existingReports, nowTs)) // duplicate
+        assertTrue(isReportDateCreatable(daysAgoTimestamp(1), existingReports, nowTs))  // missing & <= 7d
+        assertTrue(isReportDateCreatable(daysAgoTimestamp(7), existingReports, nowTs))  // missing & == 7d
+        assertFalse(isReportDateCreatable(daysAgoTimestamp(8), existingReports, nowTs)) // > 7d
+    }
+
+    @Test
+    fun editingReportOlderThanThreeDaysIsRejectedInViewModelAndRepository() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+
+        val outletDs = FakeOutletRemoteDataSource().apply {
+            outlets["outlet_1"] = Outlet(id = "outlet_1", name = "Sudirman", address = "Jl. Sudirman", isActive = true)
+        }
+        val userDs = FakeUserRemoteDataSource().apply {
+            users["staff_1"] = User(
+                id = "staff_1",
+                name = "Dimas Pratama",
+                email = "staff@sudutbulat.id",
+                role = Role.OUTLET,
+                outletId = "outlet_1"
+            )
+        }
+        val reportDs = FakeDailyReportRemoteDataSource().apply {
+            reports["rep_old"] = DailyReport(
+                id = "rep_old",
+                outletId = "outlet_1",
+                date = daysAgoTimestamp(5),
+                cashRevenue = 100_000L,
+                qrisRevenue = 50_000L,
+                totalSold = 30,
+                createdBy = "staff_1"
+            )
+        }
+        val reportRepo = DailyReportRepository(reportDs)
+
+        val vm = OutletViewModel(
+            outletRepository = OutletRepository(outletDs),
+            userRepository = UserRepository(userDs),
+            materialRepository = MaterialRepository(FakeMaterialRemoteDataSource()),
+            productRepository = ProductRepository(FakeProductRemoteDataSource()),
+            distributionRepository = MaterialDistributionRepository(FakeMaterialDistributionRemoteDataSource()),
+            dailyReportRepository = reportRepo,
+            authRepository = object : AuthRepository() {}
+        )
+
+        // Verify history item resolves sender name and marks report > 3 days as not editable
+        val historyItem = vm.state.value.reportHistoryItems.firstOrNull { it.id == "rep_old" }
+        assertNotNull(historyItem)
+        assertEquals("Dimas Pratama", historyItem?.createdByName)
+        assertFalse(historyItem!!.isEditable)
+
+        // Frontend/ViewModel guard rejects loading report > 3 days for edit
+        vm.onEvent(OutletUiEvent.LoadExistingReportForEdit("rep_old"))
+        assertNull(vm.state.value.reportForm.editingReportId)
+        assertNotNull(vm.state.value.reportForm.errorMessage)
+
+        // Backend repository guard also rejects updating report > 3 days
+        val backendUpdateRes = reportRepo.createDailyReport(
+            report = reportDs.reports["rep_old"]!!.copy(cashRevenue = 999_000L)
+        )
+        assertTrue(backendUpdateRes.isFailure)
     }
 
     @Test

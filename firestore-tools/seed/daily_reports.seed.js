@@ -27,6 +27,7 @@ const OUTLET_PROFILES = [
   {
     id: "outlet_sudirman",
     slug: "sudirman",
+    staffIds: ["staff", "staff2"],
     baseScale: 1.08,
     qrisRatio: 0.48,
     closeHour: 21,
@@ -57,6 +58,7 @@ const OUTLET_PROFILES = [
   {
     id: "outlet_gajah_mada",
     slug: "gm",
+    staffIds: ["staff_gm"],
     baseScale: 0.88,
     qrisRatio: 0.42,
     closeHour: 21,
@@ -88,6 +90,7 @@ const OUTLET_PROFILES = [
     // ID tetap `outlet_cikini` (Dr. Mansyur / area USU) agar FK users.seed.js tetap valid
     id: "outlet_cikini",
     slug: "mansyur",
+    staffIds: ["staff_cikini"],
     baseScale: 0.96,
     qrisRatio: 0.56,
     closeHour: 22,
@@ -119,6 +122,7 @@ const OUTLET_PROFILES = [
     // ID tetap `outlet_tebet` (Ringroad Setia Budi) agar FK users.seed.js tetap valid
     id: "outlet_tebet",
     slug: "ringroad",
+    staffIds: ["staff_tebet"],
     baseScale: 0.78,
     qrisRatio: 0.38,
     closeHour: 22,
@@ -248,6 +252,7 @@ function buildDailyReports(admin) {
       reports.push({
         id: reportId,
         outlet_id: profile.id,
+        created_by: pick(rng, profile.staffIds),
         date: Timestamp.fromDate(reportDate),
         cash_revenue: cashRevenue,
         qris_revenue: qrisRevenue,

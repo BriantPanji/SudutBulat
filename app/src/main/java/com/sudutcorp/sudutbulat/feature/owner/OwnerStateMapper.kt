@@ -2,6 +2,8 @@ package com.sudutcorp.sudutbulat.feature.owner
 
 import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.data.model.DistributionStatus
+import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialCategory
@@ -16,66 +18,77 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
 
 private val ID_LOCALE: Locale = Locale.forLanguageTag("id-ID")
 private val REPORT_DATE_CHIP_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd MMM yyyy", ID_LOCALE)
+private val DASHBOARD_HEADER_DATE_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("EEEE, dd MMM yyyy", ID_LOCALE)
 
-fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
-    val activeOutlets = raw.outlets.ifEmpty { defaultSeededOutlets() }
-    val activeUsers = raw.users.ifEmpty { defaultSeededUsers() }
-    val activeReports = raw.reports.ifEmpty { defaultSeededReports() }
+private val SENT_OR_CONFIRMED_STATUSES = setOf(
+    DistributionStatus.SENT,
+    DistributionStatus.RECEIVED,
+    DistributionStatus.PARTIALLY_RECEIVED,
+    DistributionStatus.NOT_RECEIVED
+)
+
+fun computeOwnerDerivedState(
+    raw: OwnerUiState,
+    nowMillis: Long = System.currentTimeMillis(),
+    zoneId: ZoneId = ZoneId.systemDefault()
+): OwnerUiState {
+    val activeOutlets = if (raw.hasFirestoreSync) raw.outlets else raw.outlets.ifEmpty { defaultSeededOutlets() }
+    val activeUsers = if (raw.hasFirestoreSync) raw.users else raw.users.ifEmpty { defaultSeededUsers() }
+    val activeReports = if (raw.hasFirestoreSync) raw.reports else raw.reports.ifEmpty { defaultSeededReports() }
     val activeExpenses = raw.expenses
     val activeDamaged = raw.damagedMaterials
-    val activeMaterials = raw.materials.ifEmpty { defaultSeededMaterials() }
-    val activeProducts = raw.products.ifEmpty { defaultSeededProducts() }
+    val activeMaterials = if (raw.hasFirestoreSync) raw.materials else raw.materials.ifEmpty { defaultSeededMaterials() }
+    val activeProducts = if (raw.hasFirestoreSync) raw.products else raw.products.ifEmpty { defaultSeededProducts() }
+
+    val nowZoned = Instant.ofEpochMilli(nowMillis).atZone(zoneId)
+    val todayDate = nowZoned.toLocalDate()
+    val yesterdayDate = todayDate.minusDays(1)
+    val greetingPrefix = when (nowZoned.hour) {
+        in 0..10 -> "Selamat pagi"
+        in 11..14 -> "Selamat siang"
+        in 15..17 -> "Selamat sore"
+        else -> "Selamat malam"
+    }
+    val todayDateLabel = todayDate.format(DASHBOARD_HEADER_DATE_FORMATTER)
 
     val outletMap = activeOutlets.associateBy { it.id }
-    val reportsByOutlet = activeReports.groupBy { it.outletId }
-    val reportIdToOutletId = activeReports.associate { it.id to it.outletId }
+    val materialMap = activeMaterials.associateBy { it.id }
+    val expensesByReport = activeExpenses.groupBy { it.dailyReportId }
+    val damagedByReport = activeDamaged.groupBy { it.dailyReportId }
+
+    val todayReports = activeReports.filter { report ->
+        Instant.ofEpochMilli(report.date.toDate().time).atZone(zoneId).toLocalDate() == todayDate
+    }
+    val yesterdayReports = activeReports.filter { report ->
+        Instant.ofEpochMilli(report.date.toDate().time).atZone(zoneId).toLocalDate() == yesterdayDate
+    }
+    val todayReportByOutlet = todayReports
+        .groupBy { it.outletId }
+        .mapValues { (_, list) -> list.maxBy { it.date.seconds } }
 
     val outletModels = activeOutlets.map { outlet ->
-        val latestReport = reportsByOutlet[outlet.id]?.firstOrNull()
-        val revenue = when {
-            outlet.totalRevenue > 0L -> outlet.totalRevenue
-            latestReport != null -> latestReport.totalRevenue
-            else -> 0L
-        }
-        val cashRev = latestReport?.cashRevenue ?: (revenue * 60 / 100)
-        val qrisRev = latestReport?.qrisRevenue ?: (revenue - cashRev)
-        val pieces = when {
-            outlet.totalPiecesSold > 0 -> outlet.totalPiecesSold
-            latestReport != null -> latestReport.totalSold
-            else -> 0
-        }
+        val todayReport = todayReportByOutlet[outlet.id]
+        val hasTodayReport = todayReport != null
+        val revenue = todayReport?.totalRevenue ?: 0L
+        val cashRev = todayReport?.cashRevenue ?: 0L
+        val qrisRev = todayReport?.qrisRevenue ?: 0L
+        val pieces = todayReport?.totalSold ?: 0
         val dailyTarget = if (outlet.dailyTarget > 0L) outlet.dailyTarget else 2_500_000L
-        val rawTarget = if (outlet.targetPercentage > 0f) {
-            if (outlet.targetPercentage > 1f) outlet.targetPercentage / 100f else outlet.targetPercentage
-        } else {
-            (revenue.toFloat() / dailyTarget.toFloat()).coerceIn(0f, 1f)
-        }
-        val progress = rawTarget.coerceIn(0f, 1f)
+        val progress = (revenue.toFloat() / dailyTarget.toFloat()).coerceIn(0f, 1f)
 
         val assignedStaff = activeUsers.filter {
             it.isActive && it.role == Role.OUTLET && it.outletId == outlet.id
         }
-        val outletExpenses = activeExpenses.filter { reportIdToOutletId[it.dailyReportId] == outlet.id }
-        val expenseTotal = if (outletExpenses.isNotEmpty()) {
-            outletExpenses.sumOf { it.amount }
-        } else {
-            when (outlet.id) {
-                "outlet_sudirman" -> 185_000L
-                "outlet_gajah_mada" -> 210_000L
-                "outlet_cikini" -> 165_000L
-                else -> 140_000L
-            }
-        }
-        val outletDamaged = activeDamaged.filter { reportIdToOutletId[it.dailyReportId] == outlet.id }
-        val damagedQty = if (outletDamaged.isNotEmpty()) {
-            outletDamaged.sumOf { it.quantity }
-        } else {
-            if (outlet.id == "outlet_sudirman" || outlet.id == "outlet_cikini") 12 else 4
-        }
+        val outletExpenses = todayReport?.let { expensesByReport[it.id] }.orEmpty()
+        val expenseTotal = outletExpenses.sumOf { it.amount }
+        val outletDamaged = todayReport?.let { damagedByReport[it.id] }.orEmpty()
+        val damagedQty = outletDamaged.sumOf { it.quantity }
 
         OutletPerformanceUi(
             id = outlet.id,
@@ -94,21 +107,26 @@ fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
             qrisRevenue = qrisRev,
             piecesSold = pieces,
             targetProgress = progress,
-            targetPercentText = "${(progress * 100).toInt()}% target",
+            targetPercentText = if (hasTodayReport) "${(progress * 100).toInt()}% target" else "Belum closing",
             activeStaffCount = assignedStaff.size,
             staffIds = assignedStaff.map { it.id },
             staffNames = assignedStaff.map { it.name },
             expenseTotal = expenseTotal,
-            expenseCount = outletExpenses.size.takeIf { it > 0 } ?: 3,
+            expenseCount = outletExpenses.size,
             damagedCount = damagedQty,
-            damagedReportCount = outletDamaged.size.takeIf { it > 0 } ?: 1,
+            damagedReportCount = outletDamaged.size,
             netDepositEstimate = (revenue - expenseTotal).coerceAtLeast(0L),
-            routinePreset = outlet.routinePreset
+            routinePreset = outlet.routinePreset,
+            hasTodayReport = hasTodayReport
         )
     }
 
     val rankedByRevenue = outletModels
-        .sortedByDescending { it.revenue }
+        .sortedWith(
+            compareByDescending<OutletPerformanceUi> { it.isActive }
+                .thenByDescending { it.revenue }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
+        )
         .mapIndexed { index, item -> item.copy(rank = index + 1) }
 
     val sortedOutlets = sortOutletItems(rankedByRevenue, raw.outletSortField, raw.outletSortDirection)
@@ -134,9 +152,6 @@ fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
         .sortedWith(compareByDescending<StaffItemUi> { it.isActive }.thenBy { it.name.lowercase(Locale.ROOT) })
 
     val dateFmt = SimpleDateFormat("dd MMM yyyy, HH.mm", ID_LOCALE)
-    val expensesByReport = activeExpenses.groupBy { it.dailyReportId }
-    val damagedByReport = activeDamaged.groupBy { it.dailyReportId }
-
     val reportList = activeReports
         .sortedByDescending { it.date.seconds }
         .map { report ->
@@ -164,17 +179,115 @@ fun computeOwnerDerivedState(raw: OwnerUiState): OwnerUiState {
             )
         }
 
+    // Today's financial & operational metrics from Firestore
+    val todayCashRevenue = todayReports.sumOf { it.cashRevenue }
+    val todayQrisRevenue = todayReports.sumOf { it.qrisRevenue }
+    val todayTotalRevenue = todayCashRevenue + todayQrisRevenue
+    val todayTotalSold = todayReports.sumOf { it.totalSold }
+
+    val todayReportIds = todayReports.map { it.id }.toSet()
+    val todayExpenseItems = activeExpenses.filter { it.dailyReportId in todayReportIds }
+    val todayTotalExpenses = todayExpenseItems.sumOf { it.amount }
+    val todayExpenseTransactionsCount = todayExpenseItems.size
+
+    val todayDamagedItems = activeDamaged.filter { it.dailyReportId in todayReportIds }
+    val todayDamagedUnits = todayDamagedItems.sumOf { it.quantity }
+    val todayDamagedEstimatedLoss = todayDamagedItems.sumOf { dmg ->
+        dmg.quantity.toLong() * (materialMap[dmg.materialId]?.cost ?: 0L)
+    }
+    val todayNetRevenue = (todayTotalRevenue - todayTotalExpenses).coerceAtLeast(0L)
+
+    val operationalOutlets = rankedByRevenue.filter { it.isActive }
+    val activeOutletIds = operationalOutlets.map { it.id }.toSet()
+    val totalDailyTarget = operationalOutlets.sumOf { it.dailyTarget }
+    val targetProgress = if (totalDailyTarget > 0L) {
+        (todayTotalRevenue.toFloat() / totalDailyTarget.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val targetPercent = if (totalDailyTarget > 0L) {
+        ((todayTotalRevenue * 100L) / totalDailyTarget).toInt().coerceAtLeast(0)
+    } else {
+        0
+    }
+
+    val yesterdayTotalRevenue = yesterdayReports.sumOf { it.totalRevenue }
+    val (deltaTrend, deltaText) = if (yesterdayTotalRevenue <= 0L) {
+        null to "Belum ada pembanding kemarin"
+    } else {
+        val diff = todayTotalRevenue - yesterdayTotalRevenue
+        val pct = (abs(diff).toDouble() / yesterdayTotalRevenue.toDouble()) * 100.0
+        val pctText = String.format(ID_LOCALE, "%.1f", pct)
+        when {
+            diff > 0L -> 1 to "+$pctText% dari kemarin"
+            diff < 0L -> -1 to "-$pctText% dari kemarin"
+            else -> 0 to "Sama dengan kemarin"
+        }
+    }
+
+    val reviewReportsCount = reportList.count { it.hasAlert }
+
+    // Warehouse distribution overview for today
+    val todayDistributions = raw.distributions.filter { dist ->
+        val ts = dist.sentAt ?: dist.createdAt
+        Instant.ofEpochMilli(ts.toDate().time).atZone(zoneId).toLocalDate() == todayDate
+    }
+    val todayRoutineSentOutletsCount = todayDistributions
+        .filter { it.type == DistributionType.ROUTINE && it.outletId in activeOutletIds && it.status in SENT_OR_CONFIRMED_STATUSES }
+        .map { it.outletId }
+        .toSet()
+        .size
+    val todayInTransitDistributionsCount = todayDistributions.count { it.status == DistributionStatus.SENT }
+    val pendingAdditionalRequestsCount = raw.distributions.count {
+        it.type == DistributionType.ADDITIONAL && it.status == DistributionStatus.DRAFT
+    }
+    val todayDistributionIssueCount = todayDistributions.count {
+        it.status == DistributionStatus.PARTIALLY_RECEIVED || it.status == DistributionStatus.NOT_RECEIVED
+    }
+
+    val dashboardMetrics = OwnerDashboardMetrics(
+        todayDateLabel = todayDateLabel,
+        greetingPrefix = greetingPrefix,
+        todayTotalRevenue = todayTotalRevenue,
+        todayCashRevenue = todayCashRevenue,
+        todayQrisRevenue = todayQrisRevenue,
+        totalDailyTarget = totalDailyTarget,
+        targetProgress = targetProgress,
+        targetPercent = targetPercent,
+        todayDeltaPercentText = deltaText,
+        todayDeltaTrend = deltaTrend,
+        activeOutletsCount = operationalOutlets.size,
+        openOutletsCount = operationalOutlets.count { it.isOpen },
+        closedOutletsCount = operationalOutlets.count { !it.isOpen },
+        todayReportedOutletsCount = operationalOutlets.count { it.hasTodayReport },
+        todayTotalSold = todayTotalSold,
+        todayTotalExpenses = todayTotalExpenses,
+        todayExpenseTransactionsCount = todayExpenseTransactionsCount,
+        todayDamagedUnits = todayDamagedUnits,
+        todayDamagedEstimatedLoss = todayDamagedEstimatedLoss,
+        todayNetRevenue = todayNetRevenue,
+        reviewReportsCount = reviewReportsCount,
+        todayRoutineSentOutletsCount = todayRoutineSentOutletsCount,
+        todayInTransitDistributionsCount = todayInTransitDistributionsCount,
+        pendingAdditionalRequestsCount = pendingAdditionalRequestsCount,
+        todayDistributionIssueCount = todayDistributionIssueCount
+    )
+
     return raw.copy(
+        todayDateLabel = todayDateLabel,
         outletItems = sortedOutlets,
         staffItems = staffList,
         reportListItems = reportList,
-        todayTotalRevenue = rankedByRevenue.sumOf { it.revenue }.takeIf { it > 0L } ?: 8_420_000L,
-        activeOutletsCount = rankedByRevenue.size,
-        openOutletsCount = rankedByRevenue.count { it.isOpen },
-        closedOutletsCount = rankedByRevenue.count { !it.isOpen },
-        todayTotalSold = rankedByRevenue.sumOf { it.piecesSold }.takeIf { it > 0 } ?: 1_684,
-        todayTotalExpenses = activeExpenses.sumOf { it.amount }.takeIf { it > 0L } ?: 940_000L,
-        todayExpenseTransactionsCount = activeExpenses.size.takeIf { it > 0 } ?: 11,
+        dashboardMetrics = dashboardMetrics,
+        todayTotalRevenue = todayTotalRevenue,
+        todayDeltaPercentText = deltaText,
+        activeOutletsCount = dashboardMetrics.activeOutletsCount,
+        openOutletsCount = dashboardMetrics.openOutletsCount,
+        closedOutletsCount = dashboardMetrics.closedOutletsCount,
+        todayTotalSold = todayTotalSold,
+        todayTotalExpenses = todayTotalExpenses,
+        todayExpenseTransactionsCount = todayExpenseTransactionsCount,
+        reviewReportsCount = reviewReportsCount,
         catalogItems = buildCatalogItems(activeMaterials, activeProducts),
         addUserForm = raw.addUserForm.copy(
             selectedOutletId = raw.addUserForm.selectedOutletId.ifBlank { rankedByRevenue.firstOrNull()?.id.orEmpty() }

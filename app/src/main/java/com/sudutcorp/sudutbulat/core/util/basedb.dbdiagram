@@ -49,6 +49,7 @@ Table materials {
 Table daily_reports {
   id string [pk]
   outlet_id string
+  created_by string [ref: >? users.id]
   date timestamp
   cash_revenue int
   qris_revenue int

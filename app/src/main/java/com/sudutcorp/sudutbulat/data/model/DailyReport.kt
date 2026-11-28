@@ -32,7 +32,11 @@ data class DailyReport(
 
     @get:PropertyName("total_sold")
     @set:PropertyName("total_sold")
-    var totalSold: Int = 0
+    var totalSold: Int = 0,
+
+    @get:PropertyName("created_by")
+    @set:PropertyName("created_by")
+    var createdBy: String = ""
 ) {
     init {
         require(cashRevenue >= 0L) { "Cash revenue must not be negative: $cashRevenue" }

@@ -5,6 +5,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
@@ -78,7 +79,36 @@ data class OutletPerformanceUi(
     val damagedCount: Int,
     val damagedReportCount: Int,
     val netDepositEstimate: Long,
-    val routinePreset: List<RoutinePresetItem> = emptyList()
+    val routinePreset: List<RoutinePresetItem> = emptyList(),
+    val hasTodayReport: Boolean = false
+)
+
+data class OwnerDashboardMetrics(
+    val todayDateLabel: String = "",
+    val greetingPrefix: String = "Selamat pagi",
+    val todayTotalRevenue: Long = 0L,
+    val todayCashRevenue: Long = 0L,
+    val todayQrisRevenue: Long = 0L,
+    val totalDailyTarget: Long = 0L,
+    val targetProgress: Float = 0f,
+    val targetPercent: Int = 0,
+    val todayDeltaPercentText: String = "Belum ada pembanding kemarin",
+    val todayDeltaTrend: Int? = null,
+    val activeOutletsCount: Int = 0,
+    val openOutletsCount: Int = 0,
+    val closedOutletsCount: Int = 0,
+    val todayReportedOutletsCount: Int = 0,
+    val todayTotalSold: Int = 0,
+    val todayTotalExpenses: Long = 0L,
+    val todayExpenseTransactionsCount: Int = 0,
+    val todayDamagedUnits: Int = 0,
+    val todayDamagedEstimatedLoss: Long = 0L,
+    val todayNetRevenue: Long = 0L,
+    val reviewReportsCount: Int = 0,
+    val todayRoutineSentOutletsCount: Int = 0,
+    val todayInTransitDistributionsCount: Int = 0,
+    val pendingAdditionalRequestsCount: Int = 0,
+    val todayDistributionIssueCount: Int = 0
 )
 
 data class StaffItemUi(
@@ -235,10 +265,10 @@ data class AddCatalogItemFormState(
 )
 
 data class OwnerUiState(
-    val ownerName: String = "Arif Rahman",
+    val ownerName: String = "Owner",
     val ownerEmail: String = "sdb.owner@gmail.com",
-    val ownerInitials: String = "AR",
-    val todayDateLabel: String = "Hari ini, 24 Mei 2025",
+    val ownerInitials: String = "OW",
+    val todayDateLabel: String = "",
 
     val outlets: List<Outlet> = emptyList(),
     val users: List<User> = emptyList(),
@@ -248,10 +278,12 @@ data class OwnerUiState(
     val damagedMaterials: List<DailyReportDamagedMaterial> = emptyList(),
     val materials: List<Material> = emptyList(),
     val products: List<Product> = emptyList(),
+    val distributions: List<MaterialDistribution> = emptyList(),
 
     val outletItems: List<OutletPerformanceUi> = emptyList(),
     val staffItems: List<StaffItemUi> = emptyList(),
     val reportListItems: List<DailyReportListItemUi> = emptyList(),
+    val dashboardMetrics: OwnerDashboardMetrics = OwnerDashboardMetrics(),
 
     val outletSearchQuery: String = "",
     val outletFilter: String = "Semua",
@@ -262,15 +294,15 @@ data class OwnerUiState(
     val staffSearchQuery: String = "",
     val staffRoleFilter: String = "Semua",
 
-    val todayTotalRevenue: Long = 8_420_000L,
-    val todayDeltaPercentText: String = "12,4% dari kemarin",
-    val activeOutletsCount: Int = 5,
-    val openOutletsCount: Int = 4,
-    val closedOutletsCount: Int = 1,
-    val todayTotalSold: Int = 1_684,
-    val todayTotalExpenses: Long = 940_000L,
-    val todayExpenseTransactionsCount: Int = 11,
-    val reviewReportsCount: Int = 2,
+    val todayTotalRevenue: Long = 0L,
+    val todayDeltaPercentText: String = "Belum ada pembanding kemarin",
+    val activeOutletsCount: Int = 0,
+    val openOutletsCount: Int = 0,
+    val closedOutletsCount: Int = 0,
+    val todayTotalSold: Int = 0,
+    val todayTotalExpenses: Long = 0L,
+    val todayExpenseTransactionsCount: Int = 0,
+    val reviewReportsCount: Int = 0,
 
     val reportTabMode: ReportTabMode = ReportTabMode.SUMMARY,
     val selectedReportPeriod: String = "30 Hari",
@@ -286,6 +318,7 @@ data class OwnerUiState(
     val addOutletForm: AddOutletFormState = AddOutletFormState(),
     val addUserForm: AddUserFormState = AddUserFormState(),
 
+    val hasFirestoreSync: Boolean = false,
     val isLoading: Boolean = false,
     val backendError: String? = null
 )

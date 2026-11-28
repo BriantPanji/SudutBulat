@@ -17,7 +17,19 @@ import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.User
+import com.sudutcorp.sudutbulat.data.remote.MAX_REPORT_CREATE_DAYS_BACK
+import com.sudutcorp.sudutbulat.data.remote.MAX_REPORT_EDIT_DAYS_BACK
+import com.sudutcorp.sudutbulat.data.remote.calendarDaysBetween
+import com.sudutcorp.sudutbulat.core.util.buildInitials
+import com.sudutcorp.sudutbulat.core.util.formatDecimal
+import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.core.util.formatShortRupiah
+import com.sudutcorp.sudutbulat.feature.owner.DamagedSummaryItemUi
+import com.sudutcorp.sudutbulat.feature.owner.ReportDamagedLineUi
+import com.sudutcorp.sudutbulat.feature.owner.ReportExpenseLineUi
+import com.sudutcorp.sudutbulat.feature.owner.ReportProductLineUi
 import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialDistributionRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
@@ -160,7 +172,247 @@ data class StockRequestFormState(
     val errorMessage: String? = null
 )
 
+enum class OutletReportTabMode(val label: String) {
+    SUMMARY("Ringkasan"),
+    HISTORY("Riwayat Laporan")
+}
+
+enum class OutletReportHistoryFilter(val label: String) {
+    ALL("Semua"),
+    EDITABLE("Bisa Diedit (≤3 Hari)"),
+    DAYS_7("7 Hari"),
+    DAYS_30("30 Hari")
+}
+
+data class ReportDateCandidateUi(
+    val timestamp: Timestamp,
+    val dayKey: String,
+    val label: String,
+    val shortLabel: String,
+    val daysAgo: Int,
+    val hasExistingReport: Boolean
+)
+
+data class OutletReportHistoryItemUi(
+    val id: String,
+    val date: Timestamp,
+    val dateMillis: Long,
+    val dateLabel: String,
+    val fullDateLabel: String,
+    val timeLabel: String,
+    val daysAgo: Int,
+    val createdById: String,
+    val createdByName: String,
+    val createdByInitials: String,
+    val cashRevenue: Long,
+    val qrisRevenue: Long,
+    val totalRevenue: Long,
+    val totalSold: Int,
+    val totalExpense: Long,
+    val damagedCount: Int,
+    val netDeposit: Long,
+    val isEditable: Boolean,
+    val productLines: List<ReportProductLineUi> = emptyList(),
+    val expenseLines: List<ReportExpenseLineUi> = emptyList(),
+    val damagedLines: List<ReportDamagedLineUi> = emptyList()
+)
+
+data class OutletReportPeriodSummaryUi(
+    val periodLabel: String = "7 hari",
+    val dateRangeText: String = "",
+    val reportCount: Int = 0,
+    val netRevenueText: String = "Rp0",
+    val deltaText: String = "Periode berjalan",
+    val isPositiveDelta: Boolean = true,
+    val totalSalesValueText: String = "Rp0",
+    val totalProductsSoldText: String = "0 pcs terjual",
+    val cashSalesText: String = "Rp0",
+    val qrisSalesText: String = "Rp0",
+    val gasExpenseText: String = "Rp0",
+    val plasticExpenseText: String = "Rp0",
+    val otherExpenseText: String = "Rp0",
+    val operationalCostValueText: String = "Rp0",
+    val operationalCostPercentText: String = "0% dari omzet",
+    val estimatedProfitValueText: String = "Rp0",
+    val trendBars: List<Pair<String, Float>> = emptyList(),
+    val damagedItems: List<DamagedSummaryItemUi> = emptyList()
+)
+
+internal fun isReportEditable(reportDate: Timestamp, reference: Timestamp = Timestamp.now()): Boolean {
+    val daysAgo = calendarDaysBetween(reportDate, reference)
+    return daysAgo in 0..MAX_REPORT_EDIT_DAYS_BACK
+}
+
+internal fun isReportDateCreatable(
+    targetDate: Timestamp,
+    existingReports: List<DailyReport>,
+    reference: Timestamp = Timestamp.now()
+): Boolean {
+    val daysAgo = calendarDaysBetween(targetDate, reference)
+    if (daysAgo !in 0..MAX_REPORT_CREATE_DAYS_BACK) return false
+    return existingReports.none { isSameCalendarDay(it.date, targetDate) }
+}
+
+internal fun buildReportDateCandidates(
+    existingReports: List<DailyReport>,
+    reference: Timestamp = Timestamp.now()
+): List<ReportDateCandidateUi> {
+    val idLocale = Locale.forLanguageTag("id-ID")
+    val keyFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val shortFmt = SimpleDateFormat("dd MMM", idLocale)
+    val dayNameFmt = SimpleDateFormat("EEE, dd MMM", idLocale)
+
+    return (0..MAX_REPORT_CREATE_DAYS_BACK).map { daysAgo ->
+        val cal = Calendar.getInstance().apply {
+            time = reference.toDate()
+            add(Calendar.DAY_OF_YEAR, -daysAgo)
+        }
+        val ts = Timestamp(cal.time)
+        val shortDate = shortFmt.format(cal.time)
+        val label = when (daysAgo) {
+            0 -> "Hari ini ($shortDate)"
+            1 -> "Kemarin ($shortDate)"
+            else -> dayNameFmt.format(cal.time)
+        }
+        val shortLabel = when (daysAgo) {
+            0 -> "Hari ini"
+            1 -> "Kemarin"
+            else -> dayNameFmt.format(cal.time)
+        }
+        val hasReport = existingReports.any { isSameCalendarDay(it.date, ts) }
+        ReportDateCandidateUi(
+            timestamp = ts,
+            dayKey = keyFmt.format(cal.time),
+            label = label,
+            shortLabel = shortLabel,
+            daysAgo = daysAgo,
+            hasExistingReport = hasReport
+        )
+    }
+}
+
+internal fun computeOutletReportPeriodSummary(
+    period: String,
+    reports: List<DailyReport>,
+    expensesByReportId: Map<String, List<DailyReportExpense>>,
+    damagedByReportId: Map<String, List<DailyReportDamagedMaterial>>,
+    materialMap: Map<String, Material>,
+    reference: Timestamp = Timestamp.now()
+): OutletReportPeriodSummaryUi {
+    val idLocale = Locale.forLanguageTag("id-ID")
+    val rangeFmt = SimpleDateFormat("dd MMM", idLocale)
+    val dayShortFmt = SimpleDateFormat("EEE", idLocale)
+
+    val daysWindow = when {
+        period.contains("7", ignoreCase = true) -> 7
+        period.contains("3", ignoreCase = true) && period.contains("Bulan", ignoreCase = true) -> 90
+        else -> 30
+    }
+    val periodLabel = when (daysWindow) {
+        7 -> "7 hari"
+        90 -> "3 bulan"
+        else -> "30 hari"
+    }
+
+    val currentReports = reports.filter { calendarDaysBetween(it.date, reference) in 0 until daysWindow }
+    val prevReports = reports.filter { calendarDaysBetween(it.date, reference) in daysWindow until (daysWindow * 2) }
+
+    val totalSales = currentReports.sumOf { it.totalRevenue }
+    val cashSales = currentReports.sumOf { it.cashRevenue }
+    val qrisSales = currentReports.sumOf { it.qrisRevenue }
+    val totalSold = currentReports.sumOf { it.totalSold }
+
+    val currentExpenses = currentReports.flatMap { expensesByReportId[it.id].orEmpty() }
+    val gasExp = currentExpenses.filter { it.category == ExpenseCategory.GAS }.sumOf { it.amount }
+    val plasticExp = currentExpenses.filter { it.category == ExpenseCategory.PLASTIC_BAG }.sumOf { it.amount }
+    val otherExp = currentExpenses.filter { it.category == ExpenseCategory.OTHER }.sumOf { it.amount }
+    val totalExp = gasExp + plasticExp + otherExp
+    val netRevenue = (totalSales - totalExp).coerceAtLeast(0L)
+
+    val prevNet = prevReports.sumOf { rep ->
+        val exp = expensesByReportId[rep.id].orEmpty().sumOf { it.amount }
+        (rep.totalRevenue - exp).coerceAtLeast(0L)
+    }
+    val deltaPct = if (prevNet > 0L) {
+        ((netRevenue - prevNet).toDouble() / prevNet.toDouble()) * 100.0
+    } else {
+        0.0
+    }
+    val isPositiveDelta = deltaPct >= 0.0
+    val deltaText = if (prevNet > 0L) {
+        val sign = if (deltaPct >= 0.0) "+" else ""
+        "${String.format(idLocale, "%s%.1f%%", sign, deltaPct)} dibanding periode lalu"
+    } else {
+        "${currentReports.size} laporan tercatat pada periode ini"
+    }
+
+    val costPct = if (totalSales > 0L) {
+        ((totalExp.toDouble() / totalSales.toDouble()) * 100.0)
+    } else {
+        0.0
+    }
+
+    val startCal = Calendar.getInstance().apply {
+        time = reference.toDate()
+        add(Calendar.DAY_OF_YEAR, -(daysWindow - 1))
+    }
+    val dateRangeText = "${rangeFmt.format(startCal.time)} – ${rangeFmt.format(reference.toDate())}"
+
+    // 7-day trend bar chart (H-6 .. H)
+    val rawDayRevenues = (6 downTo 0).map { daysAgo ->
+        val cal = Calendar.getInstance().apply {
+            time = reference.toDate()
+            add(Calendar.DAY_OF_YEAR, -daysAgo)
+        }
+        val dayTs = Timestamp(cal.time)
+        val dayLabel = dayShortFmt.format(cal.time).take(3)
+        val rev = reports.filter { isSameCalendarDay(it.date, dayTs) }.sumOf { it.totalRevenue }
+        dayLabel to rev
+    }
+    val maxDayRev = rawDayRevenues.maxOfOrNull { it.second }?.coerceAtLeast(1L) ?: 1L
+    val trendBars = rawDayRevenues.map { (dayLabel, rev) ->
+        val fraction = if (rev <= 0L) 0.08f else (rev.toFloat() / maxDayRev.toFloat()).coerceIn(0.15f, 1f)
+        dayLabel to fraction
+    }
+
+    val currentDamaged = currentReports.flatMap { damagedByReportId[it.id].orEmpty() }
+    val damagedSummary = currentDamaged
+        .groupBy { it.materialId }
+        .map { (matId, list) ->
+            val mat = materialMap[matId]
+            val unit = mat?.unit?.firestoreValue ?: "pcs"
+            DamagedSummaryItemUi(
+                materialId = matId,
+                name = mat?.name ?: matId,
+                quantityText = "${list.sumOf { it.quantity }} $unit"
+            )
+        }
+
+    return OutletReportPeriodSummaryUi(
+        periodLabel = periodLabel,
+        dateRangeText = dateRangeText,
+        reportCount = currentReports.size,
+        netRevenueText = formatRupiah(netRevenue),
+        deltaText = deltaText,
+        isPositiveDelta = isPositiveDelta,
+        totalSalesValueText = formatShortRupiah(totalSales),
+        totalProductsSoldText = "${formatDecimal(totalSold)} pcs terjual",
+        cashSalesText = formatRupiah(cashSales),
+        qrisSalesText = formatRupiah(qrisSales),
+        gasExpenseText = formatRupiah(gasExp),
+        plasticExpenseText = formatRupiah(plasticExp),
+        otherExpenseText = formatRupiah(otherExp),
+        operationalCostValueText = formatShortRupiah(totalExp),
+        operationalCostPercentText = "${String.format(idLocale, "%.1f%%", costPct)} dari omzet",
+        estimatedProfitValueText = formatShortRupiah(netRevenue),
+        trendBars = trendBars,
+        damagedItems = damagedSummary
+    )
+}
+
 data class DailyReportFormState(
+    val isFormVisible: Boolean = false,
+    val selectedCreateDate: Timestamp? = null,
     val editingReportId: String? = null,
     val editingReportDate: Timestamp? = null,
     val pendingDuplicateReport: DailyReport? = null,
@@ -267,6 +519,11 @@ data class OutletUiState(
     val activeProducts: List<Product> = emptyList(),
     val distributions: List<OutletDistributionUi> = emptyList(),
     val recentReports: List<DailyReport> = emptyList(),
+    val reportHistoryItems: List<OutletReportHistoryItemUi> = emptyList(),
+    val reportDateCandidates: List<ReportDateCandidateUi> = emptyList(),
+    val reportTabMode: OutletReportTabMode = OutletReportTabMode.SUMMARY,
+    val selectedReportPeriod: String = "7 Hari",
+    val reportPeriodSummary: OutletReportPeriodSummaryUi = OutletReportPeriodSummaryUi(),
     val todayReport: DailyReport? = null,
     val dashboardMetrics: OutletDashboardMetrics = OutletDashboardMetrics(),
     val selectedStockFilter: OutletStockFilter = OutletStockFilter.ALL,
@@ -281,7 +538,10 @@ data class OutletUiState(
     val rawMaterials: List<Material> = emptyList(),
     val rawProducts: List<Product> = emptyList(),
     val rawDistributions: List<MaterialDistribution> = emptyList(),
-    val rawReports: List<DailyReport> = emptyList()
+    val rawReports: List<DailyReport> = emptyList(),
+    val rawReportProducts: List<DailyReportProduct> = emptyList(),
+    val rawReportExpenses: List<DailyReportExpense> = emptyList(),
+    val rawReportDamaged: List<DailyReportDamagedMaterial> = emptyList()
 )
 
 sealed interface OutletUiEvent {
@@ -300,6 +560,11 @@ sealed interface OutletUiEvent {
     data object SubmitStockRequest : OutletUiEvent
     data class CancelStockRequest(val distributionId: String) : OutletUiEvent
 
+    data class SelectReportTab(val tab: OutletReportTabMode) : OutletUiEvent
+    data class SelectReportSummaryPeriod(val period: String) : OutletUiEvent
+    data class OpenCreateDailyReport(val preferredDate: Timestamp? = null) : OutletUiEvent
+    data class SelectCreateReportDate(val date: Timestamp) : OutletUiEvent
+    data object CloseDailyReportForm : OutletUiEvent
     data class UpdateProductQty(val productId: String, val qtyInput: String) : OutletUiEvent
     data class UpdateCashRevenue(val input: String) : OutletUiEvent
     data class UpdateQrisRevenue(val input: String) : OutletUiEvent
@@ -386,6 +651,21 @@ class OutletViewModel(
                 .catch { e -> reportError("memuat laporan harian", e) }
                 .collect { list -> _state.update { recompute(it.copy(rawReports = list)) } }
         }
+        viewModelScope.launch {
+            dailyReportRepository.getAllReportProductsFlow()
+                .catch { e -> reportError("memuat rincian produk laporan", e) }
+                .collect { list -> _state.update { recompute(it.copy(rawReportProducts = list)) } }
+        }
+        viewModelScope.launch {
+            dailyReportRepository.getAllExpensesFlow()
+                .catch { e -> reportError("memuat pengeluaran laporan", e) }
+                .collect { list -> _state.update { recompute(it.copy(rawReportExpenses = list)) } }
+        }
+        viewModelScope.launch {
+            dailyReportRepository.getAllDamagedMaterialsFlow()
+                .catch { e -> reportError("memuat bahan rusak laporan", e) }
+                .collect { list -> _state.update { recompute(it.copy(rawReportDamaged = list)) } }
+        }
     }
 
     private fun reconcileExpiredDrafts(distributions: List<MaterialDistribution>) {
@@ -456,6 +736,17 @@ class OutletViewModel(
             OutletUiEvent.SubmitStockRequest -> submitStockRequest()
             is OutletUiEvent.CancelStockRequest -> cancelStockRequest(event.distributionId)
 
+            is OutletUiEvent.SelectReportTab -> _state.update {
+                it.copy(reportTabMode = event.tab)
+            }
+            is OutletUiEvent.SelectReportSummaryPeriod -> _state.update {
+                recompute(it.copy(selectedReportPeriod = event.period))
+            }
+            is OutletUiEvent.OpenCreateDailyReport -> openCreateDailyReport(event.preferredDate)
+            is OutletUiEvent.SelectCreateReportDate -> selectCreateReportDate(event.date)
+            OutletUiEvent.CloseDailyReportForm -> _state.update {
+                it.copy(reportForm = DailyReportFormState())
+            }
             is OutletUiEvent.UpdateProductQty -> _state.update { current ->
                 val digits = event.qtyInput.filter(Char::isDigit)
                 val updated = current.reportForm.productQuantities.toMutableMap()
@@ -648,7 +939,69 @@ class OutletViewModel(
         }
     }
 
+    private fun openCreateDailyReport(preferredDate: Timestamp?) {
+        val current = _state.value
+        val candidates = current.reportDateCandidates.ifEmpty {
+            buildReportDateCandidates(current.recentReports, Timestamp.now())
+        }
+        val availableDate = preferredDate?.takeIf { pref ->
+            candidates.any { !it.hasExistingReport && isSameCalendarDay(it.timestamp, pref) }
+        } ?: candidates.firstOrNull { !it.hasExistingReport }?.timestamp
+
+        if (availableDate == null) {
+            viewModelScope.launch {
+                _effects.send(
+                    OutletUiEffect.ShowSnackbar("Seluruh tanggal dalam 7 hari terakhir sudah memiliki laporan harian.")
+                )
+            }
+            return
+        }
+
+        _state.update {
+            it.copy(
+                reportForm = DailyReportFormState(
+                    isFormVisible = true,
+                    selectedCreateDate = availableDate
+                )
+            )
+        }
+    }
+
+    private fun selectCreateReportDate(targetDate: Timestamp) {
+        val current = _state.value
+        val now = Timestamp.now()
+        val daysAgo = calendarDaysBetween(targetDate, now)
+        val error = when {
+            daysAgo < 0 -> "Tidak dapat memilih tanggal di masa depan."
+            daysAgo > MAX_REPORT_CREATE_DAYS_BACK -> "Laporan susulan dibatasi maksimal $MAX_REPORT_CREATE_DAYS_BACK hari ke belakang."
+            current.recentReports.any { isSameCalendarDay(it.date, targetDate) } ->
+                "Tanggal tersebut sudah memiliki laporan harian. Pilih tanggal lain yang masih kosong."
+            else -> null
+        }
+        if (error != null) {
+            _state.update { it.copy(reportForm = it.reportForm.copy(errorMessage = error)) }
+            viewModelScope.launch { _effects.send(OutletUiEffect.ShowSnackbar(error)) }
+            return
+        }
+        _state.update {
+            it.copy(
+                reportForm = it.reportForm.copy(
+                    selectedCreateDate = targetDate,
+                    errorMessage = null
+                )
+            )
+        }
+    }
+
     private fun loadExistingReportForEdit(reportId: String) {
+        val existingInMemory = _state.value.recentReports.firstOrNull { it.id == reportId }
+        if (existingInMemory != null && !isReportEditable(existingInMemory.date, Timestamp.now())) {
+            val msg = "Laporan lebih dari $MAX_REPORT_EDIT_DAYS_BACK hari terakhir terkunci dan tidak dapat diedit."
+            _state.update { it.copy(reportForm = it.reportForm.copy(errorMessage = msg)) }
+            viewModelScope.launch { _effects.send(OutletUiEffect.ShowSnackbar(msg)) }
+            return
+        }
+
         viewModelScope.launch {
             _state.update {
                 it.copy(
@@ -672,10 +1025,24 @@ class OutletViewModel(
                         }
                         return@onSuccess
                     }
+                    if (!isReportEditable(full.report.date, Timestamp.now())) {
+                        val msg = "Laporan lebih dari $MAX_REPORT_EDIT_DAYS_BACK hari terakhir terkunci dan tidak dapat diedit."
+                        _state.update {
+                            it.copy(
+                                reportForm = it.reportForm.copy(
+                                    isLoadingExisting = false,
+                                    errorMessage = msg
+                                )
+                            )
+                        }
+                        _effects.send(OutletUiEffect.ShowSnackbar(msg))
+                        return@onSuccess
+                    }
                     val matMap = _state.value.rawMaterials.associateBy { it.id }
                     _state.update {
                         it.copy(
                             reportForm = DailyReportFormState(
+                                isFormVisible = true,
                                 editingReportId = full.report.id,
                                 editingReportDate = full.report.date,
                                 productQuantities = full.products
@@ -738,13 +1105,28 @@ class OutletViewModel(
         val qrisRev = form.qrisRevenueInput.toLongOrNull() ?: 0L
         val totalRev = cashRev + qrisRev
 
+        val nowTs = Timestamp.now()
+        val resolvedUpdateId = overwriteReportId ?: form.editingReportId
+        val existingForDate = resolvedUpdateId?.let { id ->
+            _state.value.recentReports.firstOrNull { it.id == id }
+                ?: form.pendingDuplicateReport?.takeIf { it.id == id }
+        }
+        val targetDate = existingForDate?.date ?: form.editingReportDate ?: form.selectedCreateDate ?: nowTs
+        val daysAgo = calendarDaysBetween(targetDate, nowTs)
+
         val error = when {
             outlet == null -> "Outlet penugasan belum ditemukan."
             totalRev <= 0L && totalSold <= 0 -> "Isi minimal jumlah produk terjual atau pendapatan tunai/QRIS."
+            daysAgo < 0 -> "Tanggal laporan tidak boleh di masa depan."
+            !resolvedUpdateId.isNullOrBlank() && daysAgo > MAX_REPORT_EDIT_DAYS_BACK ->
+                "Laporan lebih dari $MAX_REPORT_EDIT_DAYS_BACK hari terakhir tidak dapat diubah lagi."
+            resolvedUpdateId.isNullOrBlank() && daysAgo > MAX_REPORT_CREATE_DAYS_BACK ->
+                "Laporan susulan hanya dapat dibuat maksimal $MAX_REPORT_CREATE_DAYS_BACK hari ke belakang."
             else -> null
         }
         if (error != null) {
             _state.update { it.copy(reportForm = form.copy(errorMessage = error, pendingDuplicateReport = null)) }
+            viewModelScope.launch { _effects.send(OutletUiEffect.ShowSnackbar(error)) }
             return
         }
 
@@ -752,9 +1134,6 @@ class OutletViewModel(
             _state.update {
                 it.copy(reportForm = form.copy(isSaving = true, errorMessage = null, pendingDuplicateReport = null))
             }
-
-            val targetDate = form.editingReportDate ?: Timestamp.now()
-            val resolvedUpdateId = overwriteReportId ?: form.editingReportId
 
             // Reject duplicate creation automatically unless the user explicitly confirmed update/edit
             if (resolvedUpdateId.isNullOrBlank()) {
@@ -778,17 +1157,15 @@ class OutletViewModel(
                 }
             }
 
-            val existingForDate = resolvedUpdateId?.let { id ->
-                _state.value.recentReports.firstOrNull { it.id == id }
-                    ?: form.pendingDuplicateReport?.takeIf { it.id == id }
-            }
+            val currentSenderId = resolveCurrentUser()?.id ?: authRepository.getCurrentUserUid() ?: "staff"
             val report = DailyReport(
                 id = resolvedUpdateId.orEmpty(),
                 outletId = outlet!!.id,
-                date = existingForDate?.date ?: targetDate,
+                date = targetDate,
                 cashRevenue = cashRev,
                 qrisRevenue = qrisRev,
-                totalSold = totalSold
+                totalSold = totalSold,
+                createdBy = existingForDate?.createdBy?.takeIf { it.isNotBlank() } ?: currentSenderId
             )
             val expenses = form.expenses.map {
                 DailyReportExpense(category = it.category, amount = it.amount, note = it.note.ifBlank { null })
@@ -893,6 +1270,107 @@ class OutletViewModel(
             .filter { assignedOutlet == null || it.outletId == assignedOutlet.id }
             .sortedByDescending { it.date.seconds }
         val todayReport = outletReports.firstOrNull { isSameCalendarDay(it.date, nowTs) }
+
+        val prodMap = raw.rawProducts.associateBy { it.id }
+        val productsByReportId = raw.rawReportProducts.groupBy { it.dailyReportId }
+        val expensesByReportId = raw.rawReportExpenses.groupBy { it.dailyReportId.orEmpty() }
+        val damagedByReportId = raw.rawReportDamaged.groupBy { it.dailyReportId }
+        val fallbackOutletStaffName = raw.rawUsers
+            .firstOrNull { it.role == Role.OUTLET && assignedOutlet != null && it.outletId == assignedOutlet.id }
+            ?.name
+            ?.replace(Regex("\\s*\\(.*\\)"), "")
+            ?.takeIf { it.isNotBlank() }
+            ?: matchedUser?.name?.replace(Regex("\\s*\\(.*\\)"), "")?.takeIf { it.isNotBlank() }
+            ?: "Dimas Pratama"
+
+        val reportDateFmt = SimpleDateFormat("EEE, dd MMM yyyy", idLocale)
+        val fullDateFmt = SimpleDateFormat("EEEE, dd MMMM yyyy", idLocale)
+
+        val historyItems = outletReports.map { rep ->
+            val dateObj = rep.date.toDate()
+            val daysAgo = calendarDaysBetween(rep.date, nowTs)
+            val senderName = if (rep.createdBy.isNotBlank()) {
+                userMap[rep.createdBy]?.name
+                    ?.replace(Regex("\\s*\\(.*\\)"), "")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: rep.createdBy
+            } else {
+                fallbackOutletStaffName
+            }
+            val repProducts = productsByReportId[rep.id].orEmpty().map { rp ->
+                ReportProductLineUi(
+                    id = rp.id,
+                    productName = prodMap[rp.productId]?.name ?: rp.productId,
+                    quantity = rp.quantity,
+                    price = rp.price,
+                    subtotal = rp.subtotal
+                )
+            }
+            val repExpenses = expensesByReportId[rep.id].orEmpty().map { exp ->
+                val catLabel = when (exp.category) {
+                    ExpenseCategory.GAS -> "Gas & bahan bakar"
+                    ExpenseCategory.PLASTIC_BAG -> "Plastik & tusuk"
+                    ExpenseCategory.OTHER -> "Lainnya"
+                }
+                ReportExpenseLineUi(
+                    id = exp.id,
+                    categoryLabel = catLabel,
+                    amount = exp.amount,
+                    note = exp.note
+                )
+            }
+            val repDamaged = damagedByReportId[rep.id].orEmpty().map { dmg ->
+                val mat = matMap[dmg.materialId]
+                val unit = mat?.unit?.firestoreValue ?: "pcs"
+                ReportDamagedLineUi(
+                    id = dmg.id,
+                    materialName = mat?.name ?: dmg.materialId,
+                    quantityText = "${dmg.quantity} $unit",
+                    note = dmg.note
+                )
+            }
+            val totalExp = repExpenses.sumOf { it.amount }
+            val dmgCount = damagedByReportId[rep.id].orEmpty().sumOf { it.quantity }
+            val dateTitle = when (daysAgo) {
+                0 -> "Hari ini, ${SimpleDateFormat("dd MMM yyyy", idLocale).format(dateObj)}"
+                1 -> "Kemarin, ${SimpleDateFormat("dd MMM yyyy", idLocale).format(dateObj)}"
+                else -> reportDateFmt.format(dateObj)
+            }
+
+            OutletReportHistoryItemUi(
+                id = rep.id,
+                date = rep.date,
+                dateMillis = dateObj.time,
+                dateLabel = dateTitle,
+                fullDateLabel = fullDateFmt.format(dateObj),
+                timeLabel = "${hourFmt.format(dateObj)} WIB",
+                daysAgo = daysAgo,
+                createdById = rep.createdBy,
+                createdByName = senderName,
+                createdByInitials = buildInitials(senderName),
+                cashRevenue = rep.cashRevenue,
+                qrisRevenue = rep.qrisRevenue,
+                totalRevenue = rep.totalRevenue,
+                totalSold = rep.totalSold,
+                totalExpense = totalExp,
+                damagedCount = dmgCount,
+                netDeposit = (rep.totalRevenue - totalExp).coerceAtLeast(0L),
+                isEditable = isReportEditable(rep.date, nowTs),
+                productLines = repProducts,
+                expenseLines = repExpenses,
+                damagedLines = repDamaged
+            )
+        }
+
+        val dateCandidates = buildReportDateCandidates(outletReports, nowTs)
+        val periodSummary = computeOutletReportPeriodSummary(
+            period = raw.selectedReportPeriod,
+            reports = outletReports,
+            expensesByReportId = expensesByReportId,
+            damagedByReportId = damagedByReportId,
+            materialMap = matMap,
+            reference = nowTs
+        )
         val dashboardMetrics = computeOutletDashboardMetrics(
             assignedOutlet = assignedOutlet,
             todayReport = todayReport,
@@ -908,6 +1386,9 @@ class OutletViewModel(
             activeProducts = raw.rawProducts.filter { it.isActive },
             distributions = outletDists,
             recentReports = outletReports,
+            reportHistoryItems = historyItems,
+            reportDateCandidates = dateCandidates,
+            reportPeriodSummary = periodSummary,
             todayReport = todayReport,
             dashboardMetrics = dashboardMetrics
         )

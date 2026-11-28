@@ -191,16 +191,20 @@ object FirestoreMappers {
         date = getTimestamp("date") ?: Timestamp.now(),
         cashRevenue = (getLong("cash_revenue") ?: 0L).coerceAtLeast(0L),
         qrisRevenue = (getLong("qris_revenue") ?: 0L).coerceAtLeast(0L),
-        totalSold = (getLong("total_sold") ?: 0L).toInt().coerceAtLeast(0)
+        totalSold = (getLong("total_sold") ?: 0L).toInt().coerceAtLeast(0),
+        createdBy = getString("created_by").orEmpty()
     )
 
-    fun DailyReport.toFirestoreMap(): Map<String, Any?> = mapOf(
-        "outlet_id" to outletId,
-        "date" to date,
-        "cash_revenue" to cashRevenue,
-        "qris_revenue" to qrisRevenue,
-        "total_sold" to totalSold
-    )
+    fun DailyReport.toFirestoreMap(): Map<String, Any?> = buildMap {
+        put("outlet_id", outletId)
+        put("date", date)
+        put("cash_revenue", cashRevenue)
+        put("qris_revenue", qrisRevenue)
+        put("total_sold", totalSold)
+        if (createdBy.isNotBlank()) {
+            put("created_by", createdBy)
+        }
+    }
 
     private fun Any?.asLong(): Long = (this as? Number)?.toLong() ?: 0L
 

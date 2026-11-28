@@ -68,6 +68,7 @@ import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
+import com.sudutcorp.sudutbulat.feature.owner.ReportTabMode
 import com.sudutcorp.sudutbulat.feature.profile.ProfileScreen
 import com.sudutcorp.sudutbulat.feature.report.OutletReportScreen
 import com.sudutcorp.sudutbulat.feature.report.OwnerReportScreen
@@ -157,7 +158,39 @@ fun RoleTabContent(
                     navController.navigateSingle(OwnerSubRoutes.DetailOutlet(outletId))
                 },
                 onReviewReportsClick = {
-                    navController.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))
+                    onOwnerEvent(OwnerUiEvent.ReportTabSelected(ReportTabMode.LIST))
+                    onSelectTab(2)
+                },
+                onOpenReportsSummaryClick = {
+                    onOwnerEvent(OwnerUiEvent.ReportTabSelected(ReportTabMode.SUMMARY))
+                    onSelectTab(2)
+                },
+                onOpenReportsListClick = {
+                    onOwnerEvent(OwnerUiEvent.ReportTabSelected(ReportTabMode.LIST))
+                    onSelectTab(2)
+                },
+                onReportClick = { reportId ->
+                    navController.navigateSingle(
+                        OwnerSubRoutes.DetailReport(
+                            period = ownerUiState.selectedReportPeriod,
+                            reportId = reportId
+                        )
+                    )
+                },
+                onAddOutletClick = {
+                    navController.navigateSingle(
+                        route = OwnerSubRoutes.AddOutlet,
+                        beforeNavigate = { onOwnerEvent(OwnerUiEvent.ResetAddOutletForm) }
+                    )
+                },
+                onAddUserClick = {
+                    navController.navigateSingle(
+                        route = OwnerSubRoutes.AddUser(null),
+                        beforeNavigate = { onOwnerEvent(OwnerUiEvent.InitAddUserForm(null)) }
+                    )
+                },
+                onOpenCatalogClick = {
+                    navController.navigateSingle(OwnerSubRoutes.Catalog)
                 }
             )
             1 -> OutletScreen(
@@ -290,7 +323,10 @@ fun RoleTabContent(
             2 -> OutletReportScreen(
                 navController = navController,
                 uiState = outletUiState,
-                onEvent = onOutletEvent
+                effects = outletEffects,
+                onEvent = onOutletEvent,
+                isDevMode = isDevAccount,
+                onSwitchRoleClick = onOpenRoleSwitcher
             )
             3 -> ProfileScreen(
                 navController = navController,

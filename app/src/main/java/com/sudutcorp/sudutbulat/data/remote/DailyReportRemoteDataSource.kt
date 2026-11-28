@@ -22,6 +22,44 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import java.util.Calendar
+
+const val MAX_REPORT_EDIT_DAYS_BACK = 3
+const val MAX_REPORT_CREATE_DAYS_BACK = 7
+
+fun calendarDaysBetween(target: Timestamp, reference: Timestamp = Timestamp.now()): Int {
+    val startOfDayMillis: (Timestamp) -> Long = { ts ->
+        Calendar.getInstance().apply {
+            time = ts.toDate()
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val diffMillis = startOfDayMillis(reference) - startOfDayMillis(target)
+    return (diffMillis / 86_400_000L).toInt()
+}
+
+fun validateDailyReportDateWindow(
+    reportDate: Timestamp,
+    isUpdate: Boolean,
+    reference: Timestamp = Timestamp.now()
+) {
+    val daysAgo = calendarDaysBetween(reportDate, reference)
+    require(daysAgo >= 0) {
+        "Tanggal laporan tidak boleh di masa depan."
+    }
+    if (isUpdate) {
+        require(daysAgo <= MAX_REPORT_EDIT_DAYS_BACK) {
+            "Laporan yang sudah melewati $MAX_REPORT_EDIT_DAYS_BACK hari terakhir tidak dapat diubah."
+        }
+    } else {
+        require(daysAgo <= MAX_REPORT_CREATE_DAYS_BACK) {
+            "Laporan susulan hanya dapat dibuat maksimal $MAX_REPORT_CREATE_DAYS_BACK hari ke belakang."
+        }
+    }
+}
 
 open class DailyReportRemoteDataSource(
     firestore: FirebaseFirestore? = null
@@ -141,6 +179,7 @@ open class DailyReportRemoteDataSource(
         val batch = firestore.batch()
 
         val isUpdate = report.id.isNotBlank()
+        validateDailyReportDateWindow(reportDate = report.date, isUpdate = isUpdate)
         val reportDoc = if (isUpdate) reportCol.document(report.id) else reportCol.document()
         val reportId = reportDoc.id
         val reportToSave = if (report.id.isBlank()) report.copy(id = reportId) else report

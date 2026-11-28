@@ -94,6 +94,7 @@ class DefaultAppContainer : AppContainer {
                     dailyReportRepository = dailyReportRepository,
                     materialRepository = materialRepository,
                     productRepository = productRepository,
+                    materialDistributionRepository = materialDistributionRepository,
                     authRepository = authRepository
                 )
             }

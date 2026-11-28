@@ -413,6 +413,11 @@ class FakeDailyReportRemoteDataSource : DailyReportRemoteDataSource() {
         damagedMaterials: List<DailyReportDamagedMaterial>
     ): Result<String> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
+        val isUpdate = report.id.isNotBlank() && reports.containsKey(report.id)
+        com.sudutcorp.sudutbulat.data.remote.validateDailyReportDateWindow(
+            reportDate = report.date,
+            isUpdate = isUpdate
+        )
         val id = if (report.id.isBlank()) "rep_${reports.size + 1}" else report.id
         reports[id] = report.copy(id = id)
         reportProducts[id] = products.map { it.copy(dailyReportId = id) }.toMutableList()

@@ -8,6 +8,7 @@ import com.sudutcorp.sudutbulat.core.util.sanitizeTimeDigits
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
+import com.sudutcorp.sudutbulat.data.repository.MaterialDistributionRepository
 import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.ProductRepository
@@ -30,10 +31,11 @@ class OwnerViewModel(
     private val dailyReportRepository: DailyReportRepository,
     private val materialRepository: MaterialRepository,
     private val productRepository: ProductRepository,
+    private val materialDistributionRepository: MaterialDistributionRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(computeOwnerDerivedState(OwnerUiState()))
+    private val _state = MutableStateFlow(computeOwnerDerivedState(OwnerUiState(isLoading = true)))
     val state: StateFlow<OwnerUiState> = _state.asStateFlow()
 
     private val _effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
@@ -68,7 +70,9 @@ class OwnerViewModel(
             outletRepository.getOutletsFlow(onlyActive = false)
                 .catch { e -> reportStreamError("outlets", e) }
                 .collect { list ->
-                    _state.update { computeOwnerDerivedState(it.copy(outlets = list)) }
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(outlets = list, hasFirestoreSync = true, isLoading = false))
+                    }
                 }
         }
         viewModelScope.launch {
@@ -87,7 +91,9 @@ class OwnerViewModel(
                                 users = list,
                                 ownerName = ownerName,
                                 ownerInitials = buildInitials(ownerName),
-                                ownerEmail = email ?: matchedOwner?.email ?: current.ownerEmail
+                                ownerEmail = email ?: matchedOwner?.email ?: current.ownerEmail,
+                                hasFirestoreSync = true,
+                                isLoading = false
                             )
                         )
                     }
@@ -97,42 +103,63 @@ class OwnerViewModel(
             dailyReportRepository.getDailyReportsFlow()
                 .catch { e -> reportStreamError("daily_reports", e) }
                 .collect { list ->
-                    _state.update { computeOwnerDerivedState(it.copy(reports = list)) }
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(reports = list, hasFirestoreSync = true, isLoading = false))
+                    }
                 }
         }
         viewModelScope.launch {
             dailyReportRepository.getAllReportProductsFlow()
                 .catch { e -> reportStreamError("daily_report_products", e) }
                 .collect { list ->
-                    _state.update { computeOwnerDerivedState(it.copy(reportProducts = list)) }
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(reportProducts = list, hasFirestoreSync = true))
+                    }
                 }
         }
         viewModelScope.launch {
             dailyReportRepository.getAllExpensesFlow()
                 .catch { e -> reportStreamError("daily_report_expenses", e) }
                 .collect { list ->
-                    _state.update { computeOwnerDerivedState(it.copy(expenses = list)) }
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(expenses = list, hasFirestoreSync = true))
+                    }
                 }
         }
         viewModelScope.launch {
             dailyReportRepository.getAllDamagedMaterialsFlow()
                 .catch { e -> reportStreamError("daily_report_damaged_materials", e) }
                 .collect { list ->
-                    _state.update { computeOwnerDerivedState(it.copy(damagedMaterials = list)) }
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(damagedMaterials = list, hasFirestoreSync = true))
+                    }
                 }
         }
         viewModelScope.launch {
             materialRepository.getMaterialsFlow()
                 .catch { e -> reportStreamError("materials", e) }
                 .collect { list ->
-                    _state.update { computeOwnerDerivedState(it.copy(materials = list)) }
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(materials = list, hasFirestoreSync = true))
+                    }
                 }
         }
         viewModelScope.launch {
             productRepository.getProductsFlow(onlyActive = false)
                 .catch { e -> reportStreamError("products", e) }
                 .collect { list ->
-                    _state.update { computeOwnerDerivedState(it.copy(products = list)) }
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(products = list, hasFirestoreSync = true))
+                    }
+                }
+        }
+        viewModelScope.launch {
+            materialDistributionRepository.getDistributionsFlow()
+                .catch { e -> reportStreamError("material_distributions", e) }
+                .collect { list ->
+                    _state.update {
+                        computeOwnerDerivedState(it.copy(distributions = list, hasFirestoreSync = true))
+                    }
                 }
         }
     }

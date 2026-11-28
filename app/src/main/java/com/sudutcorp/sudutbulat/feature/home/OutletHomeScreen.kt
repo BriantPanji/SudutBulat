@@ -107,7 +107,7 @@ fun OutletHomeScreen(
         if (today != null) {
             onEvent(OutletUiEvent.LoadExistingReportForEdit(today.id))
         } else {
-            onEvent(OutletUiEvent.CancelEditDailyReport)
+            onEvent(OutletUiEvent.OpenCreateDailyReport())
         }
         onOpenReportTab()
     }
