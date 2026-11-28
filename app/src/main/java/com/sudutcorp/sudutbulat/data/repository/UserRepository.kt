@@ -63,4 +63,8 @@ class UserRepository(
     suspend fun setUserOutlet(userId: String, outletId: String?): Result<Unit> {
         return remoteDataSource.setUserOutlet(userId, outletId)
     }
+
+    suspend fun updateUserPhoto(userId: String, photoUrl: String?): Result<Unit> {
+        return remoteDataSource.updateUserPhoto(userId, photoUrl)
+    }
 }

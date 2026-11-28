@@ -128,7 +128,8 @@ data class StaffItemUi(
     val role: Role,
     val outletId: String?,
     val outletName: String?,
-    val isActive: Boolean
+    val isActive: Boolean,
+    val photoUrl: String? = null
 )
 
 data class DailyReportListItemUi(
@@ -288,7 +289,8 @@ data class AddCatalogItemFormState(
 data class OwnerUiState(
     val ownerName: String = "Owner",
     val ownerEmail: String = "sdb.owner@gmail.com",
-    val ownerInitials: String = "OW",
+    val ownerInitials: String = "O",
+    val ownerPhotoUrl: String? = null,
     val todayDateLabel: String = "",
 
     val outlets: List<Outlet> = emptyList(),

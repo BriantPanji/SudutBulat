@@ -147,7 +147,8 @@ fun computeOwnerDerivedState(
                 outletName = assignedOutlet?.let {
                     if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
                 },
-                isActive = user.isActive
+                isActive = user.isActive,
+                photoUrl = user.photoUrl
             )
         }
         .sortedWith(compareByDescending<StaffItemUi> { it.isActive }.thenBy { it.name.lowercase(Locale.ROOT) })

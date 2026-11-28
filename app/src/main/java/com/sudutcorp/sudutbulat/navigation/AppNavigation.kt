@@ -72,6 +72,10 @@ import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
 import com.sudutcorp.sudutbulat.feature.owner.buildSingleReportDetail
+import com.sudutcorp.sudutbulat.feature.profile.ProfileUiEffect
+import com.sudutcorp.sudutbulat.feature.profile.ProfileUiEvent
+import com.sudutcorp.sudutbulat.feature.profile.ProfileUiState
+import com.sudutcorp.sudutbulat.feature.profile.ProfileViewModel
 import com.sudutcorp.sudutbulat.feature.report.OwnerDetailReportScreen
 import com.sudutcorp.sudutbulat.feature.report.defaultReportPeriodSummary
 import com.sudutcorp.sudutbulat.feature.stock.CatalogUiEffect
@@ -240,11 +244,13 @@ fun MainScreen(
         if (needsCatalogVm) viewModel(factory = appContainer.viewModelFactory) else null
     val outletViewModel: OutletViewModel? =
         if (needsOutletVm) viewModel(factory = appContainer.viewModelFactory) else null
+    val profileViewModel: ProfileViewModel = viewModel(factory = appContainer.viewModelFactory)
 
     val ownerUiState = ownerViewModel?.state?.collectAsStateWithLifecycle()?.value ?: OwnerUiState()
     val warehouseUiState = warehouseViewModel?.state?.collectAsStateWithLifecycle()?.value ?: WarehouseUiState()
     val catalogUiState = catalogViewModel?.state?.collectAsStateWithLifecycle()?.value ?: CatalogUiState()
     val outletUiState = outletViewModel?.state?.collectAsStateWithLifecycle()?.value ?: OutletUiState()
+    val profileUiState by profileViewModel.state.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -269,7 +275,7 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(ownerViewModel, warehouseViewModel, catalogViewModel, outletViewModel) {
+    LaunchedEffect(ownerViewModel, warehouseViewModel, catalogViewModel, outletViewModel, profileViewModel) {
         ownerViewModel?.let { vm ->
             launch {
                 vm.effects.collect { effect ->
@@ -306,6 +312,13 @@ fun MainScreen(
                 }
             }
         }
+        launch {
+            profileViewModel.effects.collect { effect ->
+                if (effect is ProfileUiEffect.ShowSnackbar) {
+                    showQuickSnackbar(effect.message)
+                }
+            }
+        }
     }
 
     val currentReportSummary = remember(
@@ -337,6 +350,9 @@ fun MainScreen(
     }
     val onWarehouseEvent: (WarehouseUiEvent) -> Unit = remember(warehouseViewModel) {
         { event -> warehouseViewModel?.onEvent(event) }
+    }
+    val onProfileEvent: (ProfileUiEvent) -> Unit = remember(profileViewModel) {
+        { event -> profileViewModel.onEvent(event) }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -438,6 +454,8 @@ fun MainScreen(
                             outletUiState = outletUiState,
                             outletEffects = outletViewModel?.effects ?: emptyFlow(),
                             onOutletEvent = { event -> outletViewModel?.onEvent(event) },
+                            profileUiState = profileUiState,
+                            onProfileEvent = onProfileEvent,
                             onUpdatePassword = appContainer.authRepository::updatePassword,
                             onShowMessage = onShowMessage,
                             onSelectTab = onSelectTab

@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
+import com.sudutcorp.sudutbulat.core.components.SBAvatar
 import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
 import com.sudutcorp.sudutbulat.core.components.SBSectionCard
@@ -112,20 +113,13 @@ fun OwnerDetailStaffScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            modifier = Modifier.size(52.dp),
-                            shape = CircleShape,
-                            color = SBColor.Secondary_100
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = staff.initials,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = SBColor.Primary_500
-                                )
-                            }
-                        }
+                        SBAvatar(
+                            initials = staff.initials,
+                            photoUrl = staff.photoUrl,
+                            size = 52.dp,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(staff.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                             Text(staff.email, fontSize = 13.sp, color = SBColor.Grey_500)

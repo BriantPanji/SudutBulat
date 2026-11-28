@@ -92,6 +92,7 @@ class OwnerViewModel(
                                 users = list,
                                 ownerName = ownerName,
                                 ownerInitials = buildInitials(ownerName),
+                                ownerPhotoUrl = matchedOwner?.photoUrl,
                                 ownerEmail = email ?: matchedOwner?.email ?: current.ownerEmail,
                                 hasFirestoreSync = true,
                                 isLoading = false

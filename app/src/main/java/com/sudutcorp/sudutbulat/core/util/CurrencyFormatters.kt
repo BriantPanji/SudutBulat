@@ -24,10 +24,11 @@ fun formatShortRupiah(amount: Long): String {
 fun formatDecimal(value: Int): String = NumberFormat.getNumberInstance(ID_LOCALE).format(value)
 
 fun buildInitials(name: String): String {
-    val parts = name.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    val cleanName = name.replace(Regex("\\s*\\(.*?\\)"), "").trim()
+    val parts = cleanName.split(Regex("\\s+")).filter { it.isNotBlank() }
     return when {
         parts.size >= 2 -> "${parts[0].first()}${parts[1].first()}".uppercase(Locale.ROOT)
-        parts.size == 1 -> parts[0].take(2).uppercase(Locale.ROOT)
-        else -> "AR"
+        parts.size == 1 -> parts[0].first().uppercase(Locale.ROOT)
+        else -> "?"
     }
 }

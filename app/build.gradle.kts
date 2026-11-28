@@ -64,4 +64,5 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("androidx.core:core-splashscreen:1.0.0")
+    implementation("com.cloudinary:cloudinary-android:3.1.2")
 }

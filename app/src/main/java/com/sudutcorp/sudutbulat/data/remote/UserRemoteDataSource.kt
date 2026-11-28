@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.data.remote
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toFirestoreMap
@@ -134,5 +135,14 @@ open class UserRemoteDataSource(
     open suspend fun setUserOutlet(userId: String, outletId: String?): Result<Unit> = runCatching {
         val col = usersCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         col.document(userId).update("outlet_id", outletId).await()
+    }
+
+    open suspend fun updateUserPhoto(userId: String, photoUrl: String?): Result<Unit> = runCatching {
+        require(userId.isNotBlank()) { "User ID tidak boleh kosong saat memperbarui foto profil." }
+        val col = usersCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
+        col.document(userId).set(
+            mapOf("photo_url" to photoUrl?.takeIf { it.isNotBlank() }),
+            SetOptions.merge()
+        ).await()
     }
 }

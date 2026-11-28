@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
+import com.sudutcorp.sudutbulat.data.remote.CloudinaryMediaUploader
 import com.sudutcorp.sudutbulat.data.remote.DailyReportRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.MaterialCategoryRemoteDataSource
 import com.sudutcorp.sudutbulat.data.remote.MaterialDistributionRemoteDataSource
@@ -21,6 +22,7 @@ import com.sudutcorp.sudutbulat.data.repository.UserRepository
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
 import com.sudutcorp.sudutbulat.feature.outlet.OutletViewModel
 import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
+import com.sudutcorp.sudutbulat.feature.profile.ProfileViewModel
 import com.sudutcorp.sudutbulat.feature.stock.CatalogViewModel
 
 /**
@@ -51,6 +53,7 @@ class DefaultAppContainer : AppContainer {
     private val productRemoteDataSource by lazy { ProductRemoteDataSource() }
     private val materialDistributionRemoteDataSource by lazy { MaterialDistributionRemoteDataSource() }
     private val dailyReportRemoteDataSource by lazy { DailyReportRemoteDataSource() }
+    private val cloudinaryMediaUploader by lazy { CloudinaryMediaUploader() }
 
     // Repositories
     override val authRepository: AuthRepository by lazy {
@@ -123,6 +126,13 @@ class DefaultAppContainer : AppContainer {
                     distributionRepository = materialDistributionRepository,
                     dailyReportRepository = dailyReportRepository,
                     authRepository = authRepository
+                )
+            }
+            initializer {
+                ProfileViewModel(
+                    userRepository = userRepository,
+                    authRepository = authRepository,
+                    mediaUploader = cloudinaryMediaUploader
                 )
             }
         }

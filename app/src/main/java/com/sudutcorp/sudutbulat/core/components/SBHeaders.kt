@@ -34,6 +34,7 @@ fun SBPageHeader(
     title: String,
     initials: String,
     modifier: Modifier = Modifier,
+    photoUrl: String? = null,
     isAvatarClickable: Boolean = false,
     onAvatarClick: () -> Unit = {},
     onBackClick: (() -> Unit)? = null
@@ -87,23 +88,14 @@ fun SBPageHeader(
                 )
             }
         ) {
-            Surface(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .clickable(enabled = isAvatarClickable, onClick = onAvatarClick),
-                shape = CircleShape,
-                color = SBColor.Secondary_100
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = initials,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SBColor.Primary_500
-                    )
-                }
-            }
+            SBAvatar(
+                initials = initials,
+                photoUrl = photoUrl,
+                size = 44.dp,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                onClick = if (isAvatarClickable) onAvatarClick else null
+            )
         }
     }
 }

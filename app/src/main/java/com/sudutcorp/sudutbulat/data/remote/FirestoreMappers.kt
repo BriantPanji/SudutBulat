@@ -62,7 +62,8 @@ object FirestoreMappers {
             role = role,
             outletId = getString("outlet_id")?.takeIf { it.isNotBlank() },
             isActive = getBoolean("is_active") ?: true,
-            authUid = getString("uid")?.takeIf { it.isNotBlank() }
+            authUid = getString("uid")?.takeIf { it.isNotBlank() },
+            photoUrl = getString("photo_url")?.takeIf { it.isNotBlank() }
         )
     }
 
@@ -73,6 +74,7 @@ object FirestoreMappers {
         put("role", role.firestoreValue)
         put("outlet_id", outletId)
         put("is_active", isActive)
+        put("photo_url", photoUrl?.takeIf { it.isNotBlank() })
         if (!authUid.isNullOrBlank()) {
             put("uid", authUid)
         }

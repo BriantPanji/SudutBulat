@@ -104,6 +104,13 @@ class FakeUserRemoteDataSource : UserRemoteDataSource() {
         val existing = users[userId] ?: throw NoSuchElementException()
         users[userId] = existing.copy(outletId = outletId)
     }
+
+    override suspend fun updateUserPhoto(userId: String, photoUrl: String?): Result<Unit> = runCatching {
+        if (shouldFail) throw RuntimeException("Simulated network failure")
+        require(userId.isNotBlank())
+        val existing = users[userId] ?: User(id = userId, name = userId)
+        users[userId] = existing.copy(photoUrl = photoUrl?.takeIf { it.isNotBlank() })
+    }
 }
 
 class FakeOutletRemoteDataSource : OutletRemoteDataSource() {

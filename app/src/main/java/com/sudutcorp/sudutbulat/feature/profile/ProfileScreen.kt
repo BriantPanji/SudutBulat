@@ -1,6 +1,8 @@
 package com.sudutcorp.sudutbulat.feature.profile
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,23 +32,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBAvatar
 import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
 import com.sudutcorp.sudutbulat.core.components.SBPageHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
@@ -58,6 +61,8 @@ fun ProfileScreen(
     isDevAccount: Boolean = false,
     onSwitchRoleClick: () -> Unit = {},
     ownerUiState: OwnerUiState = OwnerUiState(),
+    profileUiState: ProfileUiState = ProfileUiState(),
+    onProfileEvent: (ProfileUiEvent) -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToAddUser: () -> Unit = {},
     onNavigateToOutletList: () -> Unit = {},
@@ -71,37 +76,39 @@ fun ProfileScreen(
     var showPasswordDialog by rememberSaveable { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    val roleLabel = if (isDevAccount) "Developer (${userRole.displayName})" else userRole.displayName
-    val displayName = if (isDevAccount) {
-        "Developer SDB"
-    } else {
-        when (userRole) {
-            Role.DEV -> "Developer SDB"
-            Role.OWNER -> ownerUiState.ownerName
-            Role.WAREHOUSE -> "Budi Santoso"
-            Role.OUTLET -> "Dimas Pratama"
-        }
+    val identity = remember(
+        profileUiState.users,
+        profileUiState.localPhotoOverrides,
+        userRole,
+        userEmail,
+        isDevAccount,
+        ownerUiState.ownerName,
+        ownerUiState.ownerEmail
+    ) {
+        resolveProfileIdentity(
+            state = profileUiState,
+            userRole = userRole,
+            userEmail = userEmail,
+            isDevAccount = isDevAccount,
+            ownerFallbackName = ownerUiState.ownerName,
+            ownerFallbackEmail = ownerUiState.ownerEmail
+        )
     }
-    val initials = if (isDevAccount) {
-        "DV"
-    } else {
-        when (userRole) {
-            Role.DEV -> "DV"
-            Role.OWNER -> ownerUiState.ownerInitials
-            Role.WAREHOUSE -> "BS"
-            Role.OUTLET -> "DP"
+
+    val hasProfilePhoto = !identity.photoUrl.isNullOrBlank()
+    val photoLauncher = rememberProfilePhotoLauncher(
+        onPhotoReady = { jpegBytes ->
+            onProfileEvent(
+                ProfileUiEvent.UploadProfilePhoto(
+                    userId = identity.userId,
+                    jpegBytes = jpegBytes
+                )
+            )
+        },
+        onError = { errorMsg ->
+            onProfileEvent(ProfileUiEvent.PhotoProcessFailed(errorMsg))
         }
-    }
-    val emailText = userEmail?.takeIf { it.isNotBlank() } ?: if (isDevAccount) {
-        "sdb.dev@gmail.com"
-    } else {
-        when (userRole) {
-            Role.DEV -> "sdb.dev@gmail.com"
-            Role.OWNER -> ownerUiState.ownerEmail.ifBlank { "arif@sudutbulat.id" }
-            Role.WAREHOUSE -> "sdb.gudang@gmail.com"
-            Role.OUTLET -> "sdb.staff@gmail.com"
-        }
-    }
+    )
 
     val isOwnerView = userRole == Role.OWNER || userRole == Role.DEV
 
@@ -115,14 +122,15 @@ fun ProfileScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         SBPageHeader(
-            eyebrow = roleLabel,
+            eyebrow = identity.roleLabel,
             title = "Profil",
-            initials = initials,
+            initials = identity.initials,
+            photoUrl = identity.photoUrl,
             isAvatarClickable = isDevAccount,
             onAvatarClick = onSwitchRoleClick
         )
 
-        // Profile Identity
+        // Profile Identity & Modular Avatar Picker Trigger
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -130,26 +138,93 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(
-                modifier = Modifier.size(80.dp),
-                shape = CircleShape,
-                color = SBColor.Secondary_100
+            Box(
+                contentAlignment = Alignment.BottomEnd
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(text = initials, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, color = SBColor.Primary_500)
+                SBAvatar(
+                    initials = identity.initials,
+                    photoUrl = identity.photoUrl,
+                    size = 88.dp,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    isLoading = profileUiState.isPhotoUpdating,
+                    contentDescription = "Foto profil ${identity.displayName}",
+                    onClick = {
+                        if (!profileUiState.isPhotoUpdating) {
+                            onProfileEvent(ProfileUiEvent.OpenPhotoOptionsSheet)
+                        }
+                    }
+                )
+
+                Surface(
+                    onClick = {
+                        if (!profileUiState.isPhotoUpdating) {
+                            onProfileEvent(ProfileUiEvent.OpenPhotoOptionsSheet)
+                        }
+                    },
+                    modifier = Modifier
+                        .size(30.dp)
+                        .border(2.dp, Color.White, CircleShape),
+                    shape = CircleShape,
+                    color = SBColor.Primary_550
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_camera),
+                            contentDescription = if (hasProfilePhoto) "Ubah foto profil" else "Buat foto profil",
+                            tint = Color.White,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
                 }
             }
-            Text(text = displayName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+
+            Surface(
+                onClick = {
+                    if (!profileUiState.isPhotoUpdating) {
+                        onProfileEvent(ProfileUiEvent.OpenPhotoOptionsSheet)
+                    }
+                },
+                shape = RoundedCornerShape(99.dp),
+                color = SBColor.Primary_100,
+                border = BorderStroke(1.dp, SBColor.Primary_200)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_camera),
+                        contentDescription = null,
+                        tint = SBColor.Primary_550,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = if (hasProfilePhoto) "Ubah foto profil" else "Buat foto profil",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_550
+                    )
+                }
+            }
+
+            Text(
+                text = identity.displayName,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = SBColor.Grey_700
+            )
             Surface(shape = RoundedCornerShape(99.dp), color = SBColor.Grey_100) {
                 Text(
-                    text = roleLabel,
+                    text = identity.roleLabel,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = SBColor.Grey_500,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
-            Text(text = emailText, fontSize = 14.sp, color = SBColor.Grey_500)
+            Text(text = identity.email, fontSize = 14.sp, color = SBColor.Grey_500)
         }
 
         if (isOwnerView) {
@@ -204,6 +279,12 @@ fun ProfileScreen(
             }
 
             ProfileMenuItem(
+                iconRes = R.drawable.ic_camera,
+                title = if (hasProfilePhoto) "Ubah foto profil" else "Buat foto profil",
+                valueText = if (hasProfilePhoto) "Foto aktif" else "Inisial (${identity.initials})",
+                onClick = { onProfileEvent(ProfileUiEvent.OpenPhotoOptionsSheet) }
+            )
+            ProfileMenuItem(
                 iconRes = R.drawable.ic_bell,
                 title = "Notifikasi",
                 onClick = onNavigateToNotifications
@@ -223,6 +304,39 @@ fun ProfileScreen(
                 onClick = { showLogoutDialog = true }
             )
         }
+    }
+
+    if (profileUiState.showPhotoOptionsSheet) {
+        ProfilePhotoBottomSheet(
+            hasExistingPhoto = hasProfilePhoto,
+            onDismiss = { onProfileEvent(ProfileUiEvent.DismissPhotoOptionsSheet) },
+            onPickFromGalleryClick = {
+                onProfileEvent(ProfileUiEvent.DismissPhotoOptionsSheet)
+                photoLauncher.launchGalleryPicker()
+            },
+            onTakePhotoClick = {
+                onProfileEvent(ProfileUiEvent.DismissPhotoOptionsSheet)
+                photoLauncher.launchCameraCapture()
+            },
+            onRemovePhotoClick = {
+                onProfileEvent(ProfileUiEvent.RequestDeletePhoto)
+            }
+        )
+    }
+
+    if (profileUiState.showDeletePhotoConfirmDialog) {
+        SBConfirmDialog(
+            title = "Hapus foto profil?",
+            description = "Foto profil Anda akan dihapus dan tampilan avatar akan kembali menggunakan inisial (${identity.initials}).",
+            confirmText = "Hapus",
+            iconRes = R.drawable.ic_trash,
+            iconBgColor = SBColor.Error_100,
+            iconTint = SBColor.Primary_550,
+            onDismiss = { onProfileEvent(ProfileUiEvent.DismissDeletePhotoConfirm) },
+            onConfirm = {
+                onProfileEvent(ProfileUiEvent.ConfirmDeleteProfilePhoto(identity.userId))
+            }
+        )
     }
 
     if (showLogoutDialog) {

@@ -28,7 +28,11 @@ data class User(
     @set:PropertyName("is_active")
     var isActive: Boolean = true,
 
-    val authUid: String? = null
+    val authUid: String? = null,
+
+    @get:PropertyName("photo_url")
+    @set:PropertyName("photo_url")
+    var photoUrl: String? = null
 ) {
     // Backwards-compatibility getter for uid
     @get:Exclude

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
+import com.sudutcorp.sudutbulat.core.components.SBAvatar
 import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
 import com.sudutcorp.sudutbulat.core.components.SBPageHeader
 import com.sudutcorp.sudutbulat.core.components.SBSearchBar
@@ -332,20 +333,13 @@ private fun StaffDirectoryRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Surface(
-            modifier = Modifier.size(40.dp),
-            shape = CircleShape,
-            color = SBColor.Secondary_100
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = staff.initials,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = SBColor.Primary_500
-                )
-            }
-        }
+        SBAvatar(
+            initials = staff.initials,
+            photoUrl = staff.photoUrl,
+            size = 40.dp,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
 
         Column(
             modifier = Modifier.weight(1f),

@@ -71,6 +71,8 @@ import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
 import com.sudutcorp.sudutbulat.feature.owner.ReportReviewFilter
 import com.sudutcorp.sudutbulat.feature.owner.ReportTabMode
 import com.sudutcorp.sudutbulat.feature.profile.ProfileScreen
+import com.sudutcorp.sudutbulat.feature.profile.ProfileUiEvent
+import com.sudutcorp.sudutbulat.feature.profile.ProfileUiState
 import com.sudutcorp.sudutbulat.feature.report.OutletReportScreen
 import com.sudutcorp.sudutbulat.feature.report.OwnerReportScreen
 import com.sudutcorp.sudutbulat.feature.report.defaultReportPeriodSummary
@@ -137,6 +139,8 @@ fun RoleTabContent(
     outletUiState: OutletUiState = OutletUiState(),
     outletEffects: Flow<OutletUiEffect> = emptyFlow(),
     onOutletEvent: (OutletUiEvent) -> Unit = {},
+    profileUiState: ProfileUiState = ProfileUiState(),
+    onProfileEvent: (ProfileUiEvent) -> Unit = {},
     onUpdatePassword: suspend (String, String) -> Result<Unit> = { _, _ ->
         Result.failure(IllegalStateException("Tidak tersedia"))
     },
@@ -243,6 +247,8 @@ fun RoleTabContent(
                 isDevAccount = isDevAccount,
                 onSwitchRoleClick = onOpenRoleSwitcher,
                 ownerUiState = ownerUiState,
+                profileUiState = profileUiState,
+                onProfileEvent = onProfileEvent,
                 onNavigateToNotifications = {
                     navController.navigateSingle(OwnerSubRoutes.Notification)
                 },
@@ -298,6 +304,8 @@ fun RoleTabContent(
                 userEmail = userEmail,
                 isDevAccount = isDevAccount,
                 onSwitchRoleClick = onOpenRoleSwitcher,
+                profileUiState = profileUiState,
+                onProfileEvent = onProfileEvent,
                 onNavigateToNotifications = {
                     navController.navigateSingle(OwnerSubRoutes.Notification)
                 },
@@ -338,6 +346,8 @@ fun RoleTabContent(
                 userEmail = userEmail,
                 isDevAccount = isDevAccount,
                 onSwitchRoleClick = onOpenRoleSwitcher,
+                profileUiState = profileUiState,
+                onProfileEvent = onProfileEvent,
                 onNavigateToNotifications = {
                     navController.navigateSingle(OwnerSubRoutes.Notification)
                 },

@@ -23,6 +23,7 @@ import com.sudutcorp.sudutbulat.data.repository.ProductRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
 import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
 import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
+import com.sudutcorp.sudutbulat.feature.profile.ProfileViewModel
 import com.sudutcorp.sudutbulat.feature.stock.CatalogViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -216,5 +217,6 @@ class OutletDailyReportTest {
         assertEquals(WarehouseViewModel::class.java, factory.create(WarehouseViewModel::class.java, CreationExtras.Empty).javaClass)
         assertEquals(CatalogViewModel::class.java, factory.create(CatalogViewModel::class.java, CreationExtras.Empty).javaClass)
         assertEquals(OutletViewModel::class.java, factory.create(OutletViewModel::class.java, CreationExtras.Empty).javaClass)
+        assertEquals(ProfileViewModel::class.java, factory.create(ProfileViewModel::class.java, CreationExtras.Empty).javaClass)
     }
 }
