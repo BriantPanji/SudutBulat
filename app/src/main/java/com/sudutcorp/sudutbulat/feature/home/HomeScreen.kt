@@ -48,6 +48,7 @@ import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.formatDecimal
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
 import com.sudutcorp.sudutbulat.core.util.formatShortRupiah
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.feature.owner.DailyReportListItemUi
 import com.sudutcorp.sudutbulat.feature.owner.OutletPerformanceUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerDashboardMetrics
@@ -774,9 +775,19 @@ private fun RecentOwnerReportRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (report.hasAlert) {
-                    SBStatusBadge(
-                        text = "Tinjau",
+                when {
+                    report.reviewStatus == ReportReviewStatus.APPROVED -> SBStatusBadge(
+                        text = "Disetujui",
+                        containerColor = SBColor.Success_100,
+                        contentColor = SBColor.Success_600
+                    )
+                    report.reviewStatus == ReportReviewStatus.REJECTED -> SBStatusBadge(
+                        text = "Ditolak",
+                        containerColor = SBColor.Error_100,
+                        contentColor = SBColor.Primary_550
+                    )
+                    report.hasAlert -> SBStatusBadge(
+                        text = "Perlu tinjau",
                         containerColor = SBColor.Warning_100,
                         contentColor = SBColor.Warning_600
                     )

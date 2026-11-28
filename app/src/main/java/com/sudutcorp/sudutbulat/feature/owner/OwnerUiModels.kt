@@ -9,6 +9,7 @@ import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.UnitType
@@ -23,6 +24,13 @@ enum class OutletTabMode(val label: String) {
 enum class ReportTabMode(val label: String) {
     SUMMARY("Ringkasan"),
     LIST("Daftar Laporan")
+}
+
+enum class ReportReviewFilter(val label: String) {
+    ALL("Semua Status"),
+    NEEDS_REVIEW("Perlu Ditinjau"),
+    REJECTED("Ditolak"),
+    APPROVED("Disetujui")
 }
 
 enum class OutletSortField(val label: String) {
@@ -135,7 +143,13 @@ data class DailyReportListItemUi(
     val totalSold: Int,
     val totalExpense: Long,
     val damagedCount: Int,
-    val hasAlert: Boolean
+    val hasAlert: Boolean,
+    val hasAnomaly: Boolean = hasAlert,
+    val anomalyReasonText: String? = null,
+    val reviewStatus: ReportReviewStatus = ReportReviewStatus.PENDING,
+    val reviewNote: String? = null,
+    val reviewedByName: String? = null,
+    val reviewedAtLabel: String? = null
 )
 
 data class ReportProductLineUi(
@@ -173,7 +187,13 @@ data class SingleReportDetailUi(
     val productLines: List<ReportProductLineUi>,
     val expenseLines: List<ReportExpenseLineUi>,
     val totalExpense: Long,
-    val damagedLines: List<ReportDamagedLineUi>
+    val damagedLines: List<ReportDamagedLineUi>,
+    val hasAnomaly: Boolean = false,
+    val anomalyReasonText: String? = null,
+    val reviewStatus: ReportReviewStatus = ReportReviewStatus.PENDING,
+    val reviewNote: String? = null,
+    val reviewedByName: String? = null,
+    val reviewedAtLabel: String? = null
 )
 
 data class DamagedSummaryItemUi(
@@ -225,7 +245,8 @@ data class OwnerNotificationUi(
     val description: String,
     val time: String,
     val isNeedsReview: Boolean,
-    val targetOutletId: String? = null
+    val targetOutletId: String? = null,
+    val targetReportId: String? = null
 )
 
 data class AddOutletFormState(
@@ -310,10 +331,13 @@ data class OwnerUiState(
     val reportOutletFilterId: String? = null,
     val reportDateFilter: String = "Semua",
     val reportSelectedDateMillis: Long? = null,
+    val reportReviewFilter: ReportReviewFilter = ReportReviewFilter.ALL,
+    val isReviewActionLoading: Boolean = false,
 
     val catalogItems: List<CatalogItemUi> = emptyList(),
 
     val notifications: List<OwnerNotificationUi> = defaultNotifications(),
+    val readNotificationIds: Set<String> = emptySet(),
 
     val addOutletForm: AddOutletFormState = AddOutletFormState(),
     val addUserForm: AddUserFormState = AddUserFormState(),
@@ -343,6 +367,9 @@ sealed interface OwnerUiEvent {
     data class ReportOutletFilterSelected(val outletId: String?) : OwnerUiEvent
     data class ReportDateFilterSelected(val filter: String) : OwnerUiEvent
     data class ReportSpecificDateSelected(val dateMillis: Long?) : OwnerUiEvent
+    data class ReportReviewFilterSelected(val filter: ReportReviewFilter) : OwnerUiEvent
+    data class ApproveDailyReport(val reportId: String, val note: String? = null) : OwnerUiEvent
+    data class RejectDailyReport(val reportId: String, val reason: String) : OwnerUiEvent
 
     data class AddOutletNameChanged(val name: String) : OwnerUiEvent
     data class AddOutletAddressChanged(val address: String) : OwnerUiEvent

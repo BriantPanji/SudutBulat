@@ -6,6 +6,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
 import com.sudutcorp.sudutbulat.data.model.FullDailyReport
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.remote.DailyReportRemoteDataSource
 import kotlinx.coroutines.flow.Flow
 
@@ -64,13 +65,31 @@ class DailyReportRepository(
         report: DailyReport,
         products: List<DailyReportProduct> = emptyList(),
         expenses: List<DailyReportExpense> = emptyList(),
-        damagedMaterials: List<DailyReportDamagedMaterial> = emptyList()
+        damagedMaterials: List<DailyReportDamagedMaterial> = emptyList(),
+        allowRejectedOverride: Boolean = false
     ): Result<String> {
         return remoteDataSource.createDailyReport(
             report = report,
             products = products,
             expenses = expenses,
-            damagedMaterials = damagedMaterials
+            damagedMaterials = damagedMaterials,
+            allowRejectedOverride = allowRejectedOverride
+        )
+    }
+
+    suspend fun updateDailyReportReview(
+        reportId: String,
+        status: ReportReviewStatus,
+        reviewedBy: String,
+        reviewNote: String? = null,
+        reviewedAt: Timestamp = Timestamp.now()
+    ): Result<Unit> {
+        return remoteDataSource.updateDailyReportReview(
+            reportId = reportId,
+            status = status,
+            reviewedBy = reviewedBy,
+            reviewNote = reviewNote,
+            reviewedAt = reviewedAt
         )
     }
 

@@ -9,6 +9,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toDailyReport
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toDailyReportDamagedMaterials
 import com.sudutcorp.sudutbulat.data.remote.FirestoreMappers.toDailyReportExpenses
@@ -44,15 +45,18 @@ fun calendarDaysBetween(target: Timestamp, reference: Timestamp = Timestamp.now(
 fun validateDailyReportDateWindow(
     reportDate: Timestamp,
     isUpdate: Boolean,
-    reference: Timestamp = Timestamp.now()
+    reference: Timestamp = Timestamp.now(),
+    allowRejectedOverride: Boolean = false
 ) {
     val daysAgo = calendarDaysBetween(reportDate, reference)
     require(daysAgo >= 0) {
         "Tanggal laporan tidak boleh di masa depan."
     }
     if (isUpdate) {
-        require(daysAgo <= MAX_REPORT_EDIT_DAYS_BACK) {
-            "Laporan yang sudah melewati $MAX_REPORT_EDIT_DAYS_BACK hari terakhir tidak dapat diubah."
+        if (!allowRejectedOverride) {
+            require(daysAgo <= MAX_REPORT_EDIT_DAYS_BACK) {
+                "Laporan yang sudah melewati $MAX_REPORT_EDIT_DAYS_BACK hari terakhir tidak dapat diubah."
+            }
         }
     } else {
         require(daysAgo <= MAX_REPORT_CREATE_DAYS_BACK) {
@@ -168,7 +172,8 @@ open class DailyReportRemoteDataSource(
         report: DailyReport,
         products: List<DailyReportProduct> = emptyList(),
         expenses: List<DailyReportExpense> = emptyList(),
-        damagedMaterials: List<DailyReportDamagedMaterial> = emptyList()
+        damagedMaterials: List<DailyReportDamagedMaterial> = emptyList(),
+        allowRejectedOverride: Boolean = false
     ): Result<String> = runCatching {
         val firestore = db ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val reportCol = dailyReportsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
@@ -179,7 +184,11 @@ open class DailyReportRemoteDataSource(
         val batch = firestore.batch()
 
         val isUpdate = report.id.isNotBlank()
-        validateDailyReportDateWindow(reportDate = report.date, isUpdate = isUpdate)
+        validateDailyReportDateWindow(
+            reportDate = report.date,
+            isUpdate = isUpdate,
+            allowRejectedOverride = allowRejectedOverride
+        )
         val reportDoc = if (isUpdate) reportCol.document(report.id) else reportCol.document()
         val reportId = reportDoc.id
         val reportToSave = if (report.id.isBlank()) report.copy(id = reportId) else report
@@ -205,6 +214,25 @@ open class DailyReportRemoteDataSource(
 
         batch.commit().await()
         reportId
+    }
+
+    open suspend fun updateDailyReportReview(
+        reportId: String,
+        status: ReportReviewStatus,
+        reviewedBy: String,
+        reviewNote: String? = null,
+        reviewedAt: Timestamp = Timestamp.now()
+    ): Result<Unit> = runCatching {
+        require(reportId.isNotBlank()) { "ID laporan harian tidak boleh kosong." }
+        val col = dailyReportsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
+        col.document(reportId).update(
+            mapOf(
+                "review_status" to status.name,
+                "review_note" to reviewNote?.trim()?.takeIf { it.isNotBlank() },
+                "reviewed_by" to reviewedBy.trim().ifBlank { "owner" },
+                "reviewed_at" to reviewedAt
+            )
+        ).await()
     }
 
     open suspend fun getDailyReportProducts(dailyReportId: String): Result<List<DailyReportProduct>> = runCatching {

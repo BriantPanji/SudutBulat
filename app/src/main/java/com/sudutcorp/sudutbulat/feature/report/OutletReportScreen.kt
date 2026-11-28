@@ -97,6 +97,7 @@ import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.feature.outlet.DailyReportFormState
 import com.sudutcorp.sudutbulat.feature.outlet.OutletReportHistoryFilter
 import com.sudutcorp.sudutbulat.feature.outlet.OutletReportHistoryItemUi
@@ -547,13 +548,22 @@ private fun ReportTopActionCard(
             }
         }
     } else {
+        val isTodayRejected = todayReport.reviewStatus == ReportReviewStatus.REJECTED
+        val cardBg = if (isTodayRejected) {
+            SBColor.Error_100.copy(alpha = 0.65f)
+        } else {
+            SBColor.Success_100.copy(alpha = 0.65f)
+        }
+        val cardBorder = if (isTodayRejected) SBColor.Primary_200 else SBColor.Success_300
+        val accentColor = if (isTodayRejected) SBColor.Primary_550 else SBColor.Success_600
+
         OutlinedCard(
             modifier = modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.outlinedCardColors(
-                containerColor = SBColor.Success_100.copy(alpha = 0.65f)
+                containerColor = cardBg
             ),
-            border = BorderStroke(1.dp, SBColor.Success_300)
+            border = BorderStroke(1.dp, cardBorder)
         ) {
             Column(
                 modifier = Modifier
@@ -578,19 +588,25 @@ private fun ReportTopActionCard(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_check),
+                                    painter = painterResource(
+                                        if (isTodayRejected) R.drawable.ic_warning else R.drawable.ic_check
+                                    ),
                                     contentDescription = null,
-                                    tint = SBColor.Success_600,
+                                    tint = accentColor,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                text = "Laporan hari ini sudah terkirim",
+                                text = when (todayReport.reviewStatus) {
+                                    ReportReviewStatus.REJECTED -> "Laporan hari ini ditolak Owner"
+                                    ReportReviewStatus.APPROVED -> "Laporan hari ini disetujui Owner"
+                                    ReportReviewStatus.PENDING -> "Laporan hari ini sudah terkirim"
+                                },
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = SBColor.Success_600
+                                color = accentColor
                             )
                             Text(
                                 text = "${formatRupiah(todayReport.totalRevenue)} • ${todayReport.totalSold} pcs (${timeFmt.format(todayReport.date.toDate())})",
@@ -604,14 +620,34 @@ private fun ReportTopActionCard(
                         onClick = { if (!isLoadingEdit) onEditTodayClick(todayReport.id) },
                         shape = RoundedCornerShape(10.dp),
                         color = Color.White,
-                        border = BorderStroke(1.dp, SBColor.Success_300)
+                        border = BorderStroke(1.dp, cardBorder)
                     ) {
                         Text(
-                            text = if (isLoadingEdit) "Memuat..." else "Edit",
+                            text = when {
+                                isLoadingEdit -> "Memuat..."
+                                isTodayRejected -> "Perbaiki"
+                                else -> "Edit"
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = SBColor.Success_600,
+                            color = accentColor,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                        )
+                    }
+                }
+
+                if (isTodayRejected && !todayReport.reviewNote.isNullOrBlank()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color.White.copy(alpha = 0.85f)
+                    ) {
+                        Text(
+                            text = "Catatan Owner: \"${todayReport.reviewNote}\"",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = SBColor.Primary_550,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
                 }
@@ -925,11 +961,55 @@ private fun OutletReportHistoryCard(
                         color = SBColor.Grey_500
                     )
                 }
-                SBStatusBadge(
-                    text = if (item.isEditable) "Bisa diedit" else "Terkunci (>3h)",
-                    containerColor = if (item.isEditable) SBColor.Primary_100 else SBColor.Grey_100,
-                    contentColor = if (item.isEditable) SBColor.Primary_550 else SBColor.Grey_500
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    when (item.reviewStatus) {
+                        ReportReviewStatus.REJECTED -> SBStatusBadge(
+                            text = "Ditolak Owner",
+                            containerColor = SBColor.Error_100,
+                            contentColor = SBColor.Primary_550
+                        )
+                        ReportReviewStatus.APPROVED -> SBStatusBadge(
+                            text = "Disetujui",
+                            containerColor = SBColor.Success_100,
+                            contentColor = SBColor.Success_600
+                        )
+                        ReportReviewStatus.PENDING -> Unit
+                    }
+                    SBStatusBadge(
+                        text = if (item.isEditable) "Bisa diedit" else "Terkunci (>3h)",
+                        containerColor = if (item.isEditable) SBColor.Primary_100 else SBColor.Grey_100,
+                        contentColor = if (item.isEditable) SBColor.Primary_550 else SBColor.Grey_500
+                    )
+                }
+            }
+
+            if (item.reviewStatus == ReportReviewStatus.REJECTED) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = SBColor.Error_100.copy(alpha = 0.7f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "Catatan penolakan Owner:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Primary_550
+                        )
+                        Text(
+                            text = item.reviewNote ?: "Mohon periksa kembali dan perbarui laporan ini.",
+                            fontSize = 12.sp,
+                            color = SBColor.Grey_700
+                        )
+                    }
+                }
             }
 
             // Informasi Staf Pengirim
@@ -1020,6 +1100,7 @@ private fun OutletReportHistoryCard(
             }
 
             if (item.isEditable) {
+                val isRejected = item.reviewStatus == ReportReviewStatus.REJECTED
                 OutlinedButton(
                     onClick = onEditClick,
                     enabled = !isLoadingEdit,
@@ -1027,11 +1108,15 @@ private fun OutletReportHistoryCard(
                         .fillMaxWidth()
                         .height(38.dp),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, SBColor.Primary_200),
+                    border = BorderStroke(1.dp, if (isRejected) SBColor.Primary_550 else SBColor.Primary_200),
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
-                        text = if (isLoadingEdit) "Memuat data..." else "Edit laporan",
+                        text = when {
+                            isLoadingEdit -> "Memuat data..."
+                            isRejected -> "Perbaiki & kirim ulang"
+                            else -> "Edit laporan"
+                        },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = SBColor.Primary_550
@@ -1104,6 +1189,44 @@ private fun OutletReportDetailBottomSheet(
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                if (item.reviewStatus != ReportReviewStatus.PENDING) {
+                    val isRejected = item.reviewStatus == ReportReviewStatus.REJECTED
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = if (isRejected) SBColor.Error_100.copy(alpha = 0.7f) else SBColor.Success_100.copy(alpha = 0.7f)
+                        ),
+                        border = BorderStroke(1.dp, if (isRejected) SBColor.Primary_200 else SBColor.Success_300)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (isRejected) "Laporan ditolak Owner — perlu diperbaiki" else "Laporan telah disetujui Owner",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isRejected) SBColor.Primary_550 else SBColor.Success_600
+                            )
+                            if (!item.reviewNote.isNullOrBlank()) {
+                                Text(
+                                    text = "Catatan Owner: \"${item.reviewNote}\"",
+                                    fontSize = 12.sp,
+                                    color = SBColor.Grey_700
+                                )
+                            }
+                            if (!item.reviewedAtLabel.isNullOrBlank()) {
+                                Text(
+                                    text = "Ditinjau pada ${item.reviewedAtLabel}",
+                                    fontSize = 11.sp,
+                                    color = SBColor.Grey_500
+                                )
+                            }
+                        }
+                    }
+                }
+
                 OutlinedCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),

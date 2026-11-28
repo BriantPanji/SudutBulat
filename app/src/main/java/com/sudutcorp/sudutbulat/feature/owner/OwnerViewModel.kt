@@ -46,7 +46,8 @@ class OwnerViewModel(
         userRepository = userRepository,
         authRepository = authRepository,
         state = _state,
-        effects = _effects
+        effects = _effects,
+        dailyReportRepository = dailyReportRepository
     )
 
     init {
@@ -197,6 +198,15 @@ class OwnerViewModel(
             is OwnerUiEvent.ReportSpecificDateSelected -> _state.update {
                 it.copy(reportSelectedDateMillis = event.dateMillis)
             }
+            is OwnerUiEvent.ReportReviewFilterSelected -> _state.update {
+                it.copy(reportReviewFilter = event.filter)
+            }
+            is OwnerUiEvent.ApproveDailyReport -> viewModelScope.launch {
+                actions.approveDailyReport(event.reportId, event.note)
+            }
+            is OwnerUiEvent.RejectDailyReport -> viewModelScope.launch {
+                actions.rejectDailyReport(event.reportId, event.reason)
+            }
 
             is OwnerUiEvent.AddOutletNameChanged -> _state.update {
                 it.copy(addOutletForm = it.addOutletForm.copy(name = event.name, errorMessage = null))
@@ -247,7 +257,11 @@ class OwnerViewModel(
             OwnerUiEvent.SubmitNewUser -> viewModelScope.launch { actions.submitNewUser() }
 
             OwnerUiEvent.MarkAllNotificationsRead -> _state.update { current ->
-                current.copy(notifications = current.notifications.map { it.copy(isNeedsReview = false) })
+                val allIds = current.notifications.map { it.id }.toSet()
+                current.copy(
+                    readNotificationIds = current.readNotificationIds + allIds,
+                    notifications = current.notifications.map { it.copy(isNeedsReview = false) }
+                )
             }
             OwnerUiEvent.DismissBackendError -> _state.update { it.copy(backendError = null) }
         }

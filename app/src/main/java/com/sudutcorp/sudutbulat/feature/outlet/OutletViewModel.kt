@@ -17,6 +17,7 @@ import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.User
 import com.sudutcorp.sudutbulat.data.remote.MAX_REPORT_CREATE_DAYS_BACK
@@ -212,6 +213,9 @@ data class OutletReportHistoryItemUi(
     val damagedCount: Int,
     val netDeposit: Long,
     val isEditable: Boolean,
+    val reviewStatus: ReportReviewStatus = ReportReviewStatus.PENDING,
+    val reviewNote: String? = null,
+    val reviewedAtLabel: String? = null,
     val productLines: List<ReportProductLineUi> = emptyList(),
     val expenseLines: List<ReportExpenseLineUi> = emptyList(),
     val damagedLines: List<ReportDamagedLineUi> = emptyList()
@@ -238,7 +242,12 @@ data class OutletReportPeriodSummaryUi(
     val damagedItems: List<DamagedSummaryItemUi> = emptyList()
 )
 
-internal fun isReportEditable(reportDate: Timestamp, reference: Timestamp = Timestamp.now()): Boolean {
+internal fun isReportEditable(
+    reportDate: Timestamp,
+    reference: Timestamp = Timestamp.now(),
+    reviewStatus: ReportReviewStatus = ReportReviewStatus.PENDING
+): Boolean {
+    if (reviewStatus == ReportReviewStatus.REJECTED) return true
     val daysAgo = calendarDaysBetween(reportDate, reference)
     return daysAgo in 0..MAX_REPORT_EDIT_DAYS_BACK
 }
@@ -520,6 +529,7 @@ data class OutletUiState(
     val distributions: List<OutletDistributionUi> = emptyList(),
     val recentReports: List<DailyReport> = emptyList(),
     val reportHistoryItems: List<OutletReportHistoryItemUi> = emptyList(),
+    val rejectedReports: List<OutletReportHistoryItemUi> = emptyList(),
     val reportDateCandidates: List<ReportDateCandidateUi> = emptyList(),
     val reportTabMode: OutletReportTabMode = OutletReportTabMode.SUMMARY,
     val selectedReportPeriod: String = "7 Hari",
@@ -995,7 +1005,7 @@ class OutletViewModel(
 
     private fun loadExistingReportForEdit(reportId: String) {
         val existingInMemory = _state.value.recentReports.firstOrNull { it.id == reportId }
-        if (existingInMemory != null && !isReportEditable(existingInMemory.date, Timestamp.now())) {
+        if (existingInMemory != null && !isReportEditable(existingInMemory.date, Timestamp.now(), existingInMemory.reviewStatus)) {
             val msg = "Laporan lebih dari $MAX_REPORT_EDIT_DAYS_BACK hari terakhir terkunci dan tidak dapat diedit."
             _state.update { it.copy(reportForm = it.reportForm.copy(errorMessage = msg)) }
             viewModelScope.launch { _effects.send(OutletUiEffect.ShowSnackbar(msg)) }
@@ -1025,7 +1035,7 @@ class OutletViewModel(
                         }
                         return@onSuccess
                     }
-                    if (!isReportEditable(full.report.date, Timestamp.now())) {
+                    if (!isReportEditable(full.report.date, Timestamp.now(), full.report.reviewStatus)) {
                         val msg = "Laporan lebih dari $MAX_REPORT_EDIT_DAYS_BACK hari terakhir terkunci dan tidak dapat diedit."
                         _state.update {
                             it.copy(
@@ -1113,12 +1123,13 @@ class OutletViewModel(
         }
         val targetDate = existingForDate?.date ?: form.editingReportDate ?: form.selectedCreateDate ?: nowTs
         val daysAgo = calendarDaysBetween(targetDate, nowTs)
+        val isRevisingRejected = existingForDate?.reviewStatus == ReportReviewStatus.REJECTED
 
         val error = when {
             outlet == null -> "Outlet penugasan belum ditemukan."
             totalRev <= 0L && totalSold <= 0 -> "Isi minimal jumlah produk terjual atau pendapatan tunai/QRIS."
             daysAgo < 0 -> "Tanggal laporan tidak boleh di masa depan."
-            !resolvedUpdateId.isNullOrBlank() && daysAgo > MAX_REPORT_EDIT_DAYS_BACK ->
+            !resolvedUpdateId.isNullOrBlank() && daysAgo > MAX_REPORT_EDIT_DAYS_BACK && !isRevisingRejected ->
                 "Laporan lebih dari $MAX_REPORT_EDIT_DAYS_BACK hari terakhir tidak dapat diubah lagi."
             resolvedUpdateId.isNullOrBlank() && daysAgo > MAX_REPORT_CREATE_DAYS_BACK ->
                 "Laporan susulan hanya dapat dibuat maksimal $MAX_REPORT_CREATE_DAYS_BACK hari ke belakang."
@@ -1165,7 +1176,11 @@ class OutletViewModel(
                 cashRevenue = cashRev,
                 qrisRevenue = qrisRev,
                 totalSold = totalSold,
-                createdBy = existingForDate?.createdBy?.takeIf { it.isNotBlank() } ?: currentSenderId
+                createdBy = existingForDate?.createdBy?.takeIf { it.isNotBlank() } ?: currentSenderId,
+                reviewStatus = ReportReviewStatus.PENDING,
+                reviewNote = null,
+                reviewedBy = null,
+                reviewedAt = null
             )
             val expenses = form.expenses.map {
                 DailyReportExpense(category = it.category, amount = it.amount, note = it.note.ifBlank { null })
@@ -1174,17 +1189,23 @@ class OutletViewModel(
                 DailyReportDamagedMaterial(materialId = it.materialId, quantity = it.quantity, note = it.note.ifBlank { null })
             }
 
-            dailyReportRepository.createDailyReport(report, soldProducts, expenses, damaged)
+            dailyReportRepository.createDailyReport(
+                report = report,
+                products = soldProducts,
+                expenses = expenses,
+                damagedMaterials = damaged,
+                allowRejectedOverride = isRevisingRejected
+            )
                 .onSuccess {
                     if (isSameCalendarDay(report.date, Timestamp.now())) {
                         val dailyTarget = outlet.dailyTarget.coerceAtLeast(1L)
                         val targetPct = (totalRev.toFloat() / dailyTarget.toFloat()).coerceIn(0f, 1f)
                         outletRepository.updateOutletDailySummary(outlet.id, totalRev, totalSold, targetPct)
                     }
-                    val successMsg = if (resolvedUpdateId.isNullOrBlank()) {
-                        "Laporan harian berhasil disimpan ke Firestore."
-                    } else {
-                        "Laporan harian berhasil diperbarui."
+                    val successMsg = when {
+                        isRevisingRejected -> "Revisi laporan berhasil dikirim ulang untuk ditinjau Owner."
+                        resolvedUpdateId.isNullOrBlank() -> "Laporan harian berhasil disimpan ke Firestore."
+                        else -> "Laporan harian berhasil diperbarui."
                     }
                     _state.update { it.copy(reportForm = DailyReportFormState()) }
                     _effects.send(OutletUiEffect.ShowSnackbar(successMsg))
@@ -1355,13 +1376,17 @@ class OutletViewModel(
                 totalExpense = totalExp,
                 damagedCount = dmgCount,
                 netDeposit = (rep.totalRevenue - totalExp).coerceAtLeast(0L),
-                isEditable = isReportEditable(rep.date, nowTs),
+                isEditable = isReportEditable(rep.date, nowTs, rep.reviewStatus),
+                reviewStatus = rep.reviewStatus,
+                reviewNote = rep.reviewNote,
+                reviewedAtLabel = rep.reviewedAt?.let { timeFmt.format(it.toDate()) },
                 productLines = repProducts,
                 expenseLines = repExpenses,
                 damagedLines = repDamaged
             )
         }
 
+        val rejectedItems = historyItems.filter { it.reviewStatus == ReportReviewStatus.REJECTED }
         val dateCandidates = buildReportDateCandidates(outletReports, nowTs)
         val periodSummary = computeOutletReportPeriodSummary(
             period = raw.selectedReportPeriod,
@@ -1387,6 +1412,7 @@ class OutletViewModel(
             distributions = outletDists,
             recentReports = outletReports,
             reportHistoryItems = historyItems,
+            rejectedReports = rejectedItems,
             reportDateCandidates = dateCandidates,
             reportPeriodSummary = periodSummary,
             todayReport = todayReport,

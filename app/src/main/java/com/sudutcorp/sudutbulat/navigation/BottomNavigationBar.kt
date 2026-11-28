@@ -68,6 +68,7 @@ import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
+import com.sudutcorp.sudutbulat.feature.owner.ReportReviewFilter
 import com.sudutcorp.sudutbulat.feature.owner.ReportTabMode
 import com.sudutcorp.sudutbulat.feature.profile.ProfileScreen
 import com.sudutcorp.sudutbulat.feature.report.OutletReportScreen
@@ -159,6 +160,7 @@ fun RoleTabContent(
                 },
                 onReviewReportsClick = {
                     onOwnerEvent(OwnerUiEvent.ReportTabSelected(ReportTabMode.LIST))
+                    onOwnerEvent(OwnerUiEvent.ReportReviewFilterSelected(ReportReviewFilter.NEEDS_REVIEW))
                     onSelectTab(2)
                 },
                 onOpenReportsSummaryClick = {
@@ -167,6 +169,7 @@ fun RoleTabContent(
                 },
                 onOpenReportsListClick = {
                     onOwnerEvent(OwnerUiEvent.ReportTabSelected(ReportTabMode.LIST))
+                    onOwnerEvent(OwnerUiEvent.ReportReviewFilterSelected(ReportReviewFilter.ALL))
                     onSelectTab(2)
                 },
                 onReportClick = { reportId ->

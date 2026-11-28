@@ -59,13 +59,25 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    function isOwnerReviewOnlyUpdate() {
+      return request.resource.data.outlet_id == resource.data.outlet_id
+        && request.resource.data.date == resource.data.date
+        && request.resource.data.cash_revenue == resource.data.cash_revenue
+        && request.resource.data.qris_revenue == resource.data.qris_revenue
+        && request.resource.data.total_sold == resource.data.total_sold;
+    }
+
     match /daily_reports/{docId} {
       allow read, delete: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.date >= request.time - duration.value(8, 'd')
         && request.resource.data.date <= request.time + duration.value(1, 'd');
       allow update: if isSignedIn()
-        && resource.data.date >= request.time - duration.value(4, 'd');
+        && (
+          resource.data.date >= request.time - duration.value(4, 'd')
+          || resource.data.get('review_status', 'PENDING') == 'REJECTED'
+          || isOwnerReviewOnlyUpdate()
+        );
     }
 
     match /daily_report_products/{docId} {

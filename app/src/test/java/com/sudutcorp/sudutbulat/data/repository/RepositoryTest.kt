@@ -18,6 +18,7 @@ import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.UnitType
@@ -410,13 +411,15 @@ class FakeDailyReportRemoteDataSource : DailyReportRemoteDataSource() {
         report: DailyReport,
         products: List<DailyReportProduct>,
         expenses: List<DailyReportExpense>,
-        damagedMaterials: List<DailyReportDamagedMaterial>
+        damagedMaterials: List<DailyReportDamagedMaterial>,
+        allowRejectedOverride: Boolean
     ): Result<String> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val isUpdate = report.id.isNotBlank() && reports.containsKey(report.id)
         com.sudutcorp.sudutbulat.data.remote.validateDailyReportDateWindow(
             reportDate = report.date,
-            isUpdate = isUpdate
+            isUpdate = isUpdate,
+            allowRejectedOverride = allowRejectedOverride
         )
         val id = if (report.id.isBlank()) "rep_${reports.size + 1}" else report.id
         reports[id] = report.copy(id = id)
@@ -424,6 +427,23 @@ class FakeDailyReportRemoteDataSource : DailyReportRemoteDataSource() {
         reportExpenses[id] = expenses.map { it.copy(dailyReportId = id) }.toMutableList()
         reportDamaged[id] = damagedMaterials.map { it.copy(dailyReportId = id) }.toMutableList()
         id
+    }
+
+    override suspend fun updateDailyReportReview(
+        reportId: String,
+        status: ReportReviewStatus,
+        reviewedBy: String,
+        reviewNote: String?,
+        reviewedAt: Timestamp
+    ): Result<Unit> = runCatching {
+        if (shouldFail) throw RuntimeException("Simulated network failure")
+        val existing = reports[reportId] ?: throw NoSuchElementException("Report not found: $reportId")
+        reports[reportId] = existing.copy(
+            reviewStatus = status,
+            reviewNote = reviewNote,
+            reviewedBy = reviewedBy,
+            reviewedAt = reviewedAt
+        )
     }
 
     override suspend fun getDailyReportProducts(dailyReportId: String): Result<List<DailyReportProduct>> = runCatching {

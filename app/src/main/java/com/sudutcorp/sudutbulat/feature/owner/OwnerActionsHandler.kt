@@ -1,13 +1,16 @@
 package com.sudutcorp.sudutbulat.feature.owner
 
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.GeoPoint
 import com.sudutcorp.sudutbulat.core.util.formatRawTimeToDisplay
 import com.sudutcorp.sudutbulat.core.util.isValidRawTime
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.User
+import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
 import com.sudutcorp.sudutbulat.data.repository.OutletRepository
 import com.sudutcorp.sudutbulat.data.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
@@ -27,7 +30,8 @@ class OwnerActionsHandler(
     private val userRepository: UserRepository,
     private val authRepository: AuthRepository,
     private val state: MutableStateFlow<OwnerUiState>,
-    private val effects: Channel<OwnerUiEffect>
+    private val effects: Channel<OwnerUiEffect>,
+    private val dailyReportRepository: DailyReportRepository? = null
 ) {
     suspend fun toggleOutletOpenStatus(outletId: String) {
         val currentOutlet = state.value.outletItems.firstOrNull { it.id == outletId } ?: return
@@ -268,5 +272,97 @@ class OwnerActionsHandler(
 
         effects.send(OwnerUiEffect.ShowSnackbar("Akun ${newUser.name} berhasil dibuat (kode: ${newUser.id})."))
         effects.send(OwnerUiEffect.NavigateBack)
+    }
+
+    private fun resolveReviewerId(): String {
+        val currentEmail = authRepository.getCurrentUserEmail()
+        val matched = state.value.users.firstOrNull {
+            (!currentEmail.isNullOrBlank() && it.email.equals(currentEmail, ignoreCase = true)) || it.role == Role.OWNER
+        }
+        return matched?.id ?: "owner"
+    }
+
+    suspend fun approveDailyReport(reportId: String, note: String? = null) {
+        val repo = dailyReportRepository ?: return
+        if (reportId.isBlank()) return
+        val cleanNote = note?.trim()?.takeIf { it.isNotBlank() }
+        val reviewerId = resolveReviewerId()
+        val nowTs = Timestamp.now()
+
+        state.update { it.copy(isReviewActionLoading = true) }
+        repo.updateDailyReportReview(
+            reportId = reportId,
+            status = ReportReviewStatus.APPROVED,
+            reviewedBy = reviewerId,
+            reviewNote = cleanNote,
+            reviewedAt = nowTs
+        ).onSuccess {
+            state.update { current ->
+                val updatedReports = current.reports.map { rep ->
+                    if (rep.id == reportId) {
+                        rep.copy(
+                            reviewStatus = ReportReviewStatus.APPROVED,
+                            reviewNote = cleanNote,
+                            reviewedBy = reviewerId,
+                            reviewedAt = nowTs
+                        )
+                    } else {
+                        rep
+                    }
+                }
+                computeOwnerDerivedState(
+                    current.copy(reports = updatedReports, isReviewActionLoading = false)
+                )
+            }
+            effects.send(OwnerUiEffect.ShowSnackbar("Laporan harian berhasil disetujui."))
+        }.onFailure { e ->
+            state.update { it.copy(isReviewActionLoading = false) }
+            effects.send(OwnerUiEffect.ShowSnackbar("Gagal menyetujui laporan: ${e.readableMessage()}"))
+        }
+    }
+
+    suspend fun rejectDailyReport(reportId: String, reason: String) {
+        val repo = dailyReportRepository ?: return
+        if (reportId.isBlank()) return
+        val cleanReason = reason.trim()
+        if (cleanReason.isBlank()) {
+            effects.send(OwnerUiEffect.ShowSnackbar("Alasan penolakan laporan wajib diisi."))
+            return
+        }
+        val reviewerId = resolveReviewerId()
+        val nowTs = Timestamp.now()
+
+        state.update { it.copy(isReviewActionLoading = true) }
+        repo.updateDailyReportReview(
+            reportId = reportId,
+            status = ReportReviewStatus.REJECTED,
+            reviewedBy = reviewerId,
+            reviewNote = cleanReason,
+            reviewedAt = nowTs
+        ).onSuccess {
+            state.update { current ->
+                val updatedReports = current.reports.map { rep ->
+                    if (rep.id == reportId) {
+                        rep.copy(
+                            reviewStatus = ReportReviewStatus.REJECTED,
+                            reviewNote = cleanReason,
+                            reviewedBy = reviewerId,
+                            reviewedAt = nowTs
+                        )
+                    } else {
+                        rep
+                    }
+                }
+                computeOwnerDerivedState(
+                    current.copy(reports = updatedReports, isReviewActionLoading = false)
+                )
+            }
+            effects.send(
+                OwnerUiEffect.ShowSnackbar("Laporan ditolak. Kartu notifikasi perbaikan telah dikirim ke dashboard staf outlet.")
+            )
+        }.onFailure { e ->
+            state.update { it.copy(isReviewActionLoading = false) }
+            effects.send(OwnerUiEffect.ShowSnackbar("Gagal menolak laporan: ${e.readableMessage()}"))
+        }
     }
 }

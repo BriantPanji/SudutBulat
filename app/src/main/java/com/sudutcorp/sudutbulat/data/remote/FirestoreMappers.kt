@@ -17,6 +17,7 @@ import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.RoutinePresetItem
 import com.sudutcorp.sudutbulat.data.model.UnitType
@@ -43,6 +44,9 @@ object FirestoreMappers {
         val clean = raw?.trim()?.uppercase() ?: return ExpenseCategory.OTHER
         return ExpenseCategory.entries.firstOrNull { it.name == clean } ?: ExpenseCategory.OTHER
     }
+
+    fun parseReportReviewStatus(raw: String?): ReportReviewStatus =
+        ReportReviewStatus.fromString(raw)
 
     fun DocumentSnapshot.toUser(): User {
         val email = getString("email").orEmpty()
@@ -192,7 +196,11 @@ object FirestoreMappers {
         cashRevenue = (getLong("cash_revenue") ?: 0L).coerceAtLeast(0L),
         qrisRevenue = (getLong("qris_revenue") ?: 0L).coerceAtLeast(0L),
         totalSold = (getLong("total_sold") ?: 0L).toInt().coerceAtLeast(0),
-        createdBy = getString("created_by").orEmpty()
+        createdBy = getString("created_by").orEmpty(),
+        reviewStatus = parseReportReviewStatus(getString("review_status")),
+        reviewNote = getString("review_note")?.take(512)?.takeIf { it.isNotBlank() },
+        reviewedBy = getString("reviewed_by")?.takeIf { it.isNotBlank() },
+        reviewedAt = getTimestamp("reviewed_at")
     )
 
     fun DailyReport.toFirestoreMap(): Map<String, Any?> = buildMap {
@@ -204,6 +212,10 @@ object FirestoreMappers {
         if (createdBy.isNotBlank()) {
             put("created_by", createdBy)
         }
+        put("review_status", reviewStatus.name)
+        put("review_note", reviewNote)
+        put("reviewed_by", reviewedBy)
+        put("reviewed_at", reviewedAt)
     }
 
     private fun Any?.asLong(): Long = (this as? Number)?.toLong() ?: 0L

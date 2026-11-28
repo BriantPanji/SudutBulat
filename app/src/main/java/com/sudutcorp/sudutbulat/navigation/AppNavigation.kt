@@ -71,6 +71,7 @@ import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEffect
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.OwnerViewModel
+import com.sudutcorp.sudutbulat.feature.owner.buildSingleReportDetail
 import com.sudutcorp.sudutbulat.feature.report.OwnerDetailReportScreen
 import com.sudutcorp.sudutbulat.feature.report.defaultReportPeriodSummary
 import com.sudutcorp.sudutbulat.feature.stock.CatalogUiEffect
@@ -546,12 +547,21 @@ fun MainScreen(
         composable<OwnerSubRoutes.DetailReport> { backStackEntry ->
             val route = backStackEntry.toRoute<OwnerSubRoutes.DetailReport>()
             val periodSummary = ownerViewModel?.getReportPeriodSummary(route.period) ?: defaultReportPeriodSummary()
-            val singleReport = route.reportId?.let { ownerViewModel?.getSingleReportDetail(it) }
+            val singleReport = remember(ownerUiState, route.reportId) {
+                route.reportId?.let { buildSingleReportDetail(ownerUiState, it) }
+            }
             PredictiveBackScreenContainer {
                 OwnerDetailReportScreen(
                     navController = nestedNavController,
                     reportSummary = periodSummary,
-                    singleReport = singleReport
+                    singleReport = singleReport,
+                    isActionLoading = ownerUiState.isReviewActionLoading,
+                    onApproveReport = { reportId, note ->
+                        onOwnerEvent(OwnerUiEvent.ApproveDailyReport(reportId, note))
+                    },
+                    onRejectReport = { reportId, reason ->
+                        onOwnerEvent(OwnerUiEvent.RejectDailyReport(reportId, reason))
+                    }
                 )
             }
         }
@@ -587,7 +597,14 @@ fun MainScreen(
                     uiState = ownerUiState,
                     onEvent = onOwnerEvent,
                     onNotificationClick = { notif ->
-                        if (!notif.targetOutletId.isNullOrBlank()) {
+                        if (!notif.targetReportId.isNullOrBlank()) {
+                            nestedNavController.navigateSingle(
+                                OwnerSubRoutes.DetailReport(
+                                    period = ownerUiState.selectedReportPeriod,
+                                    reportId = notif.targetReportId
+                                )
+                            )
+                        } else if (!notif.targetOutletId.isNullOrBlank()) {
                             nestedNavController.navigateSingle(OwnerSubRoutes.DetailOutlet(notif.targetOutletId))
                         } else {
                             nestedNavController.navigateSingle(OwnerSubRoutes.DetailReport(period = ownerUiState.selectedReportPeriod))

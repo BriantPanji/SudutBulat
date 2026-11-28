@@ -36,7 +36,23 @@ data class DailyReport(
 
     @get:PropertyName("created_by")
     @set:PropertyName("created_by")
-    var createdBy: String = ""
+    var createdBy: String = "",
+
+    @get:PropertyName("review_status")
+    @set:PropertyName("review_status")
+    var reviewStatus: ReportReviewStatus = ReportReviewStatus.PENDING,
+
+    @get:PropertyName("review_note")
+    @set:PropertyName("review_note")
+    var reviewNote: String? = null,
+
+    @get:PropertyName("reviewed_by")
+    @set:PropertyName("reviewed_by")
+    var reviewedBy: String? = null,
+
+    @get:PropertyName("reviewed_at")
+    @set:PropertyName("reviewed_at")
+    var reviewedAt: Timestamp? = null
 ) {
     init {
         require(cashRevenue >= 0L) { "Cash revenue must not be negative: $cashRevenue" }

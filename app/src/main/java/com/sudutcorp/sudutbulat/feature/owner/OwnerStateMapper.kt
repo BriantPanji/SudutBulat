@@ -9,6 +9,7 @@ import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialCategory
 import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ProductSaleType
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.UnitType
 import java.text.SimpleDateFormat
@@ -151,6 +152,7 @@ fun computeOwnerDerivedState(
         }
         .sortedWith(compareByDescending<StaffItemUi> { it.isActive }.thenBy { it.name.lowercase(Locale.ROOT) })
 
+    val userMap = activeUsers.associateBy { it.id }
     val dateFmt = SimpleDateFormat("dd MMM yyyy, HH.mm", ID_LOCALE)
     val reportList = activeReports
         .sortedByDescending { it.date.seconds }
@@ -162,6 +164,26 @@ fun computeOwnerDerivedState(
             val repDamaged = damagedByReport[report.id].orEmpty()
             val dmgSum = repDamaged.sumOf { it.quantity }
             val millis = report.date.toDate().time
+
+            val hasHighDamage = dmgSum >= 10
+            val highOtherExpense = repExpenses.firstOrNull {
+                it.category == ExpenseCategory.OTHER && it.amount >= 200_000L
+            }
+            val hasAnomaly = hasHighDamage || highOtherExpense != null
+            val anomalyReasonText = buildList {
+                if (hasHighDamage) add("Bahan rusak tinggi ($dmgSum unit)")
+                if (highOtherExpense != null) {
+                    val noteSuffix = highOtherExpense.note?.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()
+                    add("Pengeluaran Lainnya ${formatRupiah(highOtherExpense.amount)}$noteSuffix")
+                }
+            }.takeIf { it.isNotEmpty() }?.joinToString(" • ")
+
+            val hasAlert = hasAnomaly && report.reviewStatus == ReportReviewStatus.PENDING
+            val reviewedByName = report.reviewedBy?.let { reviewerId ->
+                userMap[reviewerId]?.name?.replace(" (Owner)", "")?.takeIf { it.isNotBlank() }
+                    ?: if (reviewerId.equals("owner", ignoreCase = true)) "Owner" else reviewerId
+            }
+            val reviewedAtLabel = report.reviewedAt?.let { dateFmt.format(it.toDate()) }
 
             DailyReportListItemUi(
                 id = report.id,
@@ -175,7 +197,13 @@ fun computeOwnerDerivedState(
                 totalSold = report.totalSold,
                 totalExpense = repExpenses.sumOf { it.amount },
                 damagedCount = dmgSum,
-                hasAlert = dmgSum >= 10 || repExpenses.any { it.category == ExpenseCategory.OTHER && it.amount >= 200_000L }
+                hasAlert = hasAlert,
+                hasAnomaly = hasAnomaly,
+                anomalyReasonText = anomalyReasonText,
+                reviewStatus = report.reviewStatus,
+                reviewNote = report.reviewNote,
+                reviewedByName = reviewedByName,
+                reviewedAtLabel = reviewedAtLabel
             )
         }
 
@@ -273,6 +301,38 @@ fun computeOwnerDerivedState(
         todayDistributionIssueCount = todayDistributionIssueCount
     )
 
+    val dynamicNotifications = if (raw.hasFirestoreSync || raw.reports.isNotEmpty()) {
+        reportList.take(8).map { item ->
+            val notifId = "notif_${item.id}"
+            val isUnreadAlert = item.hasAlert && notifId !in raw.readNotificationIds
+            val title = when {
+                item.hasAlert -> "Perlu ditinjau — ${item.outletName}"
+                item.reviewStatus == ReportReviewStatus.REJECTED -> "Laporan ditolak — ${item.outletName}"
+                item.reviewStatus == ReportReviewStatus.APPROVED -> "Laporan disetujui — ${item.outletName}"
+                else -> "Laporan harian — ${item.outletName}"
+            }
+            val desc = when {
+                item.hasAlert -> item.anomalyReasonText ?: "Terdapat stok rusak tinggi atau pengeluaran ekstra."
+                item.reviewStatus == ReportReviewStatus.REJECTED ->
+                    "Menunggu perbaikan staf: ${item.reviewNote ?: "Perlu revisi"}"
+                else -> "Omzet ${formatRupiah(item.totalRevenue)} (${item.totalSold} pcs terjual)."
+            }
+            OwnerNotificationUi(
+                id = notifId,
+                title = title,
+                description = desc,
+                time = item.dateLabel,
+                isNeedsReview = isUnreadAlert,
+                targetOutletId = item.outletId,
+                targetReportId = item.id
+            )
+        }
+    } else {
+        raw.notifications.map { n ->
+            if (n.id in raw.readNotificationIds) n.copy(isNeedsReview = false) else n
+        }
+    }
+
     return raw.copy(
         todayDateLabel = todayDateLabel,
         outletItems = sortedOutlets,
@@ -289,6 +349,7 @@ fun computeOwnerDerivedState(
         todayExpenseTransactionsCount = todayExpenseTransactionsCount,
         reviewReportsCount = reviewReportsCount,
         catalogItems = buildCatalogItems(activeMaterials, activeProducts),
+        notifications = dynamicNotifications,
         addUserForm = raw.addUserForm.copy(
             selectedOutletId = raw.addUserForm.selectedOutletId.ifBlank { rankedByRevenue.firstOrNull()?.id.orEmpty() }
         )
@@ -385,7 +446,13 @@ fun buildSingleReportDetail(state: OwnerUiState, reportId: String): SingleReport
         cashRevenue = item.cashRevenue, qrisRevenue = item.qrisRevenue,
         totalRevenue = item.totalRevenue, totalSold = item.totalSold,
         productLines = prodLines, expenseLines = expLines,
-        totalExpense = expLines.sumOf { it.amount }, damagedLines = dmgLines
+        totalExpense = expLines.sumOf { it.amount }, damagedLines = dmgLines,
+        hasAnomaly = item.hasAnomaly,
+        anomalyReasonText = item.anomalyReasonText,
+        reviewStatus = item.reviewStatus,
+        reviewNote = item.reviewNote,
+        reviewedByName = item.reviewedByName,
+        reviewedAtLabel = item.reviewedAtLabel
     )
 }
 
@@ -483,6 +550,7 @@ fun filterDailyReports(
     outletFilterId: String?,
     dateFilter: String,
     selectedDateMillis: Long?,
+    reviewFilter: ReportReviewFilter = ReportReviewFilter.ALL,
     nowMillis: Long = System.currentTimeMillis(),
     zoneId: ZoneId = ZoneId.systemDefault()
 ): List<DailyReportListItemUi> {
@@ -494,6 +562,12 @@ fun filterDailyReports(
 
     return items.filter { item ->
         val matchesOutlet = outletFilterId.isNullOrBlank() || item.outletId == outletFilterId
+        val matchesReview = when (reviewFilter) {
+            ReportReviewFilter.ALL -> true
+            ReportReviewFilter.NEEDS_REVIEW -> item.hasAlert
+            ReportReviewFilter.REJECTED -> item.reviewStatus == ReportReviewStatus.REJECTED
+            ReportReviewFilter.APPROVED -> item.reviewStatus == ReportReviewStatus.APPROVED
+        }
         val matchesDate = if (selectedLocalDate != null) {
             Instant.ofEpochMilli(item.dateMillis).atZone(zoneId).toLocalDate() == selectedLocalDate
         } else {
@@ -507,7 +581,7 @@ fun filterDailyReports(
             }
         }
         val matchesQuery = query.isBlank() || item.outletName.lowercase(Locale.ROOT).contains(query)
-        matchesOutlet && matchesDate && matchesQuery
+        matchesOutlet && matchesReview && matchesDate && matchesQuery
     }
 }
 

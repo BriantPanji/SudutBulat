@@ -53,13 +53,16 @@ import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
 import com.sudutcorp.sudutbulat.core.components.SBPageHeader
 import com.sudutcorp.sudutbulat.core.components.SBSearchBar
 import com.sudutcorp.sudutbulat.core.components.SBSegmentedTabs
+import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.feature.owner.DailyReportListItemUi
 import com.sudutcorp.sudutbulat.feature.owner.DamagedSummaryItemUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
+import com.sudutcorp.sudutbulat.feature.owner.ReportReviewFilter
 import com.sudutcorp.sudutbulat.feature.owner.ReportTabMode
 import com.sudutcorp.sudutbulat.feature.owner.filterDailyReports
 import com.sudutcorp.sudutbulat.feature.owner.formatUtcDateMillis
@@ -111,14 +114,28 @@ fun OwnerReportContent(
         uiState.reportSearchQuery,
         uiState.reportOutletFilterId,
         uiState.reportDateFilter,
-        uiState.reportSelectedDateMillis
+        uiState.reportSelectedDateMillis,
+        uiState.reportReviewFilter
     ) {
         filterDailyReports(
             items = uiState.reportListItems,
             searchQuery = uiState.reportSearchQuery,
             outletFilterId = uiState.reportOutletFilterId,
             dateFilter = uiState.reportDateFilter,
-            selectedDateMillis = uiState.reportSelectedDateMillis
+            selectedDateMillis = uiState.reportSelectedDateMillis,
+            reviewFilter = uiState.reportReviewFilter
+        )
+    }
+
+    val reviewFilterChips = remember(uiState.reportListItems) {
+        val needsReview = uiState.reportListItems.count { it.hasAlert }
+        val rejected = uiState.reportListItems.count { it.reviewStatus == ReportReviewStatus.REJECTED }
+        val approved = uiState.reportListItems.count { it.reviewStatus == ReportReviewStatus.APPROVED }
+        listOf(
+            ReportReviewFilter.ALL.name to ReportReviewFilter.ALL.label,
+            ReportReviewFilter.NEEDS_REVIEW.name to if (needsReview > 0) "Perlu Ditinjau ($needsReview)" else "Perlu Ditinjau",
+            ReportReviewFilter.REJECTED.name to if (rejected > 0) "Ditolak ($rejected)" else "Ditolak",
+            ReportReviewFilter.APPROVED.name to if (approved > 0) "Disetujui ($approved)" else "Disetujui"
         )
     }
 
@@ -327,6 +344,15 @@ fun OwnerReportContent(
             }
 
             SBFilterChipRow(
+                options = reviewFilterChips,
+                selectedKey = uiState.reportReviewFilter.name,
+                onSelected = { key ->
+                    val filter = ReportReviewFilter.entries.firstOrNull { it.name == key } ?: ReportReviewFilter.ALL
+                    onEvent(OwnerUiEvent.ReportReviewFilterSelected(filter))
+                }
+            )
+
+            SBFilterChipRow(
                 options = listOf("Semua", "Hari ini", "7 Hari", "30 Hari", "3 Bulan").map { it to it },
                 selectedKey = if (hasSelectedDate) "" else uiState.reportDateFilter,
                 onSelected = { onEvent(OwnerUiEvent.ReportDateFilterSelected(it)) }
@@ -462,12 +488,37 @@ private fun DailyReportListCard(
     item: DailyReportListItemUi,
     onClick: () -> Unit
 ) {
+    val isRejected = item.reviewStatus == ReportReviewStatus.REJECTED
+    val isApproved = item.reviewStatus == ReportReviewStatus.APPROVED
+    val borderColor = when {
+        isRejected -> SBColor.Primary_200
+        item.hasAlert -> SBColor.Secondary_200
+        else -> SBColor.Grey_100
+    }
+    val iconBg = when {
+        isRejected -> SBColor.Error_100
+        item.hasAlert -> SBColor.Secondary_100
+        isApproved -> SBColor.Success_100
+        else -> SBColor.Primary_100
+    }
+    val iconTint = when {
+        isRejected -> SBColor.Primary_550
+        item.hasAlert -> SBColor.Secondary_500
+        isApproved -> SBColor.Success_600
+        else -> SBColor.Primary_550
+    }
+    val iconRes = when {
+        isRejected || item.hasAlert -> R.drawable.ic_warning
+        isApproved -> R.drawable.ic_check
+        else -> R.drawable.ic_bar_chart
+    }
+
     OutlinedCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, if (item.hasAlert) SBColor.Secondary_200 else SBColor.Grey_100)
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -479,19 +530,20 @@ private fun DailyReportListCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
                         modifier = Modifier.size(40.dp),
                         shape = RoundedCornerShape(10.dp),
-                        color = if (item.hasAlert) SBColor.Secondary_100 else SBColor.Primary_100
+                        color = iconBg
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                painter = painterResource(if (item.hasAlert) R.drawable.ic_warning else R.drawable.ic_bar_chart),
+                                painter = painterResource(iconRes),
                                 contentDescription = null,
-                                tint = if (item.hasAlert) SBColor.Secondary_500 else SBColor.Primary_550,
+                                tint = iconTint,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -501,12 +553,64 @@ private fun DailyReportListCard(
                         Text(item.dateLabel, fontSize = 12.sp, color = SBColor.Grey_500)
                     }
                 }
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_chevron_right),
-                    contentDescription = "Lihat detail laporan",
-                    tint = SBColor.Grey_400,
-                    modifier = Modifier.size(16.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    when {
+                        isApproved -> SBStatusBadge(
+                            text = "Disetujui",
+                            containerColor = SBColor.Success_100,
+                            contentColor = SBColor.Success_600
+                        )
+                        isRejected -> SBStatusBadge(
+                            text = "Ditolak",
+                            containerColor = SBColor.Error_100,
+                            contentColor = SBColor.Primary_550
+                        )
+                        item.hasAlert -> SBStatusBadge(
+                            text = "Perlu ditinjau",
+                            containerColor = SBColor.Warning_100,
+                            contentColor = SBColor.Warning_600
+                        )
+                    }
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_chevron_right),
+                        contentDescription = "Lihat detail laporan",
+                        tint = SBColor.Grey_400,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            if (isRejected && !item.reviewNote.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = SBColor.Error_100.copy(alpha = 0.65f)
+                ) {
+                    Text(
+                        text = "Alasan tolak: ${item.reviewNote}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SBColor.Primary_550,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
+            } else if (item.hasAlert && !item.anomalyReasonText.isNullOrBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    color = SBColor.Warning_100.copy(alpha = 0.7f)
+                ) {
+                    Text(
+                        text = item.anomalyReasonText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SBColor.Warning_600,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
             }
 
             HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
@@ -529,7 +633,7 @@ private fun DailyReportListCard(
                             "Tunai ${formatRupiah(item.cashRevenue)}"
                         },
                         fontSize = 11.sp,
-                        color = if (item.hasAlert) SBColor.Primary_550 else SBColor.Grey_500
+                        color = if (item.hasAlert || isRejected) SBColor.Primary_550 else SBColor.Grey_500
                     )
                 }
             }

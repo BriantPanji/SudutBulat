@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.feature.owner
 
 import com.google.firebase.Timestamp
+import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
@@ -10,7 +11,18 @@ import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.UnitType
+import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
+import com.sudutcorp.sudutbulat.data.repository.FakeDailyReportRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.FakeOutletRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.FakeUserRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.OutletRepository
+import com.sudutcorp.sudutbulat.data.repository.UserRepository
+import com.sudutcorp.sudutbulat.feature.outlet.isReportEditable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -166,5 +178,87 @@ class OwnerDashboardMetricsTest {
         assertNull(m.todayDeltaTrend)
         assertEquals("Belum ada pembanding kemarin", m.todayDeltaPercentText)
         assertTrue(derived.outletItems.isEmpty())
+    }
+
+    @Test
+    fun ownerCanAccOrDeclineAnyReportWhileOnlyPendingSuspiciousReportsRequireMandatoryReview() = runBlocking {
+        val nowTs = ts(2026, 11, 28, 16, 0)
+        val oldTs = ts(2026, 11, 18, 20, 0) // 10 days ago (> 3-day normal edit window)
+
+        val normalReport = DailyReport(
+            id = "rep_normal",
+            outletId = "o1",
+            date = nowTs,
+            cashRevenue = 1_000_000L,
+            qrisRevenue = 500_000L,
+            totalSold = 300,
+            reviewStatus = ReportReviewStatus.PENDING
+        )
+        val suspiciousReport = DailyReport(
+            id = "rep_suspicious",
+            outletId = "o1",
+            date = oldTs,
+            cashRevenue = 900_000L,
+            qrisRevenue = 400_000L,
+            totalSold = 260,
+            reviewStatus = ReportReviewStatus.PENDING
+        )
+        val highDamage = listOf(
+            DailyReportDamagedMaterial(id = "d_high", dailyReportId = "rep_suspicious", materialId = "m_tahu", quantity = 14)
+        )
+
+        val reportDs = FakeDailyReportRemoteDataSource().apply {
+            reports[normalReport.id] = normalReport
+            reports[suspiciousReport.id] = suspiciousReport
+        }
+        val state = MutableStateFlow(
+            computeOwnerDerivedState(
+                OwnerUiState(
+                    outlets = listOf(Outlet(id = "o1", name = "Sudirman", isActive = true)),
+                    reports = listOf(normalReport, suspiciousReport),
+                    damagedMaterials = highDamage,
+                    hasFirestoreSync = true
+                )
+            )
+        )
+        val effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
+        val handler = OwnerActionsHandler(
+            outletRepository = OutletRepository(FakeOutletRemoteDataSource()),
+            userRepository = UserRepository(FakeUserRemoteDataSource()),
+            authRepository = AuthRepository(),
+            state = state,
+            effects = effects,
+            dailyReportRepository = DailyReportRepository(reportDs)
+        )
+
+        // 1. Before review: only suspicious PENDING report hasAlert == true (normal report does not require mandatory ACC)
+        assertEquals(1, state.value.reviewReportsCount)
+        val normalUiBefore = state.value.reportListItems.first { it.id == "rep_normal" }
+        val suspiciousUiBefore = state.value.reportListItems.first { it.id == "rep_suspicious" }
+        assertFalse(normalUiBefore.hasAlert)
+        assertTrue(suspiciousUiBefore.hasAlert)
+
+        // 2. Reject without reason must fail validation
+        handler.rejectDailyReport("rep_suspicious", "   ")
+        assertEquals(ReportReviewStatus.PENDING, reportDs.reports["rep_suspicious"]?.reviewStatus)
+
+        // 3. Reject suspicious report with reason -> clears mandatory review alert & unlocks >3-day edit for staff
+        handler.rejectDailyReport("rep_suspicious", "Mohon jelaskan 14 tahu rusak.")
+        assertEquals(ReportReviewStatus.REJECTED, reportDs.reports["rep_suspicious"]?.reviewStatus)
+        assertEquals("Mohon jelaskan 14 tahu rusak.", reportDs.reports["rep_suspicious"]?.reviewNote)
+        assertEquals(0, state.value.reviewReportsCount)
+        assertFalse(state.value.reportListItems.first { it.id == "rep_suspicious" }.hasAlert)
+
+        // Rejected report older than 3 days is unlocked for staff revision
+        assertFalse(isReportEditable(oldTs, nowTs, ReportReviewStatus.PENDING))
+        assertTrue(isReportEditable(oldTs, nowTs, ReportReviewStatus.REJECTED))
+
+        // 4. Owner can also optionally ACC normal report (or decline it)
+        handler.approveDailyReport("rep_normal", "Oke sesuai kas")
+        assertEquals(ReportReviewStatus.APPROVED, reportDs.reports["rep_normal"]?.reviewStatus)
+        assertEquals(
+            ReportReviewStatus.APPROVED,
+            state.value.reportListItems.first { it.id == "rep_normal" }.reviewStatus
+        )
     }
 }

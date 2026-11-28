@@ -2,12 +2,17 @@ package com.sudutcorp.sudutbulat.feature.report
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -15,15 +20,27 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -31,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
-import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
 import com.sudutcorp.sudutbulat.core.components.SBDottedDivider
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
 import com.sudutcorp.sudutbulat.core.components.SBSectionCard
@@ -39,20 +55,34 @@ import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
 import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
 import com.sudutcorp.sudutbulat.feature.owner.SingleReportDetailUi
+import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
+
+private val QUICK_REJECT_REASONS = listOf(
+    "Rincian nota pengeluaran belum jelas",
+    "Jumlah bahan rusak perlu penjelasan",
+    "Selisih nominal Tunai / QRIS"
+)
 
 @Composable
 fun OwnerDetailReportScreen(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
-    singleReport: SingleReportDetailUi? = null
+    singleReport: SingleReportDetailUi? = null,
+    isActionLoading: Boolean = false,
+    onApproveReport: (reportId: String, note: String?) -> Unit = { _, _ -> },
+    onRejectReport: (reportId: String, reason: String) -> Unit = { _, _ -> }
 ) {
     OutletDetailContent(
         modifier = modifier,
         reportSummary = reportSummary,
         singleReport = singleReport,
+        isActionLoading = isActionLoading,
+        onApproveReport = onApproveReport,
+        onRejectReport = onRejectReport,
         onBackClick = { navController.popBackStackSafe() }
     )
 }
@@ -62,8 +92,13 @@ fun OutletDetailContent(
     modifier: Modifier = Modifier,
     reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
     singleReport: SingleReportDetailUi? = null,
+    isActionLoading: Boolean = false,
+    onApproveReport: (reportId: String, note: String?) -> Unit = { _, _ -> },
+    onRejectReport: (reportId: String, reason: String) -> Unit = { _, _ -> },
     onBackClick: () -> Unit = {}
 ) {
+    var showRejectDialog by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -182,6 +217,17 @@ fun OutletDetailContent(
                 badgeText = "${singleReport.totalSold} pcs terjual",
                 cashText = formatRupiah(singleReport.cashRevenue),
                 qrisText = formatRupiah(singleReport.qrisRevenue)
+            )
+
+            OwnerReportReviewActionCard(
+                report = singleReport,
+                isActionLoading = isActionLoading,
+                onApproveClick = {
+                    onApproveReport(singleReport.id, "Disetujui oleh Owner.")
+                },
+                onRejectClick = {
+                    showRejectDialog = true
+                }
             )
 
             if (singleReport.productLines.isNotEmpty()) {
@@ -339,6 +385,369 @@ fun OutletDetailContent(
             }
         }
     }
+
+    if (showRejectDialog && singleReport != null) {
+        RejectDailyReportDialog(
+            outletName = singleReport.outletName,
+            dateLabel = singleReport.fullDateLabel,
+            initialReason = singleReport.reviewNote.orEmpty(),
+            isSaving = isActionLoading,
+            onDismiss = { showRejectDialog = false },
+            onConfirm = { reason ->
+                showRejectDialog = false
+                onRejectReport(singleReport.id, reason)
+            }
+        )
+    }
+}
+
+@Composable
+private fun OwnerReportReviewActionCard(
+    report: SingleReportDetailUi,
+    isActionLoading: Boolean,
+    onApproveClick: () -> Unit,
+    onRejectClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val status = report.reviewStatus
+    val isPendingAnomaly = status == ReportReviewStatus.PENDING && report.hasAnomaly
+    val isApproved = status == ReportReviewStatus.APPROVED
+    val isRejected = status == ReportReviewStatus.REJECTED
+
+    val containerColor = when {
+        isRejected -> SBColor.Error_100.copy(alpha = 0.6f)
+        isApproved -> SBColor.Success_100.copy(alpha = 0.6f)
+        isPendingAnomaly -> SBColor.Warning_100.copy(alpha = 0.8f)
+        else -> Color.White
+    }
+    val borderColor = when {
+        isRejected -> SBColor.Primary_200
+        isApproved -> SBColor.Success_300
+        isPendingAnomaly -> SBColor.Secondary_200
+        else -> SBColor.Grey_100
+    }
+
+    OutlinedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = containerColor),
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val iconRes = when {
+                        isApproved -> R.drawable.ic_check
+                        isRejected || isPendingAnomaly -> R.drawable.ic_warning
+                        else -> R.drawable.ic_info
+                    }
+                    val iconTint = when {
+                        isApproved -> SBColor.Success_600
+                        isRejected -> SBColor.Primary_550
+                        isPendingAnomaly -> SBColor.Warning_600
+                        else -> SBColor.Grey_600
+                    }
+                    Icon(
+                        painter = painterResource(iconRes),
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = when {
+                            isApproved -> "Laporan disetujui"
+                            isRejected -> "Laporan ditolak Owner"
+                            isPendingAnomaly -> "Wajib ditinjau Owner"
+                            else -> "Tinjauan laporan (opsional)"
+                        },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                }
+                when {
+                    isApproved -> SBStatusBadge(
+                        text = "Disetujui",
+                        containerColor = Color.White,
+                        contentColor = SBColor.Success_600
+                    )
+                    isRejected -> SBStatusBadge(
+                        text = "Ditolak",
+                        containerColor = Color.White,
+                        contentColor = SBColor.Primary_550
+                    )
+                    isPendingAnomaly -> SBStatusBadge(
+                        text = "Perlu ditinjau",
+                        containerColor = Color.White,
+                        contentColor = SBColor.Warning_600
+                    )
+                    else -> SBStatusBadge(
+                        text = "Normal",
+                        containerColor = SBColor.Success_100,
+                        contentColor = SBColor.Success_600
+                    )
+                }
+            }
+
+            when {
+                isPendingAnomaly -> {
+                    Text(
+                        text = report.anomalyReasonText
+                            ?: "Laporan ini memiliki stok rusak tinggi atau pengeluaran ekstra yang perlu diverifikasi.",
+                        fontSize = 12.sp,
+                        color = SBColor.Grey_700
+                    )
+                }
+                isRejected -> {
+                    Text(
+                        text = "Alasan penolakan: ${report.reviewNote ?: "Perlu diperbaiki oleh staf outlet."}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SBColor.Primary_550
+                    )
+                    if (!report.reviewedAtLabel.isNullOrBlank()) {
+                        Text(
+                            text = "Ditinjau oleh ${report.reviewedByName ?: "Owner"} • ${report.reviewedAtLabel}",
+                            fontSize = 11.sp,
+                            color = SBColor.Grey_500
+                        )
+                    }
+                }
+                isApproved -> {
+                    Text(
+                        text = report.reviewNote ?: "Laporan telah diverifikasi dan disetujui oleh Owner.",
+                        fontSize = 12.sp,
+                        color = SBColor.Grey_700
+                    )
+                    if (!report.reviewedAtLabel.isNullOrBlank()) {
+                        Text(
+                            text = "Disetujui oleh ${report.reviewedByName ?: "Owner"} • ${report.reviewedAtLabel}",
+                            fontSize = 11.sp,
+                            color = SBColor.Grey_500
+                        )
+                    }
+                }
+                else -> {
+                    Text(
+                        text = "Laporan ini tidak memiliki anomali sehingga tidak wajib di-ACC. Namun, Anda tetap dapat menyetujui (ACC) atau menolak laporan ini.",
+                        fontSize = 12.sp,
+                        color = SBColor.Grey_600
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (status != ReportReviewStatus.REJECTED) {
+                    OutlinedButton(
+                        onClick = onRejectClick,
+                        enabled = !isActionLoading,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, SBColor.Primary_300),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = SBColor.Primary_550
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
+                    ) {
+                        Text(
+                            text = "Tolak",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onRejectClick,
+                        enabled = !isActionLoading,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, SBColor.Primary_300),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = SBColor.Primary_550
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
+                    ) {
+                        Text(
+                            text = "Ubah alasan",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (status != ReportReviewStatus.APPROVED) {
+                    Button(
+                        onClick = onApproveClick,
+                        enabled = !isActionLoading,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SBColor.Success_600,
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
+                    ) {
+                        Text(
+                            text = if (isActionLoading) "Menyimpan..." else "Setujui",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RejectDailyReportDialog(
+    outletName: String,
+    dateLabel: String,
+    initialReason: String,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var reason by rememberSaveable(initialReason) { mutableStateOf(initialReason) }
+    var errorText by rememberSaveable { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        containerColor = Color.White,
+        title = {
+            Text(
+                text = "Tolak laporan harian?",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = SBColor.Grey_700
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "$outletName • $dateLabel\nStaf outlet akan menerima kartu notifikasi di dashboard mereka untuk memperbaiki laporan ini.",
+                    fontSize = 13.sp,
+                    color = SBColor.Grey_600
+                )
+
+                Text(
+                    text = "Pilih alasan cepat:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = SBColor.Grey_700
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    QUICK_REJECT_REASONS.forEach { preset ->
+                        val isSelected = reason.trim().equals(preset, ignoreCase = true)
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) SBColor.Primary_100 else SBColor.Grey_100,
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (isSelected) SBColor.Primary_300 else Color.Transparent
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    reason = preset
+                                    errorText = null
+                                }
+                        ) {
+                            Text(
+                                text = preset,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isSelected) SBColor.Primary_550 else SBColor.Grey_700,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = {
+                        reason = it
+                        errorText = null
+                    },
+                    label = { Text("Alasan penolakan (wajib)") },
+                    placeholder = { Text("Contoh: Lampirkan nota pembelian minyak & gas...") },
+                    minLines = 2,
+                    maxLines = 4,
+                    isError = errorText != null,
+                    supportingText = errorText?.let { err ->
+                        { Text(err, color = SBColor.Primary_550, fontSize = 11.sp) }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SBColor.Primary_550,
+                        unfocusedBorderColor = SBColor.Grey_200,
+                        cursorColor = SBColor.Primary_550
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val clean = reason.trim()
+                    if (clean.isBlank()) {
+                        errorText = "Tuliskan atau pilih alasan penolakan terlebih dahulu."
+                    } else {
+                        onConfirm(clean)
+                    }
+                },
+                enabled = !isSaving,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SBColor.Primary_550,
+                    contentColor = Color.White
+                )
+            ) {
+                Text(
+                    text = if (isSaving) "Mengirim..." else "Tolak & beri tahu staf",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isSaving
+            ) {
+                Text("Batal", color = SBColor.Grey_600, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    )
 }
 
 @Composable

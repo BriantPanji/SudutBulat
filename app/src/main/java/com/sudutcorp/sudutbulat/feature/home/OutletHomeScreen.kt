@@ -54,9 +54,11 @@ import com.sudutcorp.sudutbulat.core.util.formatShortRupiah
 import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionStatusBadge
 import com.sudutcorp.sudutbulat.feature.outlet.OutletDashboardMetrics
 import com.sudutcorp.sudutbulat.feature.outlet.OutletDistributionUi
+import com.sudutcorp.sudutbulat.feature.outlet.OutletReportHistoryItemUi
 import com.sudutcorp.sudutbulat.feature.outlet.OutletStockFilter
 import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEvent
 import com.sudutcorp.sudutbulat.feature.outlet.OutletUiState
@@ -185,6 +187,16 @@ fun OutletHomeScreen(
             metrics = metrics,
             onClick = openDailyReportContextual
         )
+
+        if (uiState.rejectedReports.isNotEmpty()) {
+            OutletRejectedReportsBanner(
+                rejectedReports = uiState.rejectedReports,
+                onFixReportClick = { reportId ->
+                    onEvent(OutletUiEvent.LoadExistingReportForEdit(reportId))
+                    onOpenReportTab()
+                }
+            )
+        }
 
         if (metrics.pendingConfirmCount > 0) {
             OutletPendingConfirmBanner(
@@ -566,6 +578,94 @@ private fun OutletHeroSalesCard(
 }
 
 @Composable
+private fun OutletRejectedReportsBanner(
+    rejectedReports: List<OutletReportHistoryItemUi>,
+    onFixReportClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val primaryRejected = rejectedReports.first()
+    val titleText = if (rejectedReports.size == 1) {
+        "Laporan ${primaryRejected.dateLabel.lowercase(Locale.forLanguageTag("id-ID"))} ditolak Owner"
+    } else {
+        "${rejectedReports.size} laporan harian ditolak Owner"
+    }
+    val reasonText = primaryRejected.reviewNote?.takeIf { it.isNotBlank() }
+        ?: "Mohon periksa kembali rincian penjualan, pengeluaran, atau bahan rusak."
+
+    OutlinedCard(
+        onClick = { onFixReportClick(primaryRejected.id) },
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = SBColor.Error_100),
+        border = BorderStroke(1.dp, SBColor.Primary_200)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color.White.copy(alpha = 0.9f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_warning),
+                            contentDescription = null,
+                            tint = SBColor.Primary_550,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = titleText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_550
+                    )
+                    Text(
+                        text = "Catatan Owner: \"$reasonText\"",
+                        fontSize = 12.sp,
+                        color = SBColor.Grey_700,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_chevron_right),
+                    contentDescription = null,
+                    tint = SBColor.Primary_550,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color.White.copy(alpha = 0.85f)
+            ) {
+                Text(
+                    text = "Ketuk untuk perbaiki & kirim ulang laporan sekarang →",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Primary_550,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun OutletPendingConfirmBanner(
     pendingCount: Int,
     onClick: () -> Unit,
@@ -801,16 +901,38 @@ private fun RecentDailyReportRow(
             modifier = Modifier.weight(1f).padding(end = 10.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = dateLabel,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Grey_700
+                )
+                when (report.reviewStatus) {
+                    ReportReviewStatus.REJECTED -> SBStatusBadge(
+                        text = "Ditolak",
+                        containerColor = SBColor.Error_100,
+                        contentColor = SBColor.Primary_550
+                    )
+                    ReportReviewStatus.APPROVED -> SBStatusBadge(
+                        text = "Disetujui",
+                        containerColor = SBColor.Success_100,
+                        contentColor = SBColor.Success_600
+                    )
+                    ReportReviewStatus.PENDING -> Unit
+                }
+            }
             Text(
-                text = dateLabel,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = SBColor.Grey_700
-            )
-            Text(
-                text = "${formatDecimal(report.totalSold)} pcs • Tunai ${formatShortRupiah(report.cashRevenue)} • QRIS ${formatShortRupiah(report.qrisRevenue)}",
+                text = if (report.reviewStatus == ReportReviewStatus.REJECTED && !report.reviewNote.isNullOrBlank()) {
+                    "Ditolak: ${report.reviewNote}"
+                } else {
+                    "${formatDecimal(report.totalSold)} pcs • Tunai ${formatShortRupiah(report.cashRevenue)} • QRIS ${formatShortRupiah(report.qrisRevenue)}"
+                },
                 fontSize = 12.sp,
-                color = SBColor.Grey_500,
+                color = if (report.reviewStatus == ReportReviewStatus.REJECTED) SBColor.Primary_550 else SBColor.Grey_500,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

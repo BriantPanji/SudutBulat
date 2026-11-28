@@ -249,7 +249,7 @@ function buildDailyReports(admin) {
       const qrisRevenue = Math.min(totalRevenue, Math.round((totalRevenue * qrisShare) / 1000) * 1000);
       const cashRevenue = totalRevenue - qrisRevenue;
 
-      reports.push({
+      const reportDoc = {
         id: reportId,
         outlet_id: profile.id,
         created_by: pick(rng, profile.staffIds),
@@ -257,7 +257,12 @@ function buildDailyReports(admin) {
         cash_revenue: cashRevenue,
         qris_revenue: qrisRevenue,
         total_sold: totalSold,
-      });
+        review_status: "PENDING",
+        review_note: null,
+        reviewed_by: null,
+        reviewed_at: null,
+      };
+      reports.push(reportDoc);
 
       // Pengeluaran harian outlet (1 dokumen per laporan berisi array items)
       const expenseItems = [];
@@ -324,6 +329,26 @@ function buildDailyReports(admin) {
           daily_report_id: reportId,
           items: damagedItems,
         });
+      }
+
+      // Status tinjauan Owner untuk demo end-to-end (PENDING, APPROVED, REJECTED):
+      if (profile.slug === "sudirman" && daysAgo === 1) {
+        reportDoc.review_status = "REJECTED";
+        reportDoc.review_note =
+          "Mohon periksa kembali nota pembelian minyak goreng & plastik, nominal pengeluaran belum sesuai buku kas outlet.";
+        reportDoc.reviewed_by = "owner";
+        reportDoc.reviewed_at = Timestamp.fromDate(new Date(reportDate.getTime() + 30 * 60 * 1000));
+      } else if (specialKey === "mansyur_9") {
+        reportDoc.review_status = "REJECTED";
+        reportDoc.review_note =
+          "Pengeluaran ganti terpal Rp215.000 cukup besar, mohon cantumkan rincian harga terpal dan biaya pasang di catatan.";
+        reportDoc.reviewed_by = "owner";
+        reportDoc.reviewed_at = Timestamp.fromDate(new Date(reportDate.getTime() + 45 * 60 * 1000));
+      } else if (daysAgo === 2 || daysAgo === 5 || daysAgo === 7) {
+        reportDoc.review_status = "APPROVED";
+        reportDoc.review_note = "Laporan sesuai rekap mutasi kas & QRIS.";
+        reportDoc.reviewed_by = "owner";
+        reportDoc.reviewed_at = Timestamp.fromDate(new Date(reportDate.getTime() + 60 * 60 * 1000));
       }
     }
   }
