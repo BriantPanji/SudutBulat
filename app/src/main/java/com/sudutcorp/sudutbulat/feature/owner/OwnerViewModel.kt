@@ -215,6 +215,16 @@ class OwnerViewModel(
             is OwnerUiEvent.AddOutletAddressChanged -> _state.update {
                 it.copy(addOutletForm = it.addOutletForm.copy(address = event.address, errorMessage = null))
             }
+            is OwnerUiEvent.AddOutletCoordinateChanged -> _state.update {
+                it.copy(
+                    addOutletForm = it.addOutletForm.copy(
+                        latitude = event.latitude,
+                        longitude = event.longitude,
+                        hasCustomCoordinate = true,
+                        errorMessage = null
+                    )
+                )
+            }
             is OwnerUiEvent.AddOutletOpenTimeChanged -> _state.update {
                 it.copy(addOutletForm = it.addOutletForm.copy(openTime = sanitizeTimeDigits(event.openTime), errorMessage = null))
             }

@@ -65,4 +65,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("androidx.core:core-splashscreen:1.0.0")
     implementation("com.cloudinary:cloudinary-android:3.1.2")
+    implementation(libs.maplibre.android.sdk)
 }

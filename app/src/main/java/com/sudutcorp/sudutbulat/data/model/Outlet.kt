@@ -3,6 +3,7 @@ package com.sudutcorp.sudutbulat.data.model
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.GeoPoint
 import com.google.firebase.firestore.PropertyName
+import com.sudutcorp.sudutbulat.core.util.DEFAULT_MEDAN_GEOPOINT
 
 /**
  * Data model for outlets in Firestore collection `outlets`.
@@ -15,7 +16,7 @@ data class Outlet(
 
     val address: String = "",
 
-    val coordinate: GeoPoint = GeoPoint(0.0, 0.0),
+    val coordinate: GeoPoint = DEFAULT_MEDAN_GEOPOINT,
 
     @get:PropertyName("is_active")
     @set:PropertyName("is_active")

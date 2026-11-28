@@ -1,5 +1,7 @@
 package com.sudutcorp.sudutbulat.feature.owner
 
+import com.sudutcorp.sudutbulat.core.util.DEFAULT_MEDAN_LAT
+import com.sudutcorp.sudutbulat.core.util.DEFAULT_MEDAN_LNG
 import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
@@ -67,6 +69,8 @@ data class OutletPerformanceUi(
     val name: String,
     val displayName: String,
     val address: String,
+    val latitude: Double = DEFAULT_MEDAN_LAT,
+    val longitude: Double = DEFAULT_MEDAN_LNG,
     val coordinateLabel: String,
     val isOpen: Boolean,
     val isActive: Boolean,
@@ -253,6 +257,9 @@ data class OwnerNotificationUi(
 data class AddOutletFormState(
     val name: String = "",
     val address: String = "",
+    val latitude: Double = DEFAULT_MEDAN_LAT,
+    val longitude: Double = DEFAULT_MEDAN_LNG,
+    val hasCustomCoordinate: Boolean = false,
     val openTime: String = "0800",
     val closeTime: String = "2100",
     val dailyTargetInput: String = "2000000",
@@ -375,6 +382,7 @@ sealed interface OwnerUiEvent {
 
     data class AddOutletNameChanged(val name: String) : OwnerUiEvent
     data class AddOutletAddressChanged(val address: String) : OwnerUiEvent
+    data class AddOutletCoordinateChanged(val latitude: Double, val longitude: Double) : OwnerUiEvent
     data class AddOutletOpenTimeChanged(val openTime: String) : OwnerUiEvent
     data class AddOutletCloseTimeChanged(val closeTime: String) : OwnerUiEvent
     data class AddOutletTargetChanged(val targetInput: String) : OwnerUiEvent

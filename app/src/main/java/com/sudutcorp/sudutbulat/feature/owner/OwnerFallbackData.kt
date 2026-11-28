@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.feature.owner
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.GeoPoint
 import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.Material
 import com.sudutcorp.sudutbulat.data.model.MaterialCategory
@@ -13,29 +14,28 @@ import com.sudutcorp.sudutbulat.data.model.User
 
 fun defaultSeededOutlets(): List<Outlet> = listOf(
     Outlet(
-        id = "outlet_sudirman", name = "Sudirman", address = "Jl. Jenderal Sudirman No. 18",
+        id = "outlet_sudirman", name = "Sudirman", address = "Jl. Jenderal Sudirman No. 28, Medan Maimun, Kota Medan",
+        coordinate = GeoPoint(3.5778, 98.6749),
         isActive = true, isOpen = true, targetPercentage = 0.85f, totalRevenue = 2_480_000L,
         totalPiecesSold = 496, openTime = "09.00", closeTime = "21.00", dailyTarget = 2_900_000L
     ),
     Outlet(
-        id = "outlet_gajah_mada", name = "Gajah Mada", address = "Jl. Gajah Mada No. 7",
+        id = "outlet_gajah_mada", name = "Gajah Mada", address = "Jl. Gajah Mada No. 45, Petisah Hulu, Medan Baru, Kota Medan",
+        coordinate = GeoPoint(3.5882, 98.6606),
         isActive = true, isOpen = true, targetPercentage = 0.86f, totalRevenue = 2_120_000L,
         totalPiecesSold = 424, openTime = "08.00", closeTime = "21.00", dailyTarget = 2_460_000L
     ),
     Outlet(
-        id = "outlet_cikini", name = "Cikini", address = "Jl. Cikini Raya No. 33",
+        id = "outlet_cikini", name = "Dr. Mansyur", address = "Jl. Dr. Mansyur No. 68, Medan Selayang, Kota Medan",
+        coordinate = GeoPoint(3.5673, 98.6533),
         isActive = true, isOpen = true, targetPercentage = 0.72f, totalRevenue = 1_780_000L,
-        totalPiecesSold = 356, openTime = "08.00", closeTime = "21.00", dailyTarget = 2_470_000L
+        totalPiecesSold = 356, openTime = "10.00", closeTime = "22.00", dailyTarget = 2_470_000L
     ),
     Outlet(
-        id = "outlet_kemang", name = "Kemang", address = "Jl. Kemang Raya No. 12",
+        id = "outlet_tebet", name = "Ringroad Setia Budi", address = "Jl. Gagak Hitam (Ringroad) No. 112, Medan Sunggal, Kota Medan",
+        coordinate = GeoPoint(3.5701, 98.6258),
         isActive = true, isOpen = true, targetPercentage = 0.65f, totalRevenue = 1_320_000L,
-        totalPiecesSold = 264, openTime = "08.00", closeTime = "21.00", dailyTarget = 2_000_000L
-    ),
-    Outlet(
-        id = "outlet_blok_m", name = "Blok M", address = "Jl. Melawai No. 5",
-        isActive = true, isOpen = false, targetPercentage = 0.36f, totalRevenue = 720_000L,
-        totalPiecesSold = 144, openTime = "09.00", closeTime = "21.00", dailyTarget = 2_000_000L
+        totalPiecesSold = 264, openTime = "10.00", closeTime = "22.00", dailyTarget = 2_000_000L
     )
 )
 

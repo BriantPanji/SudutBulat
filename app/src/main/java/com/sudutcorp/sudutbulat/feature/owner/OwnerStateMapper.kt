@@ -1,7 +1,9 @@
 package com.sudutcorp.sudutbulat.feature.owner
 
 import com.sudutcorp.sudutbulat.core.util.buildInitials
+import com.sudutcorp.sudutbulat.core.util.formatCoordinate
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.core.util.orDefaultMedan
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
@@ -92,13 +94,16 @@ fun computeOwnerDerivedState(
         val outletDamaged = todayReport?.let { damagedByReport[it.id] }.orEmpty()
         val damagedQty = outletDamaged.sumOf { it.quantity }
 
+        val resolvedCoord = outlet.coordinate.orDefaultMedan()
         OutletPerformanceUi(
             id = outlet.id,
             rank = 0,
             name = outlet.name.removePrefix("Outlet ").trim(),
             displayName = if (outlet.name.startsWith("Outlet", ignoreCase = true)) outlet.name else "Outlet ${outlet.name}",
             address = outlet.address,
-            coordinateLabel = String.format(Locale.US, "%.4f, %.4f", outlet.coordinate.latitude, outlet.coordinate.longitude),
+            latitude = resolvedCoord.latitude,
+            longitude = resolvedCoord.longitude,
+            coordinateLabel = formatCoordinate(resolvedCoord.latitude, resolvedCoord.longitude),
             isOpen = outlet.isOpen,
             isActive = outlet.isActive,
             openTime = outlet.openTime.ifBlank { "09.00" },

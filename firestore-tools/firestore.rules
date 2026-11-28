@@ -23,7 +23,8 @@ service cloud.firestore {
 
     function isValidOutlet() {
       let data = request.resource.data;
-      return !('routine_preset' in data) || data.routine_preset is list;
+      return (!('routine_preset' in data) || data.routine_preset is list)
+        && (!('coordinate' in data) || data.coordinate is latlng);
     }
 
     // Operational collections: require authenticated Firebase Auth session.

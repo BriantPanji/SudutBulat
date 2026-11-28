@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.GeoPoint
 import com.sudutcorp.sudutbulat.core.util.formatRawTimeToDisplay
 import com.sudutcorp.sudutbulat.core.util.isValidRawTime
+import com.sudutcorp.sudutbulat.core.util.orDefaultMedan
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
@@ -162,7 +163,7 @@ class OwnerActionsHandler(
             id = "outlet_$slug",
             name = cleanName.removePrefix("Outlet ").trim().ifBlank { cleanName },
             address = cleanAddress,
-            coordinate = GeoPoint(-6.21462, 106.82215),
+            coordinate = GeoPoint(form.latitude, form.longitude).orDefaultMedan(),
             isActive = true,
             isOpen = true,
             openTime = formatRawTimeToDisplay(form.openTime, "08.00"),

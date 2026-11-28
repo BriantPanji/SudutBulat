@@ -50,11 +50,20 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.res.painterResource
+import com.sudutcorp.sudutbulat.core.components.OutletLocationPickerDialog
 import com.sudutcorp.sudutbulat.core.components.SBBottomCtaBar
 import com.sudutcorp.sudutbulat.core.components.SBInlineAlert
 import com.sudutcorp.sudutbulat.core.components.SBLabeledTextField
+import com.sudutcorp.sudutbulat.core.components.SBOutletMapPreview
 import com.sudutcorp.sudutbulat.core.components.SBSelectField
 import com.sudutcorp.sudutbulat.core.components.SBSubHeader
+import com.sudutcorp.sudutbulat.core.util.formatCoordinate
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.util.ThousandSeparatorVisualTransformation
 import com.sudutcorp.sudutbulat.core.util.TimeVisualTransformation
@@ -78,6 +87,7 @@ fun AddOutletScreen(
 ) {
     val focusManager = LocalFocusManager.current
     var showStaffSheet by rememberSaveable { mutableStateOf(false) }
+    var showMapPicker by rememberSaveable { mutableStateOf(false) }
     val staffSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val thousandTransformation = remember { ThousandSeparatorVisualTransformation() }
     val timeTransformation = remember { TimeVisualTransformation() }
@@ -146,12 +156,71 @@ fun AddOutletScreen(
             SBLabeledTextField(
                 label = "Alamat lengkap",
                 value = form.address,
-                placeholder = "Jl. Kemang Raya No. 12",
+                placeholder = "Jl. Jenderal Sudirman No. 28, Medan",
                 leadingIconRes = R.drawable.ic_store,
                 imeAction = ImeAction.Next,
                 onImeAction = { focusManager.moveFocus(FocusDirection.Next) },
                 onValueChange = { onEvent(OwnerUiEvent.AddOutletAddressChanged(it)) }
             )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Titik lokasi di peta",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = SBColor.Grey_700
+                    )
+                    Text(
+                        text = formatCoordinate(form.latitude, form.longitude),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SBColor.Grey_500
+                    )
+                }
+
+                SBOutletMapPreview(
+                    latitude = form.latitude,
+                    longitude = form.longitude,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    onClick = {
+                        focusManager.clearFocus()
+                        showMapPicker = true
+                    }
+                )
+
+                OutlinedButton(
+                    onClick = {
+                        focusManager.clearFocus()
+                        showMapPicker = true
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, SBColor.Primary_300),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SBColor.Primary_550)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_location_pin),
+                        contentDescription = null,
+                        tint = SBColor.Primary_550,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (form.hasCustomCoordinate) "Ubah titik lokasi di peta" else "Pilih titik lokasi di peta",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -219,6 +288,19 @@ fun AddOutletScreen(
                 )
             }
         }
+    }
+
+    if (showMapPicker) {
+        OutletLocationPickerDialog(
+            initialLatitude = form.latitude,
+            initialLongitude = form.longitude,
+            useDeviceLocationOnStart = !form.hasCustomCoordinate,
+            onDismiss = { showMapPicker = false },
+            onConfirm = { lat, lng ->
+                onEvent(OwnerUiEvent.AddOutletCoordinateChanged(lat, lng))
+                showMapPicker = false
+            }
+        )
     }
 
     if (showStaffSheet) {

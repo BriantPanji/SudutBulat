@@ -53,6 +53,16 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.navigation.popBackStackSafe
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.platform.LocalContext
+import com.sudutcorp.sudutbulat.core.components.SBOutletMapPreview
+import com.sudutcorp.sudutbulat.core.util.DEFAULT_MEDAN_LAT
+import com.sudutcorp.sudutbulat.core.util.DEFAULT_MEDAN_LNG
+import com.sudutcorp.sudutbulat.core.util.formatCoordinate
+import com.sudutcorp.sudutbulat.core.util.openGoogleMaps
+import com.sudutcorp.sudutbulat.core.util.resolveOutletCoordinate
 import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
 import com.sudutcorp.sudutbulat.core.components.SBDottedDivider
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
@@ -128,9 +138,15 @@ fun OwnerDetailOutletContent(
     onSaveRoutinePreset: (List<RoutinePresetItem>) -> Unit = {},
     onReportClick: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val outletName = outlet?.name ?: "Sudirman"
-    val outletAddress = outlet?.address ?: "Jl. Jenderal Sudirman No. 18"
-    val coordinateLabel = outlet?.coordinateLabel ?: "-6.2146, 106.8222"
+    val outletAddress = outlet?.address ?: "Jl. Jenderal Sudirman No. 28, Medan"
+    val (outletLat, outletLng) = resolveOutletCoordinate(
+        outlet?.latitude ?: DEFAULT_MEDAN_LAT,
+        outlet?.longitude ?: DEFAULT_MEDAN_LNG
+    )
+    val coordinateLabel = outlet?.coordinateLabel?.takeIf { it.isNotBlank() }
+        ?: formatCoordinate(outletLat, outletLng)
     val isOpen = outlet?.isOpen ?: true
     val targetProgress = outlet?.targetProgress ?: 0.85f
     val operatingHours = "${outlet?.openTime ?: "09.00"} – ${outlet?.closeTime ?: "21.00"} WIB"
@@ -222,6 +238,37 @@ fun OwnerDetailOutletContent(
                 ) {
                     Text("Koordinat lokasi", fontSize = 12.sp, color = SBColor.Grey_500)
                     Text(coordinateLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_600)
+                }
+
+                SBOutletMapPreview(
+                    latitude = outletLat,
+                    longitude = outletLng,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+
+                OutlinedButton(
+                    onClick = { openGoogleMaps(context, outletLat, outletLng, "Outlet $outletName") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, SBColor.Primary_300),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SBColor.Primary_550)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_location_pin),
+                        contentDescription = null,
+                        tint = SBColor.Primary_550,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Buka di Google Maps",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

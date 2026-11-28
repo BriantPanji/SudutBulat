@@ -2,7 +2,7 @@ package com.sudutcorp.sudutbulat.data.remote
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
-import com.google.firebase.firestore.GeoPoint
+import com.sudutcorp.sudutbulat.core.util.orDefaultMedan
 import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
@@ -98,7 +98,7 @@ object FirestoreMappers {
             id = id,
             name = getString("name").orEmpty(),
             address = getString("address").orEmpty(),
-            coordinate = getGeoPoint("coordinate") ?: GeoPoint(0.0, 0.0),
+            coordinate = getGeoPoint("coordinate").orDefaultMedan(),
             isActive = getBoolean("is_active") ?: true,
             isOpen = getBoolean("is_open") ?: true,
             targetPercentage = (getDouble("target_percentage") ?: 0.0).toFloat(),
@@ -119,7 +119,7 @@ object FirestoreMappers {
     fun Outlet.toFirestoreMap(): Map<String, Any?> = mapOf(
         "name" to name,
         "address" to address,
-        "coordinate" to coordinate,
+        "coordinate" to coordinate.orDefaultMedan(),
         "is_active" to isActive,
         "is_open" to isOpen,
         "target_percentage" to targetPercentage.toDouble(),

@@ -201,6 +201,41 @@ class BackendPersistenceTest {
     }
 
     @Test
+    fun submitNewOutletPersistsSelectedMapCoordinateAndFallsBackToMedanWhenZero() = runBlocking {
+        val outletDs = FakeOutletRemoteDataSource()
+        val userDs = FakeUserRemoteDataSource()
+        val state = MutableStateFlow(
+            OwnerUiState(
+                addOutletForm = AddOutletFormState(
+                    name = "Outlet Iskandar Muda",
+                    address = "Jl. Iskandar Muda No. 10, Medan",
+                    latitude = 3.5841,
+                    longitude = 98.6612,
+                    hasCustomCoordinate = true,
+                    openTime = "0800",
+                    closeTime = "2100",
+                    dailyTargetInput = "2500000"
+                )
+            )
+        )
+        val effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
+        val handler = OwnerActionsHandler(
+            outletRepository = OutletRepository(outletDs),
+            userRepository = UserRepository(userDs),
+            authRepository = FakeAuthRepository(),
+            state = state,
+            effects = effects
+        )
+
+        handler.submitNewOutlet()
+
+        val saved = outletDs.outlets["outlet_iskandar_muda"]
+        assertNotNull(saved)
+        assertEquals(3.5841, saved!!.coordinate.latitude, 1e-6)
+        assertEquals(98.6612, saved.coordinate.longitude, 1e-6)
+    }
+
+    @Test
     fun submitNewUserFailsWhenAuthFailsAndSucceedsWhenBothPass() = runBlocking {
         val userDs = FakeUserRemoteDataSource()
         val authRepo = FakeAuthRepository(shouldFailRegister = true)
