@@ -155,15 +155,58 @@ class OwnerActionsHandler(
 
         state.update { it.copy(addOutletForm = form.copy(isSaving = true, errorMessage = null)) }
 
+        val normalizedName = cleanName.removePrefix("Outlet ").trim().ifBlank { cleanName }
+        val resolvedCoord = GeoPoint(form.latitude, form.longitude).orDefaultMedan()
+        val editingId = form.editingOutletId
+
+        if (editingId != null) {
+            val existing = state.value.outlets.firstOrNull { it.id == editingId }
+            if (existing == null) {
+                val msg = "Data outlet tidak ditemukan untuk diperbarui."
+                state.update { it.copy(addOutletForm = form.copy(isSaving = false, errorMessage = msg)) }
+                effects.send(OwnerUiEffect.ShowSnackbar(msg))
+                return
+            }
+
+            val updatedOutlet = existing.copy(
+                name = normalizedName,
+                address = cleanAddress,
+                coordinate = resolvedCoord,
+                isActive = form.isActive,
+                openTime = formatRawTimeToDisplay(form.openTime, existing.openTime.ifBlank { "08.00" }),
+                closeTime = formatRawTimeToDisplay(form.closeTime, existing.closeTime.ifBlank { "21.00" }),
+                dailyTarget = form.dailyTargetInput.toLongOrNull()?.takeIf { it > 0L } ?: existing.dailyTarget
+            )
+
+            val updateResult = outletRepository.updateOutlet(updatedOutlet)
+            if (updateResult.isFailure) {
+                val msg = "Gagal memperbarui outlet ke Firestore: ${updateResult.exceptionOrNull()?.readableMessage()}"
+                state.update { it.copy(addOutletForm = form.copy(isSaving = false, errorMessage = msg)) }
+                effects.send(OwnerUiEffect.ShowSnackbar(msg))
+                return
+            }
+
+            state.update { current ->
+                val updatedOutlets = current.outlets.map { if (it.id == updatedOutlet.id) updatedOutlet else it }
+                computeOwnerDerivedState(
+                    current.copy(outlets = updatedOutlets, addOutletForm = AddOutletFormState())
+                )
+            }
+
+            effects.send(OwnerUiEffect.ShowSnackbar("Detail Outlet ${updatedOutlet.name} berhasil diperbarui."))
+            effects.send(OwnerUiEffect.NavigateBack)
+            return
+        }
+
         val slug = cleanName.removePrefix("Outlet ").removePrefix("outlet ")
             .lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]+"), "_").trim('_')
             .ifBlank { "baru_${System.currentTimeMillis()}" }
 
         val newOutlet = Outlet(
             id = "outlet_$slug",
-            name = cleanName.removePrefix("Outlet ").trim().ifBlank { cleanName },
+            name = normalizedName,
             address = cleanAddress,
-            coordinate = GeoPoint(form.latitude, form.longitude).orDefaultMedan(),
+            coordinate = resolvedCoord,
             isActive = true,
             isOpen = true,
             openTime = formatRawTimeToDisplay(form.openTime, "08.00"),

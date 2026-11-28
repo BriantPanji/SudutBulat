@@ -89,6 +89,7 @@ fun OwnerDetailOutletScreen(
     outletId: String = "outlet_sudirman",
     uiState: OwnerUiState = OwnerUiState(),
     onEvent: (OwnerUiEvent) -> Unit = {},
+    onEditOutletClick: (String) -> Unit = {},
     onReportClick: (String) -> Unit = {}
 ) {
     val outlet = uiState.outletItems.firstOrNull { it.id == outletId }
@@ -111,6 +112,9 @@ fun OwnerDetailOutletScreen(
         activeMaterials = activeMaterials,
         recentReports = recentOutletReports,
         onBackClick = { navController.popBackStackSafe() },
+        onEditClick = {
+            if (outlet != null) onEditOutletClick(outlet.id)
+        },
         onToggleOpenStatus = {
             if (outlet != null) onEvent(OwnerUiEvent.ToggleOutletOpenStatus(outlet.id))
         },
@@ -133,6 +137,7 @@ fun OwnerDetailOutletContent(
     activeMaterials: List<Material> = emptyList(),
     recentReports: List<DailyReportListItemUi> = emptyList(),
     onBackClick: () -> Unit = {},
+    onEditClick: () -> Unit = {},
     onToggleOpenStatus: () -> Unit = {},
     onSaveStaffAssignment: (Set<String>) -> Unit = {},
     onSaveRoutinePreset: (List<RoutinePresetItem>) -> Unit = {},
@@ -174,7 +179,19 @@ fun OwnerDetailOutletContent(
         SBSubHeader(
             eyebrow = "Detail outlet",
             title = "Outlet $outletName",
-            onBackClick = onBackClick
+            onBackClick = onBackClick,
+            trailingContent = if (outlet != null) {
+                {
+                    SBStatusBadge(
+                        text = "Edit",
+                        containerColor = SBColor.Primary_100,
+                        contentColor = SBColor.Primary_550,
+                        onClick = onEditClick
+                    )
+                }
+            } else {
+                null
+            }
         )
 
         // Card Identitas Outlet
@@ -221,12 +238,24 @@ fun OwnerDetailOutletContent(
                         }
                     }
 
-                    SBStatusBadge(
-                        text = if (isOpen) "Buka ▾" else "Tutup ▾",
-                        containerColor = if (isOpen) SBColor.Success_100 else SBColor.Grey_100,
-                        contentColor = if (isOpen) SBColor.Success_600 else SBColor.Grey_600,
-                        onClick = { showOverrideStatusDialog = true }
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (outlet != null && !outlet.isActive) {
+                            SBStatusBadge(
+                                text = "Nonaktif",
+                                containerColor = SBColor.Error_100,
+                                contentColor = SBColor.Primary_550
+                            )
+                        }
+                        SBStatusBadge(
+                            text = if (isOpen) "Buka ▾" else "Tutup ▾",
+                            containerColor = if (isOpen) SBColor.Success_100 else SBColor.Grey_100,
+                            contentColor = if (isOpen) SBColor.Success_600 else SBColor.Grey_600,
+                            onClick = { showOverrideStatusDialog = true }
+                        )
+                    }
                 }
 
                 HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)

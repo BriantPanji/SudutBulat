@@ -255,6 +255,7 @@ data class OwnerNotificationUi(
 )
 
 data class AddOutletFormState(
+    val editingOutletId: String? = null,
     val name: String = "",
     val address: String = "",
     val latitude: Double = DEFAULT_MEDAN_LAT,
@@ -263,6 +264,7 @@ data class AddOutletFormState(
     val openTime: String = "0800",
     val closeTime: String = "2100",
     val dailyTargetInput: String = "2000000",
+    val isActive: Boolean = true,
     val selectedStaffIds: Set<String> = emptySet(),
     val isSaving: Boolean = false,
     val errorMessage: String? = null
@@ -380,12 +382,14 @@ sealed interface OwnerUiEvent {
     data class ApproveDailyReport(val reportId: String, val note: String? = null) : OwnerUiEvent
     data class RejectDailyReport(val reportId: String, val reason: String) : OwnerUiEvent
 
+    data class StartEditOutlet(val outletId: String) : OwnerUiEvent
     data class AddOutletNameChanged(val name: String) : OwnerUiEvent
     data class AddOutletAddressChanged(val address: String) : OwnerUiEvent
     data class AddOutletCoordinateChanged(val latitude: Double, val longitude: Double) : OwnerUiEvent
     data class AddOutletOpenTimeChanged(val openTime: String) : OwnerUiEvent
     data class AddOutletCloseTimeChanged(val closeTime: String) : OwnerUiEvent
     data class AddOutletTargetChanged(val targetInput: String) : OwnerUiEvent
+    data class AddOutletActiveChanged(val isActive: Boolean) : OwnerUiEvent
     data class ToggleAddOutletStaff(val userId: String) : OwnerUiEvent
     data object ResetAddOutletForm : OwnerUiEvent
     data object SubmitNewOutlet : OwnerUiEvent

@@ -21,11 +21,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -93,6 +97,7 @@ fun AddOutletScreen(
     val timeTransformation = remember { TimeVisualTransformation() }
 
     val form = uiState.addOutletForm
+    val isEditing = form.editingOutletId != null
     val availableStaff = remember(uiState.users) {
         uiState.users.ifEmpty { defaultSeededUsers() }.filter {
             it.isActive && it.role == Role.OUTLET
@@ -117,7 +122,7 @@ fun AddOutletScreen(
         containerColor = Color.White,
         bottomBar = {
             SBBottomCtaBar(
-                label = "Simpan outlet",
+                label = if (isEditing) "Simpan perubahan" else "Simpan outlet",
                 isLoading = form.isSaving,
                 onClick = { onEvent(OwnerUiEvent.SubmitNewOutlet) }
             )
@@ -137,7 +142,7 @@ fun AddOutletScreen(
         ) {
             SBSubHeader(
                 eyebrow = "Owner",
-                title = "Tambah outlet",
+                title = if (isEditing) "Edit outlet" else "Tambah outlet",
                 onBackClick = { navController.popBackStackSafe() }
             )
 
@@ -265,19 +270,65 @@ fun AddOutletScreen(
                 onValueChange = { onEvent(OwnerUiEvent.AddOutletTargetChanged(it)) }
             )
 
-            SBSelectField(
-                label = "Staf outlet (min. 1)",
-                valueText = selectedStaffNames.ifBlank { "Pilih staf yang ditugaskan" },
-                isPlaceholder = selectedStaffNames.isBlank(),
-                onClick = {
-                    focusManager.clearFocus()
-                    showStaffSheet = true
+            if (isEditing) {
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, SBColor.Grey_200)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = "Status outlet aktif",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SBColor.Grey_700
+                            )
+                            Text(
+                                text = if (form.isActive) {
+                                    "Outlet aktif dan masuk ringkasan operasional harian."
+                                } else {
+                                    "Outlet dinonaktifkan sementara dari target operasional."
+                                },
+                                fontSize = 12.sp,
+                                color = SBColor.Grey_500
+                            )
+                        }
+                        Switch(
+                            checked = form.isActive,
+                            onCheckedChange = { onEvent(OwnerUiEvent.AddOutletActiveChanged(it)) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = SBColor.Primary_550
+                            )
+                        )
+                    }
                 }
-            )
+            } else {
+                SBSelectField(
+                    label = "Staf outlet (min. 1)",
+                    valueText = selectedStaffNames.ifBlank { "Pilih staf yang ditugaskan" },
+                    isPlaceholder = selectedStaffNames.isBlank(),
+                    onClick = {
+                        focusManager.clearFocus()
+                        showStaffSheet = true
+                    }
+                )
 
-            SBInlineAlert(
-                message = "Staf ditugaskan permanen ke outlet ini dan tidak berpindah lokasi."
-            )
+                SBInlineAlert(
+                    message = "Staf ditugaskan permanen ke outlet ini dan tidak berpindah lokasi."
+                )
+            }
 
             form.errorMessage?.let { errorMsg ->
                 Text(
@@ -294,7 +345,7 @@ fun AddOutletScreen(
         OutletLocationPickerDialog(
             initialLatitude = form.latitude,
             initialLongitude = form.longitude,
-            useDeviceLocationOnStart = !form.hasCustomCoordinate,
+            useDeviceLocationOnStart = !isEditing && !form.hasCustomCoordinate,
             onDismiss = { showMapPicker = false },
             onConfirm = { lat, lng ->
                 onEvent(OwnerUiEvent.AddOutletCoordinateChanged(lat, lng))

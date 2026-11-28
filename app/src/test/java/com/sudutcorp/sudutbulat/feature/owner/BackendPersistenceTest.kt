@@ -236,6 +236,119 @@ class BackendPersistenceTest {
     }
 
     @Test
+    fun submitEditOutletUpdatesDetailsAndPreservesOperationalFields() = runBlocking {
+        val existingOutlet = com.sudutcorp.sudutbulat.data.model.Outlet(
+            id = "outlet_sudirman",
+            name = "Sudirman",
+            address = "Jl. Sudirman Lama",
+            coordinate = com.google.firebase.firestore.GeoPoint(3.5778, 98.6749),
+            isActive = true,
+            isOpen = false,
+            targetPercentage = 0.85f,
+            totalRevenue = 2_480_000L,
+            totalPiecesSold = 496,
+            openTime = "09.00",
+            closeTime = "21.00",
+            dailyTarget = 2_900_000L,
+            routinePreset = listOf(com.sudutcorp.sudutbulat.data.model.RoutinePresetItem("mat_tahu_original", 500))
+        )
+        val outletDs = FakeOutletRemoteDataSource().apply {
+            outlets[existingOutlet.id] = existingOutlet
+        }
+        val state = MutableStateFlow(
+            OwnerUiState(
+                outlets = listOf(existingOutlet),
+                hasFirestoreSync = true,
+                addOutletForm = AddOutletFormState(
+                    editingOutletId = existingOutlet.id,
+                    name = "Outlet Sudirman Baru",
+                    address = "Jl. Jenderal Sudirman No. 99, Medan",
+                    latitude = 3.5812,
+                    longitude = 98.6791,
+                    hasCustomCoordinate = true,
+                    openTime = "0830",
+                    closeTime = "2200",
+                    dailyTargetInput = "3200000",
+                    isActive = false
+                )
+            )
+        )
+        val effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
+        val handler = OwnerActionsHandler(
+            outletRepository = OutletRepository(outletDs),
+            userRepository = UserRepository(FakeUserRemoteDataSource()),
+            authRepository = FakeAuthRepository(),
+            state = state,
+            effects = effects
+        )
+
+        handler.submitNewOutlet()
+
+        val updated = outletDs.outlets["outlet_sudirman"]
+        assertNotNull(updated)
+        assertEquals("Sudirman Baru", updated!!.name)
+        assertEquals("Jl. Jenderal Sudirman No. 99, Medan", updated.address)
+        assertEquals(3.5812, updated.coordinate.latitude, 1e-6)
+        assertEquals(98.6791, updated.coordinate.longitude, 1e-6)
+        assertEquals("08.30", updated.openTime)
+        assertEquals("22.00", updated.closeTime)
+        assertEquals(3_200_000L, updated.dailyTarget)
+        assertFalse(updated.isActive)
+        // Operational fields preserved
+        assertFalse(updated.isOpen)
+        assertEquals(0.85f, updated.targetPercentage)
+        assertEquals(2_480_000L, updated.totalRevenue)
+        assertEquals(496, updated.totalPiecesSold)
+        assertEquals(1, updated.routinePreset.size)
+        assertNull(state.value.addOutletForm.editingOutletId)
+        assertTrue(effects.tryReceive().getOrNull() is OwnerUiEffect.ShowSnackbar)
+        assertEquals(OwnerUiEffect.NavigateBack, effects.tryReceive().getOrNull())
+    }
+
+    @Test
+    fun submitEditOutletFailsLoudlyWithoutMutatingLocalState() = runBlocking {
+        val existingOutlet = com.sudutcorp.sudutbulat.data.model.Outlet(
+            id = "outlet_sudirman",
+            name = "Sudirman",
+            address = "Jl. Sudirman Lama"
+        )
+        val outletDs = FakeOutletRemoteDataSource().apply {
+            outlets[existingOutlet.id] = existingOutlet
+            shouldFail = true
+        }
+        val state = MutableStateFlow(
+            OwnerUiState(
+                outlets = listOf(existingOutlet),
+                hasFirestoreSync = true,
+                addOutletForm = AddOutletFormState(
+                    editingOutletId = existingOutlet.id,
+                    name = "Sudirman Baru",
+                    address = "Jl. Baru",
+                    openTime = "0800",
+                    closeTime = "2100",
+                    dailyTargetInput = "3000000"
+                )
+            )
+        )
+        val effects = Channel<OwnerUiEffect>(Channel.BUFFERED)
+        val handler = OwnerActionsHandler(
+            outletRepository = OutletRepository(outletDs),
+            userRepository = UserRepository(FakeUserRemoteDataSource()),
+            authRepository = FakeAuthRepository(),
+            state = state,
+            effects = effects
+        )
+
+        handler.submitNewOutlet()
+
+        assertEquals("Sudirman", state.value.outlets.first().name)
+        assertFalse(state.value.addOutletForm.isSaving)
+        assertNotNull(state.value.addOutletForm.errorMessage)
+        assertTrue(effects.tryReceive().getOrNull() is OwnerUiEffect.ShowSnackbar)
+        assertNull(effects.tryReceive().getOrNull())
+    }
+
+    @Test
     fun submitNewUserFailsWhenAuthFailsAndSucceedsWhenBothPass() = runBlocking {
         val userDs = FakeUserRemoteDataSource()
         val authRepo = FakeAuthRepository(shouldFailRegister = true)

@@ -507,6 +507,12 @@ fun MainScreen(
                     outletId = route.outletId,
                     uiState = ownerUiState,
                     onEvent = onOwnerEvent,
+                    onEditOutletClick = { outletId ->
+                        nestedNavController.navigateSingle(
+                            route = OwnerSubRoutes.AddOutlet,
+                            beforeNavigate = { onOwnerEvent(OwnerUiEvent.StartEditOutlet(outletId)) }
+                        )
+                    },
                     onReportClick = { reportId ->
                         nestedNavController.navigateSingle(
                             OwnerSubRoutes.DetailReport(

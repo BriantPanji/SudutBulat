@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sudutcorp.sudutbulat.core.util.buildInitials
+import com.sudutcorp.sudutbulat.core.util.orDefaultMedan
 import com.sudutcorp.sudutbulat.core.util.sanitizeTimeDigits
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.Role
@@ -209,6 +210,29 @@ class OwnerViewModel(
                 actions.rejectDailyReport(event.reportId, event.reason)
             }
 
+            is OwnerUiEvent.StartEditOutlet -> _state.update { current ->
+                val targetOutlet = current.outlets.firstOrNull { it.id == event.outletId }
+                    ?: defaultSeededOutlets().firstOrNull { it.id == event.outletId }
+                if (targetOutlet == null) {
+                    current
+                } else {
+                    val coord = targetOutlet.coordinate.orDefaultMedan()
+                    current.copy(
+                        addOutletForm = AddOutletFormState(
+                            editingOutletId = targetOutlet.id,
+                            name = targetOutlet.name.removePrefix("Outlet ").trim().ifBlank { targetOutlet.name },
+                            address = targetOutlet.address,
+                            latitude = coord.latitude,
+                            longitude = coord.longitude,
+                            hasCustomCoordinate = true,
+                            openTime = sanitizeTimeDigits(targetOutlet.openTime).ifBlank { "0800" },
+                            closeTime = sanitizeTimeDigits(targetOutlet.closeTime).ifBlank { "2100" },
+                            dailyTargetInput = targetOutlet.dailyTarget.coerceAtLeast(0L).toString(),
+                            isActive = targetOutlet.isActive
+                        )
+                    )
+                }
+            }
             is OwnerUiEvent.AddOutletNameChanged -> _state.update {
                 it.copy(addOutletForm = it.addOutletForm.copy(name = event.name, errorMessage = null))
             }
@@ -233,6 +257,9 @@ class OwnerViewModel(
             }
             is OwnerUiEvent.AddOutletTargetChanged -> _state.update {
                 it.copy(addOutletForm = it.addOutletForm.copy(dailyTargetInput = event.targetInput.filter(Char::isDigit), errorMessage = null))
+            }
+            is OwnerUiEvent.AddOutletActiveChanged -> _state.update {
+                it.copy(addOutletForm = it.addOutletForm.copy(isActive = event.isActive, errorMessage = null))
             }
             is OwnerUiEvent.ToggleAddOutletStaff -> _state.update { current ->
                 val set = current.addOutletForm.selectedStaffIds.toMutableSet()

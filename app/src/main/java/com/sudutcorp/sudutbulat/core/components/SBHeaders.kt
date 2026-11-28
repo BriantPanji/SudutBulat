@@ -105,7 +105,8 @@ fun SBSubHeader(
     eyebrow: String,
     title: String,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    trailingContent: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -125,7 +126,10 @@ fun SBSubHeader(
                 modifier = Modifier.size(22.dp)
             )
         }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             Text(
                 text = eyebrow,
                 fontSize = 13.sp,
@@ -139,5 +143,6 @@ fun SBSubHeader(
                 color = SBColor.Grey_700
             )
         }
+        trailingContent?.invoke()
     }
 }
