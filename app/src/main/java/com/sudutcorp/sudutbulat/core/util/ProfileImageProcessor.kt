@@ -27,7 +27,8 @@ import kotlin.math.min
  */
 object ProfileImageProcessor {
 
-    private const val TARGET_AVATAR_PX = 512
+    const val TARGET_AVATAR_PX = 512
+    const val TARGET_RECEIPT_PX = 1024
     private const val MAX_DECODE_DIMENSION_PX = 1024
     private const val JPEG_QUALITY = 85
     private const val CAMERA_CACHE_DIR = "camera_captures"
@@ -57,9 +58,13 @@ object ProfileImageProcessor {
 
     /**
      * Reads [uri] on [Dispatchers.IO], corrects EXIF orientation, center-crops to 1:1 square,
-     * scales to [TARGET_AVATAR_PX]x[TARGET_AVATAR_PX], and returns compressed JPEG bytes ready for upload.
+     * scales to [targetSizePx]x[targetSizePx], and returns compressed JPEG bytes ready for upload.
      */
-    suspend fun processUriToJpegBytes(context: Context, uri: Uri): Result<ByteArray> =
+    suspend fun processUriToJpegBytes(
+        context: Context,
+        uri: Uri,
+        targetSizePx: Int = TARGET_AVATAR_PX
+    ): Result<ByteArray> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val resolver = context.contentResolver
@@ -75,7 +80,7 @@ object ProfileImageProcessor {
                 val sampleSize = calculateInSampleSize(
                     width = boundsOptions.outWidth,
                     height = boundsOptions.outHeight,
-                    maxDimension = MAX_DECODE_DIMENSION_PX
+                    maxDimension = max(MAX_DECODE_DIMENSION_PX, targetSizePx * 2)
                 )
 
                 val decodeOptions = BitmapFactory.Options().apply {
@@ -96,13 +101,20 @@ object ProfileImageProcessor {
                 }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
 
                 val orientedBitmap = applyExifOrientation(rawBitmap, exifOrientation)
-                val squareBitmap = centerCropAndScaleSquare(orientedBitmap, TARGET_AVATAR_PX)
+                val squareBitmap = centerCropAndScaleSquare(orientedBitmap, targetSizePx)
 
                 val output = ByteArrayOutputStream()
                 squareBitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
                 output.toByteArray()
             }
         }
+
+    suspend fun decodeJpegBytes(jpegBytes: ByteArray): ImageBitmap? = withContext(Dispatchers.IO) {
+        if (jpegBytes.isEmpty()) return@withContext null
+        runCatching {
+            BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)?.asImageBitmap()
+        }.getOrNull()
+    }
 
     fun cacheJpegForUrl(photoUrl: String, jpegBytes: ByteArray) {
         if (photoUrl.isBlank() || jpegBytes.isEmpty()) return

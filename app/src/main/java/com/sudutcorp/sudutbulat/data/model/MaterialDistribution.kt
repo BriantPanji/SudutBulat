@@ -41,6 +41,10 @@ data class MaterialDistribution(
     @set:PropertyName("confirmation_note")
     var confirmationNote: String? = null,
 
+    @get:PropertyName("receipt_photo_url")
+    @set:PropertyName("receipt_photo_url")
+    var receiptPhotoUrl: String? = null,
+
     @get:PropertyName("created_at")
     @set:PropertyName("created_at")
     var createdAt: Timestamp = Timestamp.now(),

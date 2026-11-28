@@ -48,7 +48,8 @@ service cloud.firestore {
       let data = request.resource.data;
       return data.status in ['DRAFT', 'SENT', 'ARRIVED', 'RECEIVED', 'PARTIALLY_RECEIVED', 'NOT_RECEIVED', 'CANCELLED']
         && data.type in ['ROUTINE', 'ADDITIONAL']
-        && (!('delivery_method' in data) || data.delivery_method in ['WAREHOUSE_COURIER', 'SELF_PICKUP', 'GOJEK', 'GRAB', 'MAXIM', 'OTHER']);
+        && (!('delivery_method' in data) || data.delivery_method in ['WAREHOUSE_COURIER', 'SELF_PICKUP', 'GOJEK', 'GRAB', 'MAXIM', 'OTHER'])
+        && (!('receipt_photo_url' in data) || data.receipt_photo_url == null || data.receipt_photo_url is string);
     }
 
     match /material_distributions/{docId} {

@@ -143,10 +143,20 @@ class BackendPersistenceTest {
             outletId = "o1",
             createdBy = "gudang",
             type = DistributionType.ADDITIONAL,
+            receiptPhotoUrl = "https://res.cloudinary.com/fp7jzide/image/upload/v1/dr/dr_d1.jpg",
             items = listOf(MaterialDistributionItem("di1", "d1", "m1", 10, 8))
         ).toFirestoreMap()
         assertEquals(1, (distMap["items"] as List<*>).size)
         assertEquals("ADDITIONAL", distMap["type"])
+        assertEquals("https://res.cloudinary.com/fp7jzide/image/upload/v1/dr/dr_d1.jpg", distMap["receipt_photo_url"])
+
+        val distNoPhotoMap = MaterialDistribution(
+            id = "d2",
+            outletId = "o1",
+            createdBy = "gudang",
+            receiptPhotoUrl = "   "
+        ).toFirestoreMap()
+        assertNull(distNoPhotoMap["receipt_photo_url"])
 
         assertEquals(UnitType.PCS, UnitType.fromString("pcs"))
         assertEquals(UnitType.GR, UnitType.fromString("GR"))

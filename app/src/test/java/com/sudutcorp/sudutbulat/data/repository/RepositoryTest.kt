@@ -356,7 +356,8 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
         confirmedBy: String,
         confirmationNote: String?,
         updatedItems: List<MaterialDistributionItem>,
-        status: DistributionStatus
+        status: DistributionStatus,
+        receiptPhotoUrl: String?
     ): Result<Unit> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val dist = distributions[distributionId] ?: throw NoSuchElementException()
@@ -371,6 +372,7 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
             status = status,
             confirmedBy = confirmedBy,
             confirmationNote = confirmationNote,
+            receiptPhotoUrl = receiptPhotoUrl?.trim()?.takeIf { it.isNotBlank() } ?: dist.receiptPhotoUrl,
             confirmedAt = Timestamp.now(),
             items = itemsList
         )
@@ -704,18 +706,21 @@ class RepositoryTest {
         val confirmedItem = item1.copy(quantityReceived = 98)
         assertEquals(2, confirmedItem.quantityDifference)
 
+        val sampleReceiptUrl = "https://res.cloudinary.com/fp7jzide/image/upload/v1/dr/dr_dist_101.jpg"
         val confirmRes = repo.confirmDistribution(
             distributionId = "dist_101",
             confirmedBy = "outlet_user",
             confirmationNote = "2 pcs bocor di perjalanan",
             updatedItems = listOf(confirmedItem),
-            status = DistributionStatus.PARTIALLY_RECEIVED
+            status = DistributionStatus.PARTIALLY_RECEIVED,
+            receiptPhotoUrl = sampleReceiptUrl
         )
         assertTrue(confirmRes.isSuccess)
 
         val updatedComposite = repo.getDistributionWithItems("dist_101").getOrNull()!!
         assertEquals(DistributionStatus.PARTIALLY_RECEIVED, updatedComposite.distribution.status)
         assertEquals("outlet_user", updatedComposite.distribution.confirmedBy)
+        assertEquals(sampleReceiptUrl, updatedComposite.distribution.receiptPhotoUrl)
         assertEquals(98, updatedComposite.items[0].quantityReceived)
 
         assertTrue(repo.deleteDistribution("dist_101").isSuccess)

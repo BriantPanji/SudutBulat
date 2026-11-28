@@ -157,7 +157,8 @@ open class MaterialDistributionRemoteDataSource(
         confirmedBy: String,
         confirmationNote: String?,
         updatedItems: List<MaterialDistributionItem>,
-        status: DistributionStatus = DistributionStatus.RECEIVED
+        status: DistributionStatus = DistributionStatus.RECEIVED,
+        receiptPhotoUrl: String? = null
     ): Result<Unit> = runCatching {
         val distCol = distributionsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val updates = mutableMapOf<String, Any>(
@@ -168,6 +169,9 @@ open class MaterialDistributionRemoteDataSource(
         )
         if (confirmationNote != null) {
             updates["confirmation_note"] = confirmationNote
+        }
+        receiptPhotoUrl?.trim()?.takeIf { it.isNotBlank() }?.let { cleanUrl ->
+            updates["receipt_photo_url"] = cleanUrl
         }
         distCol.document(distributionId).update(updates).await()
     }

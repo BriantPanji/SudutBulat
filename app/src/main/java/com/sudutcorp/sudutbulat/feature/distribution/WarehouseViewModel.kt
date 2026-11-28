@@ -66,6 +66,7 @@ data class DistributionCardUi(
     val createdAtMillis: Long,
     val note: String?,
     val confirmationNote: String?,
+    val receiptPhotoUrl: String? = null,
     val isToday: Boolean
 )
 
@@ -566,6 +567,7 @@ class WarehouseViewModel(
                 createdAtMillis = createdDate.time,
                 note = dist.note,
                 confirmationNote = dist.confirmationNote,
+                receiptPhotoUrl = dist.receiptPhotoUrl,
                 isToday = dist.createdAt.seconds >= startOfTodaySec
             )
         }

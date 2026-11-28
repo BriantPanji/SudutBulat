@@ -21,9 +21,11 @@ import com.sudutcorp.sudutbulat.data.model.Product
 import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.data.model.User
+import com.sudutcorp.sudutbulat.data.remote.CloudinaryMediaUploader
 import com.sudutcorp.sudutbulat.data.remote.MAX_REPORT_CREATE_DAYS_BACK
 import com.sudutcorp.sudutbulat.data.remote.MAX_REPORT_EDIT_DAYS_BACK
 import com.sudutcorp.sudutbulat.data.remote.calendarDaysBetween
+import com.sudutcorp.sudutbulat.core.util.ProfileImageProcessor
 import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.core.util.formatDecimal
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
@@ -105,6 +107,7 @@ data class OutletDistributionUi(
     val confirmedTimeLabel: String? = null,
     val note: String?,
     val confirmationNote: String?,
+    val receiptPhotoUrl: String? = null,
     val items: List<OutletDistributionItemUi>,
     val totalSent: Int,
     val totalReceived: Int? = null
@@ -572,8 +575,28 @@ sealed interface OutletUiEvent {
     data class ConfirmDistribution(
         val distributionId: String,
         val receivedByItemId: Map<String, Int>,
-        val note: String
-    ) : OutletUiEvent
+        val note: String,
+        val receiptPhotoBytes: ByteArray? = null
+    ) : OutletUiEvent {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is ConfirmDistribution) return false
+            val bytesEqual = (receiptPhotoBytes == null && other.receiptPhotoBytes == null) ||
+                (receiptPhotoBytes != null && other.receiptPhotoBytes != null && receiptPhotoBytes.contentEquals(other.receiptPhotoBytes))
+            return distributionId == other.distributionId &&
+                receivedByItemId == other.receivedByItemId &&
+                note == other.note &&
+                bytesEqual
+        }
+
+        override fun hashCode(): Int {
+            var result = distributionId.hashCode()
+            result = 31 * result + receivedByItemId.hashCode()
+            result = 31 * result + note.hashCode()
+            result = 31 * result + (receiptPhotoBytes?.contentHashCode() ?: 0)
+            return result
+        }
+    }
 
     data class SelectStockFilter(val filter: OutletStockFilter) : OutletUiEvent
     data class OpenConfirmDistribution(val distributionId: String?) : OutletUiEvent
@@ -618,7 +641,8 @@ class OutletViewModel(
     private val productRepository: ProductRepository,
     private val distributionRepository: MaterialDistributionRepository,
     private val dailyReportRepository: DailyReportRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val mediaUploader: CloudinaryMediaUploader = CloudinaryMediaUploader()
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OutletUiState())
@@ -734,7 +758,8 @@ class OutletViewModel(
             is OutletUiEvent.ConfirmDistribution -> confirmDistribution(
                 event.distributionId,
                 event.receivedByItemId,
-                event.note
+                event.note,
+                event.receiptPhotoBytes
             )
             is OutletUiEvent.SelectStockFilter -> _state.update {
                 it.copy(selectedStockFilter = event.filter)
@@ -860,7 +885,8 @@ class OutletViewModel(
     private fun confirmDistribution(
         distributionId: String,
         receivedByItemId: Map<String, Int>,
-        note: String
+        note: String,
+        receiptPhotoBytes: ByteArray?
     ) {
         val dist = _state.value.distributions.firstOrNull { it.id == distributionId } ?: return
         val updatedItems = dist.items.map { item ->
@@ -877,16 +903,45 @@ class OutletViewModel(
         val status = resolveConfirmationStatus(
             updatedItems.map { it.quantitySent to (it.quantityReceived ?: 0) }
         )
+        val requiresPhoto = status != DistributionStatus.NOT_RECEIVED
+        if (requiresPhoto && (receiptPhotoBytes == null || receiptPhotoBytes.isEmpty())) {
+            viewModelScope.launch {
+                _effects.send(OutletUiEffect.ShowSnackbar("Wajib unggah foto bukti barang yang diterima (rasio 1:1)."))
+            }
+            return
+        }
 
         viewModelScope.launch {
             _state.update { it.copy(isActionLoading = true) }
+
+            val uploadedPhotoUrl = if (requiresPhoto) {
+                val photoBytes = receiptPhotoBytes!!
+                val uploadResult = mediaUploader.uploadDistributionReceiptPhoto(
+                    distributionId = distributionId,
+                    jpegBytes = photoBytes
+                )
+                if (uploadResult.isFailure) {
+                    _state.update { it.copy(isActionLoading = false) }
+                    val detail = uploadResult.exceptionOrNull()?.localizedMessage?.takeIf { it.isNotBlank() }
+                        ?: "Gagal mengunggah foto bukti ke Cloudinary."
+                    _effects.send(OutletUiEffect.ShowSnackbar(detail))
+                    return@launch
+                }
+                val secureUrl = uploadResult.getOrThrow()
+                ProfileImageProcessor.cacheJpegForUrl(secureUrl, photoBytes)
+                secureUrl
+            } else {
+                null
+            }
+
             val confirmedBy = resolveCurrentUser()?.id ?: authRepository.getCurrentUserUid() ?: "staff"
             distributionRepository.confirmDistribution(
                 distributionId = distributionId,
                 confirmedBy = confirmedBy,
                 confirmationNote = note.trim().ifBlank { "Stok diterima dan dikonfirmasi staf outlet" },
                 updatedItems = updatedItems,
-                status = status
+                status = status,
+                receiptPhotoUrl = uploadedPhotoUrl
             ).onSuccess {
                 _state.update { it.copy(isActionLoading = false) }
                 _effects.send(OutletUiEffect.ShowSnackbar("Penerimaan stok berhasil dikonfirmasi."))
@@ -1303,6 +1358,7 @@ class OutletViewModel(
                     confirmedTimeLabel = dist.confirmedAt?.let { timeFmt.format(it.toDate()) },
                     note = dist.note,
                     confirmationNote = dist.confirmationNote,
+                    receiptPhotoUrl = dist.receiptPhotoUrl,
                     items = items,
                     totalSent = items.sumOf { it.quantitySent },
                     totalReceived = totalReceived

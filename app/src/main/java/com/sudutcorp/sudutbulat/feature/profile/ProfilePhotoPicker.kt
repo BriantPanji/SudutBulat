@@ -67,7 +67,8 @@ class ProfilePhotoLauncherController(
 @Composable
 fun rememberProfilePhotoLauncher(
     onPhotoReady: (jpegBytes: ByteArray) -> Unit,
-    onError: (String) -> Unit
+    onError: (String) -> Unit,
+    targetSizePx: Int = ProfileImageProcessor.TARGET_AVATAR_PX
 ): ProfilePhotoLauncherController {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -76,16 +77,16 @@ fun rememberProfilePhotoLauncher(
 
     var pendingCameraUriString by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val handleCapturedOrPickedUri: (Uri) -> Unit = remember(context, coroutineScope) {
+    val handleCapturedOrPickedUri: (Uri) -> Unit = remember(context, coroutineScope, targetSizePx) {
         { uri ->
             coroutineScope.launch {
-                ProfileImageProcessor.processUriToJpegBytes(context, uri)
+                ProfileImageProcessor.processUriToJpegBytes(context, uri, targetSizePx)
                     .onSuccess { jpegBytes ->
                         currentOnPhotoReady(jpegBytes)
                     }
                     .onFailure { err ->
                         val msg = err.localizedMessage?.takeIf { it.isNotBlank() }
-                            ?: "Gagal memproses foto profil."
+                            ?: "Gagal memproses foto."
                         currentOnError(msg)
                     }
             }

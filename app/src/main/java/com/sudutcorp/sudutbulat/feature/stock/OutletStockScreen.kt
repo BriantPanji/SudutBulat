@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.feature.stock
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -58,8 +61,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -73,12 +78,14 @@ import androidx.navigation.NavHostController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.components.SBBottomCtaBar
 import com.sudutcorp.sudutbulat.core.components.SBConfirmDialog
+import com.sudutcorp.sudutbulat.core.components.SBDistributionReceiptPhotoCard
 import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
 import com.sudutcorp.sudutbulat.core.components.SBInlineAlert
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
 import com.sudutcorp.sudutbulat.core.components.SBPageHeader
 import com.sudutcorp.sudutbulat.core.components.SBSearchBar
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.core.util.ProfileImageProcessor
 import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
@@ -92,6 +99,7 @@ import com.sudutcorp.sudutbulat.feature.outlet.OutletUiState
 import com.sudutcorp.sudutbulat.feature.outlet.StockRequestFormState
 import com.sudutcorp.sudutbulat.feature.outlet.filterOutletDistributions
 import com.sudutcorp.sudutbulat.feature.outlet.resolveConfirmationStatus
+import com.sudutcorp.sudutbulat.feature.profile.rememberProfilePhotoLauncher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import java.util.Locale
@@ -379,8 +387,8 @@ fun OutletStockScreen(
             dist = confirmingDist,
             isActionLoading = uiState.isActionLoading,
             onDismiss = { if (!uiState.isActionLoading) confirmingDistId = null },
-            onConfirm = { receivedMap, note ->
-                onEvent(OutletUiEvent.ConfirmDistribution(confirmingDist.id, receivedMap, note))
+            onConfirm = { receivedMap, note, photoBytes ->
+                onEvent(OutletUiEvent.ConfirmDistribution(confirmingDist.id, receivedMap, note, photoBytes))
             }
         )
     }
@@ -961,6 +969,10 @@ private fun OutletDistributionDetailSheet(
                 }
             }
 
+            if (!dist.receiptPhotoUrl.isNullOrBlank()) {
+                SBDistributionReceiptPhotoCard(photoUrl = dist.receiptPhotoUrl)
+            }
+
             when (dist.status) {
                 DistributionStatus.SENT,
                 DistributionStatus.ARRIVED -> {
@@ -1006,7 +1018,7 @@ private fun ConfirmReceiptBottomSheet(
     dist: OutletDistributionUi,
     isActionLoading: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (Map<String, Int>, String) -> Unit
+    onConfirm: (Map<String, Int>, String, ByteArray?) -> Unit
 ) {
     val focusManager = LocalFocusManager.current
     val listState = rememberLazyListState()
@@ -1017,6 +1029,22 @@ private fun ConfirmReceiptBottomSheet(
     }
     var confirmNote by rememberSaveable(dist.id) { mutableStateOf("") }
     var noteError by rememberSaveable(dist.id) { mutableStateOf<String?>(null) }
+    var selectedPhotoBytes by remember(dist.id) { mutableStateOf<ByteArray?>(null) }
+    var photoError by rememberSaveable(dist.id) { mutableStateOf<String?>(null) }
+
+    val photoLauncher = rememberProfilePhotoLauncher(
+        onPhotoReady = { jpegBytes ->
+            selectedPhotoBytes = jpegBytes
+            photoError = null
+        },
+        onError = { err ->
+            photoError = err
+        },
+        targetSizePx = ProfileImageProcessor.TARGET_RECEIPT_PX
+    )
+    val previewBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = selectedPhotoBytes) {
+        value = selectedPhotoBytes?.let { ProfileImageProcessor.decodeJpegBytes(it) }
+    }
 
     val parsedPairs = dist.items.map { item ->
         item.quantitySent to (qtyMap[item.id]?.toIntOrNull() ?: 0)
@@ -1026,6 +1054,7 @@ private fun ConfirmReceiptBottomSheet(
     val discrepancyCount = parsedPairs.count { (sent, rec) -> sent != rec }
     val needsDiscrepancyNote = previewStatus == DistributionStatus.PARTIALLY_RECEIVED ||
         previewStatus == DistributionStatus.NOT_RECEIVED
+    val requiresPhoto = previewStatus != DistributionStatus.NOT_RECEIVED
 
     val (summaryBg, summaryBorder, summaryTint) = when (previewStatus) {
         DistributionStatus.RECEIVED -> Triple(
@@ -1431,6 +1460,29 @@ private fun ConfirmReceiptBottomSheet(
                         }
                     }
                 }
+
+                if (requiresPhoto) {
+                    item(key = "confirm_receipt_photo_section", contentType = "photo_section") {
+                        ReceiptPhotoUploadSection(
+                            previewBitmap = previewBitmap,
+                            hasPhotoBytes = selectedPhotoBytes != null,
+                            errorMessage = photoError,
+                            enabled = !isActionLoading,
+                            onPickGalleryClick = {
+                                focusManager.clearFocus()
+                                photoLauncher.launchGalleryPicker()
+                            },
+                            onTakePhotoClick = {
+                                focusManager.clearFocus()
+                                photoLauncher.launchCameraCapture()
+                            },
+                            onRemovePhotoClick = {
+                                selectedPhotoBytes = null
+                                photoError = null
+                            }
+                        )
+                    }
+                }
             }
 
             SBBottomCtaBar(
@@ -1441,12 +1493,226 @@ private fun ConfirmReceiptBottomSheet(
                         noteError = "Isi catatan selisih atau pilih alasan cepat di atas."
                         return@SBBottomCtaBar
                     }
+                    if (requiresPhoto && (selectedPhotoBytes == null || selectedPhotoBytes!!.isEmpty())) {
+                        photoError = "Wajib unggah foto bukti barang yang diterima (rasio 1:1)."
+                        return@SBBottomCtaBar
+                    }
                     val parsed = dist.items.associate { item ->
                         item.id to (qtyMap[item.id]?.toIntOrNull() ?: 0).coerceAtLeast(0)
                     }
-                    onConfirm(parsed, confirmNote)
+                    onConfirm(parsed, confirmNote, if (requiresPhoto) selectedPhotoBytes else null)
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun ReceiptPhotoUploadSection(
+    previewBitmap: ImageBitmap?,
+    hasPhotoBytes: Boolean,
+    errorMessage: String?,
+    enabled: Boolean,
+    onPickGalleryClick: () -> Unit,
+    onTakePhotoClick: () -> Unit,
+    onRemovePhotoClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Foto bukti barang diterima (wajib)",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = SBColor.Grey_700
+            )
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = SBColor.Secondary_100
+            ) {
+                Text(
+                    text = "Rasio 1:1",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SBColor.Secondary_500,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
+
+        OutlinedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = if (hasPhotoBytes) Color.White else SBColor.Grey_100.copy(alpha = 0.45f)
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (errorMessage != null) SBColor.Primary_400 else SBColor.Grey_200
+            )
+        ) {
+            if (previewBitmap != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(14.dp))
+                ) {
+                    Image(
+                        bitmap = previewBitmap,
+                        contentDescription = "Preview foto bukti penerimaan",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            } else if (hasPhotoBytes) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        strokeWidth = 2.5.dp,
+                        color = SBColor.Primary_550
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = SBColor.Primary_100
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_camera),
+                                    contentDescription = null,
+                                    tint = SBColor.Primary_550,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Unggah foto barang yang diterima",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SBColor.Grey_700,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Pilih dari galeri atau tangkap langsung dengan kamera. Foto otomatis dipotong ke rasio 1:1.",
+                            fontSize = 12.sp,
+                            color = SBColor.Grey_500,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = onPickGalleryClick,
+                enabled = enabled,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(42.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, SBColor.Grey_200),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_gallery),
+                        contentDescription = null,
+                        tint = SBColor.Grey_700,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (hasPhotoBytes) "Galeri" else "Pilih galeri",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                }
+            }
+            OutlinedButton(
+                onClick = onTakePhotoClick,
+                enabled = enabled,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(42.dp),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, SBColor.Primary_200),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = SBColor.Primary_100.copy(alpha = 0.35f)),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_camera),
+                        contentDescription = null,
+                        tint = SBColor.Primary_550,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = if (hasPhotoBytes) "Kamera" else "Tangkap gambar",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_550
+                    )
+                }
+            }
+            if (hasPhotoBytes) {
+                OutlinedButton(
+                    onClick = onRemovePhotoClick,
+                    enabled = enabled,
+                    modifier = Modifier.height(42.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, SBColor.Primary_200),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_trash),
+                        contentDescription = "Hapus foto",
+                        tint = SBColor.Primary_550,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        errorMessage?.let { err ->
+            SBInlineAlert(message = err)
         }
     }
 }

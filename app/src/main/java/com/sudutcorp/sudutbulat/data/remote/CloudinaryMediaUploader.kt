@@ -24,6 +24,7 @@ open class CloudinaryMediaUploader(
         const val DEFAULT_CLOUD_NAME = "fp7jzide"
         const val DEFAULT_UPLOAD_PRESET = "sdb_dev"
         const val DEFAULT_PROFILE_PHOTO_FOLDER = "pp"
+        const val DEFAULT_DISTRIBUTION_RECEIPT_FOLDER = "dr"
 
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 25_000
@@ -35,6 +36,32 @@ open class CloudinaryMediaUploader(
         userId: String,
         jpegBytes: ByteArray,
         folder: String = defaultFolder
+    ): Result<String> = uploadJpeg(
+        filePrefix = "pp",
+        identifier = userId,
+        defaultIdentifier = "user",
+        jpegBytes = jpegBytes,
+        folder = folder
+    )
+
+    open suspend fun uploadDistributionReceiptPhoto(
+        distributionId: String,
+        jpegBytes: ByteArray,
+        folder: String = DEFAULT_DISTRIBUTION_RECEIPT_FOLDER
+    ): Result<String> = uploadJpeg(
+        filePrefix = "dr",
+        identifier = distributionId,
+        defaultIdentifier = "dist",
+        jpegBytes = jpegBytes,
+        folder = folder
+    )
+
+    private suspend fun uploadJpeg(
+        filePrefix: String,
+        identifier: String,
+        defaultIdentifier: String,
+        jpegBytes: ByteArray,
+        folder: String
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             require(jpegBytes.isNotEmpty()) { "Data gambar kosong." }
@@ -43,8 +70,8 @@ open class CloudinaryMediaUploader(
 
             val endpoint = "https://api.cloudinary.com/v1_1/$cloudName/image/upload"
             val boundary = "----SudutBulatBoundary${UUID.randomUUID().toString().replace("-", "")}"
-            val safeUserId = userId.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "_").ifBlank { "user" }
-            val fileName = "pp_${safeUserId}_${System.currentTimeMillis()}.jpg"
+            val safeId = identifier.trim().lowercase().replace(Regex("[^a-z0-9_-]"), "_").ifBlank { defaultIdentifier }
+            val fileName = "${filePrefix}_${safeId}_${System.currentTimeMillis()}.jpg"
 
             val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"

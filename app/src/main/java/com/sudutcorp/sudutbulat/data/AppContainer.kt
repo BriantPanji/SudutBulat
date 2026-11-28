@@ -125,7 +125,8 @@ class DefaultAppContainer : AppContainer {
                     productRepository = productRepository,
                     distributionRepository = materialDistributionRepository,
                     dailyReportRepository = dailyReportRepository,
-                    authRepository = authRepository
+                    authRepository = authRepository,
+                    mediaUploader = cloudinaryMediaUploader
                 )
             }
             initializer {

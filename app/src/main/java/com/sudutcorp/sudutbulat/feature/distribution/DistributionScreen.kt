@@ -86,6 +86,7 @@ import androidx.navigation.compose.rememberNavController
 import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.components.SBBottomCtaBar
 import com.sudutcorp.sudutbulat.core.components.SBDatePickerDialog
+import com.sudutcorp.sudutbulat.core.components.SBDistributionReceiptPhotoCard
 import com.sudutcorp.sudutbulat.core.components.SBFilterChipRow
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
 import com.sudutcorp.sudutbulat.core.components.SBPageHeader
@@ -1678,6 +1679,10 @@ internal fun DistributionDetailBottomSheet(
                 }
             }
 
+            if (!card.receiptPhotoUrl.isNullOrBlank()) {
+                SBDistributionReceiptPhotoCard(photoUrl = card.receiptPhotoUrl)
+            }
+
             if (card.status == DistributionStatus.DRAFT) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2098,6 +2103,32 @@ fun DistributionCardRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
                     )
+                }
+            }
+
+            if (!card.receiptPhotoUrl.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = SBColor.Secondary_100
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_gallery),
+                            contentDescription = null,
+                            tint = SBColor.Secondary_500,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = "Ada foto bukti penerimaan",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SBColor.Secondary_500
+                        )
+                    }
                 }
             }
 

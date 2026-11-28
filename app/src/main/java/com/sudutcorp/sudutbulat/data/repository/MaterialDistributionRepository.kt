@@ -97,14 +97,16 @@ class MaterialDistributionRepository(
         confirmedBy: String,
         confirmationNote: String?,
         updatedItems: List<MaterialDistributionItem>,
-        status: DistributionStatus = DistributionStatus.RECEIVED
+        status: DistributionStatus = DistributionStatus.RECEIVED,
+        receiptPhotoUrl: String? = null
     ): Result<Unit> {
         return remoteDataSource.confirmDistribution(
             distributionId = distributionId,
             confirmedBy = confirmedBy,
             confirmationNote = confirmationNote,
             updatedItems = updatedItems,
-            status = status
+            status = status,
+            receiptPhotoUrl = receiptPhotoUrl
         )
     }
 

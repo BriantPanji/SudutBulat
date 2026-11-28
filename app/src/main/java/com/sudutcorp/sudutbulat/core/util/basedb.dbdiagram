@@ -106,6 +106,7 @@ Table material_distributions {
 
   note string(512)
   confirmation_note string(512)
+  receipt_photo_url string // Cloudinary secure_url (folder dr)
 
   created_at timestamp [not null]
   sent_at timestamp

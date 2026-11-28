@@ -244,7 +244,7 @@ function buildDistributions(admin) {
     },
   ];
 
-  return distributions;
+  return distributions.map((d) => ({ receipt_photo_url: null, ...d }));
 }
 
 async function seed(db, admin) {

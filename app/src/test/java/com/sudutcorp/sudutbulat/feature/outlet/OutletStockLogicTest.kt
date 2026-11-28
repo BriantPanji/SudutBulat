@@ -1,16 +1,62 @@
 package com.sudutcorp.sudutbulat.feature.outlet
 
 import com.google.firebase.Timestamp
+import com.sudutcorp.sudutbulat.data.auth.AuthRepository
 import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
+import com.sudutcorp.sudutbulat.data.model.Material
+import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
+import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
 import com.sudutcorp.sudutbulat.data.model.Outlet
+import com.sudutcorp.sudutbulat.data.remote.CloudinaryMediaUploader
+import com.sudutcorp.sudutbulat.data.repository.DailyReportRepository
+import com.sudutcorp.sudutbulat.data.repository.FakeDailyReportRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.FakeMaterialDistributionRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.FakeMaterialRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.FakeOutletRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.FakeProductRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.FakeUserRemoteDataSource
+import com.sudutcorp.sudutbulat.data.repository.MaterialDistributionRepository
+import com.sudutcorp.sudutbulat.data.repository.MaterialRepository
+import com.sudutcorp.sudutbulat.data.repository.OutletRepository
+import com.sudutcorp.sudutbulat.data.repository.ProductRepository
+import com.sudutcorp.sudutbulat.data.repository.UserRepository
+import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Date
+
+private class FakeReceiptCloudinaryUploader : CloudinaryMediaUploader() {
+    var shouldFail: Boolean = false
+    var uploadCalls: Int = 0
+    var lastDistributionId: String? = null
+    var lastFolder: String? = null
+    var urlToReturn: String = "https://res.cloudinary.com/fp7jzide/image/upload/v1/dr/dr_dist_1.jpg"
+
+    override suspend fun uploadDistributionReceiptPhoto(
+        distributionId: String,
+        jpegBytes: ByteArray,
+        folder: String
+    ): Result<String> = runCatching {
+        uploadCalls += 1
+        lastDistributionId = distributionId
+        lastFolder = folder
+        if (shouldFail) throw IllegalStateException("Simulasi gagal upload Cloudinary")
+        urlToReturn
+    }
+}
 
 class OutletStockLogicTest {
 
@@ -232,5 +278,134 @@ class OutletStockLogicTest {
         )
         assertEquals(2, metrics.pendingConfirmCount)
         assertEquals(1, metrics.arrivedPendingCount)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @After
+    fun tearDownMain() {
+        Dispatchers.resetMain()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun confirmDistribution_requiresPhotoForReceived_skipsUploadForNotReceived_andExposesInWarehouseHistory() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        assertEquals("dr", CloudinaryMediaUploader.DEFAULT_DISTRIBUTION_RECEIPT_FOLDER)
+
+        val outletDs = FakeOutletRemoteDataSource().apply {
+            outlets["o1"] = Outlet(id = "o1", name = "Sudirman", isActive = true)
+        }
+        val matDs = FakeMaterialRemoteDataSource().apply {
+            materials["m1"] = Material(id = "m1", name = "Tahu Original")
+        }
+        val distDs = FakeMaterialDistributionRemoteDataSource().apply {
+            distributions["dist_1"] = MaterialDistribution(
+                id = "dist_1",
+                outletId = "o1",
+                createdBy = "gudang",
+                status = DistributionStatus.ARRIVED,
+                items = listOf(
+                    MaterialDistributionItem(
+                        id = "item_1",
+                        distributionId = "dist_1",
+                        materialId = "m1",
+                        quantitySent = 100
+                    )
+                )
+            )
+            distributions["dist_2"] = MaterialDistribution(
+                id = "dist_2",
+                outletId = "o1",
+                createdBy = "gudang",
+                status = DistributionStatus.ARRIVED,
+                items = listOf(
+                    MaterialDistributionItem(
+                        id = "item_2",
+                        distributionId = "dist_2",
+                        materialId = "m1",
+                        quantitySent = 50
+                    )
+                )
+            )
+        }
+        val fakeUploader = FakeReceiptCloudinaryUploader()
+        val outletVm = OutletViewModel(
+            outletRepository = OutletRepository(outletDs),
+            userRepository = UserRepository(FakeUserRemoteDataSource()),
+            materialRepository = MaterialRepository(matDs),
+            productRepository = ProductRepository(FakeProductRemoteDataSource()),
+            distributionRepository = MaterialDistributionRepository(distDs),
+            dailyReportRepository = DailyReportRepository(FakeDailyReportRemoteDataSource()),
+            authRepository = object : AuthRepository() {},
+            mediaUploader = fakeUploader
+        )
+
+        // 1. RECEIVED without photo bytes must be rejected before Cloudinary/Firestore
+        outletVm.onEvent(
+            OutletUiEvent.ConfirmDistribution(
+                distributionId = "dist_1",
+                receivedByItemId = mapOf("item_1" to 100),
+                note = "Lengkap",
+                receiptPhotoBytes = null
+            )
+        )
+        assertEquals(0, fakeUploader.uploadCalls)
+        assertEquals(DistributionStatus.ARRIVED, distDs.distributions["dist_1"]?.status)
+
+        // 2. Upload failure must NOT update Firestore
+        fakeUploader.shouldFail = true
+        outletVm.onEvent(
+            OutletUiEvent.ConfirmDistribution(
+                distributionId = "dist_1",
+                receivedByItemId = mapOf("item_1" to 100),
+                note = "Lengkap",
+                receiptPhotoBytes = byteArrayOf(1, 2, 3)
+            )
+        )
+        assertEquals(1, fakeUploader.uploadCalls)
+        assertEquals(DistributionStatus.ARRIVED, distDs.distributions["dist_1"]?.status)
+        assertNull(distDs.distributions["dist_1"]?.receiptPhotoUrl)
+
+        // 3. RECEIVED with photo uploads to folder "dr" and persists secure_url in Firestore
+        fakeUploader.shouldFail = false
+        outletVm.onEvent(
+            OutletUiEvent.ConfirmDistribution(
+                distributionId = "dist_1",
+                receivedByItemId = mapOf("item_1" to 100),
+                note = "Lengkap",
+                receiptPhotoBytes = byteArrayOf(4, 5, 6)
+            )
+        )
+        assertEquals(2, fakeUploader.uploadCalls)
+        assertEquals("dist_1", fakeUploader.lastDistributionId)
+        assertEquals("dr", fakeUploader.lastFolder)
+        assertEquals(DistributionStatus.RECEIVED, distDs.distributions["dist_1"]?.status)
+        assertEquals(fakeUploader.urlToReturn, distDs.distributions["dist_1"]?.receiptPhotoUrl)
+
+        // 4. NOT_RECEIVED (0 qty) must succeed WITHOUT uploading to Cloudinary
+        outletVm.onEvent(
+            OutletUiEvent.ConfirmDistribution(
+                distributionId = "dist_2",
+                receivedByItemId = mapOf("item_2" to 0),
+                note = "Outlet sudah tutup",
+                receiptPhotoBytes = null
+            )
+        )
+        assertEquals(2, fakeUploader.uploadCalls)
+        assertEquals(DistributionStatus.NOT_RECEIVED, distDs.distributions["dist_2"]?.status)
+        assertNull(distDs.distributions["dist_2"]?.receiptPhotoUrl)
+
+        // 5. WarehouseViewModel exposes receiptPhotoUrl in DistributionCardUi for history screen
+        val warehouseVm = WarehouseViewModel(
+            outletRepository = OutletRepository(outletDs),
+            materialRepository = MaterialRepository(matDs),
+            distributionRepository = MaterialDistributionRepository(distDs),
+            userRepository = UserRepository(FakeUserRemoteDataSource()),
+            authRepository = object : AuthRepository() {}
+        )
+        val dist1Card = warehouseVm.state.value.distributionCards.first { it.id == "dist_1" }
+        val dist2Card = warehouseVm.state.value.distributionCards.first { it.id == "dist_2" }
+        assertEquals(fakeUploader.urlToReturn, dist1Card.receiptPhotoUrl)
+        assertNull(dist2Card.receiptPhotoUrl)
     }
 }

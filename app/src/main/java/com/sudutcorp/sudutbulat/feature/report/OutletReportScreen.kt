@@ -953,16 +953,19 @@ private fun OutletReportHistoryCard(
                         text = item.dateLabel,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = SBColor.Grey_700
+                        color = SBColor.Grey_700,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "Dikirim pkl ${item.timeLabel}",
                         fontSize = 12.sp,
-                        color = SBColor.Grey_500
+                        color = SBColor.Grey_500,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
