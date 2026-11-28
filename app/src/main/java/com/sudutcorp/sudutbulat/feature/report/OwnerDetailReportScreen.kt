@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,9 +52,11 @@ import com.sudutcorp.sudutbulat.R
 import com.sudutcorp.sudutbulat.core.components.SBDottedDivider
 import com.sudutcorp.sudutbulat.core.components.SBKeyValueRow
 import com.sudutcorp.sudutbulat.core.components.SBSectionCard
+import com.sudutcorp.sudutbulat.core.components.SBSegmentedTabs
 import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
 import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.core.util.formatDecimal
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
 import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
@@ -72,6 +75,8 @@ fun OwnerDetailReportScreen(
     modifier: Modifier = Modifier,
     reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
     singleReport: SingleReportDetailUi? = null,
+    selectedPeriod: String = "30 Hari",
+    onPeriodSelected: ((String) -> Unit)? = null,
     isActionLoading: Boolean = false,
     onApproveReport: (reportId: String, note: String?) -> Unit = { _, _ -> },
     onRejectReport: (reportId: String, reason: String) -> Unit = { _, _ -> }
@@ -80,6 +85,8 @@ fun OwnerDetailReportScreen(
         modifier = modifier,
         reportSummary = reportSummary,
         singleReport = singleReport,
+        selectedPeriod = selectedPeriod,
+        onPeriodSelected = onPeriodSelected,
         isActionLoading = isActionLoading,
         onApproveReport = onApproveReport,
         onRejectReport = onRejectReport,
@@ -92,12 +99,15 @@ fun OutletDetailContent(
     modifier: Modifier = Modifier,
     reportSummary: ReportPeriodSummaryUi = defaultReportPeriodSummary(),
     singleReport: SingleReportDetailUi? = null,
+    selectedPeriod: String = "30 Hari",
+    onPeriodSelected: ((String) -> Unit)? = null,
     isActionLoading: Boolean = false,
     onApproveReport: (reportId: String, note: String?) -> Unit = { _, _ -> },
     onRejectReport: (reportId: String, reason: String) -> Unit = { _, _ -> },
     onBackClick: () -> Unit = {}
 ) {
     var showRejectDialog by rememberSaveable { mutableStateOf(false) }
+    val periods = remember { listOf("7 Hari" to "7 hari", "30 Hari" to "30 hari", "3 Bulan" to "3 bulan") }
 
     Column(
         modifier = modifier
@@ -111,10 +121,21 @@ fun OutletDetailContent(
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         SBSubHeader(
-            eyebrow = if (singleReport != null) "Laporan harian" else "Ringkasan laporan",
-            title = "Detail laporan",
+            eyebrow = if (singleReport != null) "Laporan harian" else "Rekap seluruh outlet",
+            title = if (singleReport != null) "Detail laporan" else "Detail seluruh laporan",
             onBackClick = onBackClick
         )
+
+        if (singleReport == null && onPeriodSelected != null) {
+            SBSegmentedTabs(
+                options = periods.map { it.first },
+                selected = periods.firstOrNull {
+                    it.first.equals(selectedPeriod, ignoreCase = true)
+                }?.first ?: "30 Hari",
+                labelOf = { key -> periods.firstOrNull { it.first == key }?.second ?: key },
+                onSelected = onPeriodSelected
+            )
+        }
 
         // Identitas Outlet & Date Pill
         OutlinedCard(
@@ -158,9 +179,9 @@ fun OutletDetailContent(
                         )
                         Text(
                             text = if (singleReport != null) {
-                                "Laporan tutup kasir harian"
+                                singleReport.createdByName?.let { "Dilaporkan oleh $it" } ?: "Laporan tutup kasir harian"
                             } else {
-                                "Rekap periode ${reportSummary.periodLabel}"
+                                "${reportSummary.reportCount} laporan • ${reportSummary.contributingOutletsCount} outlet (${reportSummary.periodLabel})"
                             },
                             fontSize = 12.sp,
                             color = SBColor.Grey_500
@@ -318,15 +339,38 @@ fun OutletDetailContent(
                                     Text(dmg.note, fontSize = 12.sp, color = SBColor.Grey_500)
                                 }
                             }
-                            SBStatusBadge(
-                                text = dmg.quantityText,
-                                containerColor = SBColor.Primary_100,
-                                contentColor = SBColor.Primary_550
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                SBStatusBadge(
+                                    text = dmg.quantityText,
+                                    containerColor = SBColor.Primary_100,
+                                    contentColor = SBColor.Primary_550
+                                )
+                                if (dmg.estimatedLoss > 0L) {
+                                    Text(
+                                        text = formatRupiah(dmg.estimatedLoss),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = SBColor.Grey_600
+                                    )
+                                }
+                            }
                         }
                         if (idx < singleReport.damagedLines.lastIndex) {
                             HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
                         }
+                    }
+                    if (singleReport.damagedEstimatedLoss > 0L) {
+                        SBDottedDivider(modifier = Modifier.padding(vertical = 2.dp))
+                        SBKeyValueRow(
+                            label = "Estimasi kerugian bahan rusak",
+                            value = formatRupiah(singleReport.damagedEstimatedLoss),
+                            isBold = true,
+                            valueColor = SBColor.Primary_550,
+                            valueFontSize = 14.sp
+                        )
                     }
                 }
             }
@@ -352,19 +396,105 @@ fun OutletDetailContent(
                 }
             }
         } else {
+            val heroBadgeText = when (reportSummary.deltaTrend) {
+                1 -> "↑ ${reportSummary.deltaText.substringBefore(" ")}"
+                -1 -> "↓ ${reportSummary.deltaText.substringBefore(" ")}"
+                else -> reportSummary.totalProductsPcsText
+            }
+            val cashPct = (reportSummary.cashShareFraction * 100f).toInt()
+            val qrisPct = if (reportSummary.totalRevenue > 0L) (100 - cashPct) else 0
+
             ReportHeroCard(
-                label = "Omzet bersih (${reportSummary.periodLabel})",
-                revenueText = reportSummary.netRevenueText,
-                badgeText = "↑ ${reportSummary.deltaText}",
-                cashText = reportSummary.cashSalesText,
-                qrisText = reportSummary.qrisSalesText
+                label = "Total omzet (${reportSummary.periodLabel})",
+                revenueText = formatRupiah(reportSummary.totalRevenue),
+                badgeText = heroBadgeText,
+                cashText = "${reportSummary.cashSalesText} ($cashPct%)",
+                qrisText = "${reportSummary.qrisSalesText} ($qrisPct%)"
             )
 
-            SBSectionCard(title = "Ringkasan penjualan") {
-                SBKeyValueRow("Penjualan tunai", reportSummary.cashSalesText)
-                SBKeyValueRow("Penjualan QRIS", reportSummary.qrisSalesText)
-                SBDottedDivider(modifier = Modifier.padding(vertical = 2.dp))
-                SBKeyValueRow("Total produk terjual", reportSummary.totalProductsPcsText, isBold = true, valueFontSize = 15.sp)
+            SBSectionCard(title = "Kontribusi per outlet") {
+                if (reportSummary.outletBreakdowns.isEmpty()) {
+                    Text(
+                        text = "Belum ada laporan harian outlet pada periode ini.",
+                        fontSize = 13.sp,
+                        color = SBColor.Grey_500
+                    )
+                } else {
+                    reportSummary.outletBreakdowns.forEachIndexed { idx, outlet ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(outlet.outletName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                Text(
+                                    text = "${outlet.reportCount} laporan • ${formatDecimal(outlet.totalSold)} pcs",
+                                    fontSize = 12.sp,
+                                    color = SBColor.Grey_500
+                                )
+                            }
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(formatRupiah(outlet.totalRevenue), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                                Text(
+                                    text = "Biaya ${formatRupiah(outlet.totalExpense)}",
+                                    fontSize = 11.sp,
+                                    color = SBColor.Grey_500
+                                )
+                            }
+                        }
+                        if (idx < reportSummary.outletBreakdowns.lastIndex) {
+                            HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                        }
+                    }
+                }
+            }
+
+            SBSectionCard(title = "Rincian produk terjual") {
+                if (reportSummary.productBreakdowns.isEmpty()) {
+                    Text(
+                        text = "Belum ada rincian produk terjual pada periode ini.",
+                        fontSize = 13.sp,
+                        color = SBColor.Grey_500
+                    )
+                } else {
+                    reportSummary.productBreakdowns.forEachIndexed { idx, prod ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(prod.productName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                Text("${formatDecimal(prod.totalQuantity)} terjual", fontSize = 12.sp, color = SBColor.Grey_500)
+                            }
+                            Text(formatRupiah(prod.totalSubtotal), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                        }
+                        if (idx < reportSummary.productBreakdowns.lastIndex) {
+                            HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                        }
+                    }
+                    SBDottedDivider(modifier = Modifier.padding(vertical = 2.dp))
+                    SBKeyValueRow(
+                        label = "Total produk terjual",
+                        value = reportSummary.totalProductsPcsText,
+                        isBold = true,
+                        valueFontSize = 15.sp
+                    )
+                }
             }
 
             SBSectionCard(title = "Pengeluaran operasional") {
@@ -372,15 +502,102 @@ fun OutletDetailContent(
                 SBKeyValueRow("Plastik & tusuk", reportSummary.plasticExpenseText)
                 SBKeyValueRow("Lainnya", reportSummary.otherExpenseText)
                 SBDottedDivider(modifier = Modifier.padding(vertical = 2.dp))
-                SBKeyValueRow("Total pengeluaran", reportSummary.totalExpenseText, isBold = true, valueFontSize = 15.sp)
+                SBKeyValueRow(
+                    label = "Total pengeluaran (${reportSummary.operationalCostPercentText})",
+                    value = reportSummary.totalExpenseText,
+                    isBold = true,
+                    valueFontSize = 15.sp
+                )
             }
 
             SBSectionCard(title = "Bahan mentah rusak") {
-                reportSummary.damagedItems.forEachIndexed { idx, dmg ->
-                    SBKeyValueRow(dmg.name, dmg.quantityText)
-                    if (idx < reportSummary.damagedItems.lastIndex) {
-                        HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                if (reportSummary.damagedItems.isEmpty()) {
+                    Text(
+                        text = "Tidak ada bahan mentah rusak pada periode ini.",
+                        fontSize = 13.sp,
+                        color = SBColor.Grey_500
+                    )
+                } else {
+                    reportSummary.damagedItems.forEachIndexed { idx, dmg ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(dmg.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = SBColor.Grey_700)
+                                if (dmg.estimatedLoss > 0L) {
+                                    Text(
+                                        text = "Est. rugi ${formatRupiah(dmg.estimatedLoss)}",
+                                        fontSize = 12.sp,
+                                        color = SBColor.Grey_500
+                                    )
+                                }
+                            }
+                            SBStatusBadge(
+                                text = dmg.quantityText,
+                                containerColor = SBColor.Primary_100,
+                                contentColor = SBColor.Primary_550
+                            )
+                        }
+                        if (idx < reportSummary.damagedItems.lastIndex) {
+                            HorizontalDivider(thickness = 1.dp, color = SBColor.Grey_100)
+                        }
                     }
+                    if (reportSummary.damagedEstimatedLoss > 0L) {
+                        SBDottedDivider(modifier = Modifier.padding(vertical = 2.dp))
+                        SBKeyValueRow(
+                            label = "Estimasi total kerugian",
+                            value = formatRupiah(reportSummary.damagedEstimatedLoss),
+                            isBold = true,
+                            valueColor = SBColor.Primary_550,
+                            valueFontSize = 15.sp
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = SBColor.Success_100
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "Estimasi pendapatan bersih",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SBColor.Success_600
+                        )
+                        Text(
+                            text = "Total omzet dikurangi biaya operasional",
+                            fontSize = 11.sp,
+                            color = SBColor.Success_500
+                        )
+                    }
+                    Text(
+                        text = formatRupiah(reportSummary.netRevenue),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = SBColor.Success_600
+                    )
                 }
             }
         }

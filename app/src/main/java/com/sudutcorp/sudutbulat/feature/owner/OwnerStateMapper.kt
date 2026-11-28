@@ -2,7 +2,9 @@ package com.sudutcorp.sudutbulat.feature.owner
 
 import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.core.util.formatCoordinate
+import com.sudutcorp.sudutbulat.core.util.formatDecimal
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
+import com.sudutcorp.sudutbulat.core.util.formatShortRupiah
 import com.sudutcorp.sudutbulat.core.util.orDefaultMedan
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
@@ -26,6 +28,14 @@ import kotlin.math.abs
 private val ID_LOCALE: Locale = Locale.forLanguageTag("id-ID")
 private val REPORT_DATE_CHIP_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd MMM yyyy", ID_LOCALE)
+private val SHORT_DATE_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("dd MMM", ID_LOCALE)
+private val SHORT_DAY_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("EEE", ID_LOCALE)
+private val SHORT_MONTH_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("MMM", ID_LOCALE)
+private val DAY_MONTH_NUM_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d/M", ID_LOCALE)
 private val DASHBOARD_HEADER_DATE_FORMATTER: DateTimeFormatter =
     DateTimeFormatter.ofPattern("EEEE, dd MMM yyyy", ID_LOCALE)
 
@@ -423,8 +433,14 @@ fun buildCatalogItems(
 
 fun buildSingleReportDetail(state: OwnerUiState, reportId: String): SingleReportDetailUi? {
     val item = state.reportListItems.firstOrNull { it.id == reportId } ?: return null
+    val rawReport = state.reports.firstOrNull { it.id == reportId }
     val productMap = state.products.ifEmpty { defaultSeededProducts() }.associateBy { it.id }
     val materialMap = state.materials.ifEmpty { defaultSeededMaterials() }.associateBy { it.id }
+    val userMap = state.users.ifEmpty { defaultSeededUsers() }.associateBy { it.id }
+
+    val createdByName = rawReport?.createdBy?.takeIf { it.isNotBlank() }?.let { creatorId ->
+        userMap[creatorId]?.name?.takeIf { it.isNotBlank() } ?: creatorId
+    }
 
     val prodLines = state.reportProducts.filter { it.dailyReportId == reportId }.map { rp ->
         ReportProductLineUi(rp.id, productMap[rp.productId]?.name ?: rp.productId, rp.quantity, rp.price, rp.subtotal)
@@ -442,8 +458,10 @@ fun buildSingleReportDetail(state: OwnerUiState, reportId: String): SingleReport
         val unit = when (mat?.unit) {
             UnitType.UNIT -> "pak"; UnitType.GR -> "gr"; UnitType.ML -> "ml"; else -> "pcs"
         }
-        ReportDamagedLineUi(dmg.id, mat?.name ?: dmg.materialId, "${dmg.quantity} $unit", dmg.note)
+        val loss = dmg.quantity.toLong() * (mat?.cost ?: 0L)
+        ReportDamagedLineUi(dmg.id, mat?.name ?: dmg.materialId, "${dmg.quantity} $unit", dmg.note, estimatedLoss = loss)
     }
+    val damagedEstimatedLoss = dmgLines.sumOf { it.estimatedLoss }
 
     val fullDateFmt = SimpleDateFormat("EEEE, dd MMMM yyyy", ID_LOCALE)
     val timeFmt = SimpleDateFormat("HH.mm 'WIB'", ID_LOCALE)
@@ -452,10 +470,12 @@ fun buildSingleReportDetail(state: OwnerUiState, reportId: String): SingleReport
     return SingleReportDetailUi(
         id = item.id, outletName = item.outletName, dateLabel = item.dateLabel,
         fullDateLabel = fullDateFmt.format(dateObj), timeLabel = timeFmt.format(dateObj),
+        createdByName = createdByName,
         cashRevenue = item.cashRevenue, qrisRevenue = item.qrisRevenue,
         totalRevenue = item.totalRevenue, totalSold = item.totalSold,
         productLines = prodLines, expenseLines = expLines,
         totalExpense = expLines.sumOf { it.amount }, damagedLines = dmgLines,
+        damagedEstimatedLoss = damagedEstimatedLoss,
         hasAnomaly = item.hasAnomaly,
         anomalyReasonText = item.anomalyReasonText,
         reviewStatus = item.reviewStatus,
@@ -465,50 +485,261 @@ fun buildSingleReportDetail(state: OwnerUiState, reportId: String): SingleReport
     )
 }
 
-fun buildReportPeriodSummary(state: OwnerUiState, period: String): ReportPeriodSummaryUi {
-    val materialsMap = state.materials.ifEmpty { defaultSeededMaterials() }.associateBy { it.id }
-    val gasBase = state.expenses.filter { it.category == ExpenseCategory.GAS }.sumOf { it.amount }
-    val plasticBase = state.expenses.filter { it.category == ExpenseCategory.PLASTIC_BAG }.sumOf { it.amount }
-    val otherBase = state.expenses.filter { it.category == ExpenseCategory.OTHER }.sumOf { it.amount }
+fun buildReportPeriodSummary(
+    state: OwnerUiState,
+    period: String,
+    nowMillis: Long = System.currentTimeMillis(),
+    zoneId: ZoneId = ZoneId.systemDefault()
+): ReportPeriodSummaryUi {
+    val activeOutlets = if (state.hasFirestoreSync) state.outlets else state.outlets.ifEmpty { defaultSeededOutlets() }
+    val activeReports = if (state.hasFirestoreSync) state.reports else state.reports.ifEmpty { defaultSeededReports() }
+    val activeMaterials = if (state.hasFirestoreSync) state.materials else state.materials.ifEmpty { defaultSeededMaterials() }
+    val activeProducts = if (state.hasFirestoreSync) state.products else state.products.ifEmpty { defaultSeededProducts() }
 
-    val damagedSummary = if (state.damagedMaterials.isNotEmpty()) {
-        state.damagedMaterials.groupBy { it.materialId }.map { (matId, items) ->
-            val mat = materialsMap[matId]
-            val unit = when (mat?.unit) {
-                UnitType.UNIT -> "pak"; UnitType.GR -> "gr"; UnitType.ML -> "ml"; else -> "pcs"
-            }
-            DamagedSummaryItemUi(matId, mat?.name ?: "Tahu Original", "${items.sumOf { it.quantity }} $unit")
-        }
+    val outletMap = activeOutlets.associateBy { it.id }
+    val materialMap = activeMaterials.associateBy { it.id }
+    val productMap = activeProducts.associateBy { it.id }
+
+    val todayDate = Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate()
+    val (periodLabel, windowDays) = when {
+        period.equals("7 Hari", ignoreCase = true) -> "7 hari" to 7L
+        period.equals("3 Bulan", ignoreCase = true) -> "3 bulan" to 90L
+        else -> "30 hari" to 30L
+    }
+
+    val startDate = todayDate.minusDays(windowDays - 1L)
+    val prevEndDate = startDate.minusDays(1L)
+    val prevStartDate = prevEndDate.minusDays(windowDays - 1L)
+
+    val dateRangeText = if (startDate.year == todayDate.year) {
+        "${startDate.format(SHORT_DATE_FORMATTER)} – ${todayDate.format(REPORT_DATE_CHIP_FORMATTER)}"
     } else {
-        listOf(
-            DamagedSummaryItemUi("mat_tahu_original", "Tahu Original", "86 pcs"),
-            DamagedSummaryItemUi("mat_bumbu_balado", "Bumbu", "7 pak")
+        "${startDate.format(REPORT_DATE_CHIP_FORMATTER)} – ${todayDate.format(REPORT_DATE_CHIP_FORMATTER)}"
+    }
+
+    val reportsWithDate = activeReports.map { report ->
+        val localDate = Instant.ofEpochMilli(report.date.toDate().time).atZone(zoneId).toLocalDate()
+        report to localDate
+    }
+
+    val periodReports = reportsWithDate.filter { (_, date) ->
+        !date.isBefore(startDate) && !date.isAfter(todayDate)
+    }
+    val prevReports = reportsWithDate.filter { (_, date) ->
+        !date.isBefore(prevStartDate) && !date.isAfter(prevEndDate)
+    }
+
+    val periodReportIds = periodReports.map { it.first.id }.toSet()
+    val periodExpenses = state.expenses.filter { it.dailyReportId in periodReportIds }
+    val periodDamaged = state.damagedMaterials.filter { it.dailyReportId in periodReportIds }
+    val periodProducts = state.reportProducts.filter { it.dailyReportId in periodReportIds }
+
+    val cashRevenue = periodReports.sumOf { it.first.cashRevenue }
+    val qrisRevenue = periodReports.sumOf { it.first.qrisRevenue }
+    val totalRevenue = cashRevenue + qrisRevenue
+    val cashShareFraction = if (totalRevenue > 0L) {
+        (cashRevenue.toFloat() / totalRevenue.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val totalSold = periodReports.sumOf { it.first.totalSold }
+
+    val gasExpense = periodExpenses.filter { it.category == ExpenseCategory.GAS }.sumOf { it.amount }
+    val plasticExpense = periodExpenses.filter { it.category == ExpenseCategory.PLASTIC_BAG }.sumOf { it.amount }
+    val otherExpense = periodExpenses.filter { it.category == ExpenseCategory.OTHER }.sumOf { it.amount }
+    val totalExpense = gasExpense + plasticExpense + otherExpense
+    val netRevenue = (totalRevenue - totalExpense).coerceAtLeast(0L)
+
+    val operationalCostPercentText = if (totalRevenue > 0L) {
+        val pct = (totalExpense.toDouble() / totalRevenue.toDouble()) * 100.0
+        "${String.format(ID_LOCALE, "%.1f", pct)}% dari omzet"
+    } else {
+        "0% dari omzet"
+    }
+
+    val prevRevenue = prevReports.sumOf { it.first.totalRevenue }
+    val (deltaTrend, deltaText) = if (prevRevenue <= 0L) {
+        null to "Belum ada pembanding periode lalu"
+    } else {
+        val diff = totalRevenue - prevRevenue
+        val pct = (abs(diff).toDouble() / prevRevenue.toDouble()) * 100.0
+        val pctText = String.format(ID_LOCALE, "%.1f", pct)
+        when {
+            diff > 0L -> 1 to "+$pctText% dibanding periode lalu"
+            diff < 0L -> -1 to "-$pctText% dibanding periode lalu"
+            else -> 0 to "Sama dengan periode lalu"
+        }
+    }
+
+    // Build real trend bars for the selected period
+    val revenueByDate = periodReports
+        .groupBy { it.second }
+        .mapValues { (_, list) -> list.sumOf { it.first.totalRevenue } }
+
+    data class RawBucket(val label: String, val detailLabel: String, val revenue: Long, val isLatest: Boolean)
+    val rawBuckets: List<RawBucket> = when (windowDays) {
+        7L -> (0L until 7L).map { offset ->
+            val d = startDate.plusDays(offset)
+            val rev = revenueByDate[d] ?: 0L
+            RawBucket(
+                label = d.format(SHORT_DAY_FORMATTER).take(3),
+                detailLabel = d.format(SHORT_DATE_FORMATTER),
+                revenue = rev,
+                isLatest = d == todayDate
+            )
+        }
+        90L -> {
+            // 3 calendar months ending at todayDate's month
+            val startMonth = todayDate.withDayOfMonth(1).minusMonths(2)
+            (0L until 3L).map { offset ->
+                val mStart = startMonth.plusMonths(offset)
+                val mEnd = mStart.plusMonths(1).minusDays(1)
+                val rev = periodReports
+                    .filter { (_, d) -> !d.isBefore(mStart) && !d.isAfter(mEnd) }
+                    .sumOf { it.first.totalRevenue }
+                val monthLabel = mStart.format(SHORT_MONTH_FORMATTER)
+                RawBucket(
+                    label = monthLabel,
+                    detailLabel = "$monthLabel ${mStart.year}",
+                    revenue = rev,
+                    isLatest = offset == 2L
+                )
+            }
+        }
+        else -> {
+            // 30 days -> 6 buckets of 5 days each
+            (0 until 6).map { idx ->
+                val bStart = startDate.plusDays(idx * 5L)
+                val bEnd = if (idx == 5) todayDate else bStart.plusDays(4L)
+                val rev = periodReports
+                    .filter { (_, d) -> !d.isBefore(bStart) && !d.isAfter(bEnd) }
+                    .sumOf { it.first.totalRevenue }
+                RawBucket(
+                    label = bStart.format(DAY_MONTH_NUM_FORMATTER),
+                    detailLabel = "${bStart.format(SHORT_DATE_FORMATTER)} – ${bEnd.format(SHORT_DATE_FORMATTER)}",
+                    revenue = rev,
+                    isLatest = idx == 5
+                )
+            }
+        }
+    }
+
+    val maxBucketRevenue = rawBuckets.maxOfOrNull { it.revenue } ?: 0L
+    val peakIndex = if (maxBucketRevenue > 0L) rawBuckets.indexOfLast { it.revenue == maxBucketRevenue } else -1
+    val trendBars = rawBuckets.mapIndexed { idx, bucket ->
+        val fraction = if (maxBucketRevenue > 0L && bucket.revenue > 0L) {
+            (bucket.revenue.toFloat() / maxBucketRevenue.toFloat()).coerceIn(0.08f, 1f)
+        } else {
+            0.04f
+        }
+        RevenueTrendBarUi(
+            label = bucket.label,
+            detailLabel = bucket.detailLabel,
+            revenue = bucket.revenue,
+            heightFraction = fraction,
+            isHighlighted = if (peakIndex >= 0) idx == peakIndex else bucket.isLatest
         )
     }
 
-    return when (period) {
-        "7 Hari", "7 hari" -> ReportPeriodSummaryUi(
-            "7 hari", "18 – 24 Mei", "Rp42.380.000", "5,2% dibanding periode lalu",
-            "Rp42,4jt", "8.476 produk", "8.476 pcs", "Rp5,4jt", "12,7% dari omzet", "Rp14,9jt",
-            "Rp23.480.000", "Rp18.900.000",
-            if (gasBase > 0) formatRupiah(gasBase * 7) else "Rp2.180.000",
-            if (plasticBase > 0) formatRupiah(plasticBase * 7) else "Rp1.640.000",
-            if (otherBase > 0) formatRupiah(otherBase * 7) else "Rp1.580.000",
-            "Rp5.400.000", damagedSummary
-        )
-        "3 Bulan", "3 bulan" -> ReportPeriodSummaryUi(
-            "3 bulan", "24 Feb – 24 Mei", "Rp538.900.000", "11,3% dibanding periode lalu",
-            "Rp538,9jt", "107.780 produk", "107.780 pcs", "Rp66,8jt", "12,4% dari omzet", "Rp181,2jt",
-            "Rp298.500.000", "Rp240.400.000", "Rp26.900.000", "Rp20.400.000", "Rp19.500.000",
-            "Rp66.800.000", damagedSummary
-        )
-        else -> ReportPeriodSummaryUi(
-            "30 hari", "24 Apr – 24 Mei", "Rp184.650.000", "8,7% dibanding periode lalu",
-            "Rp184,6jt", "36.930 produk", "36.930 pcs", "Rp23,7jt", "12,8% dari omzet", "Rp62,4jt",
-            "Rp102.340.000", "Rp82.310.000", "Rp9.480.000", "Rp7.120.000", "Rp7.100.000",
-            "Rp23.700.000", damagedSummary
-        )
-    }
+    // Per-outlet breakdown
+    val expensesByReportId = periodExpenses.groupBy { it.dailyReportId }
+    val damagedByReportId = periodDamaged.groupBy { it.dailyReportId }
+    val outletBreakdowns = periodReports
+        .groupBy { it.first.outletId }
+        .map { (outletId, list) ->
+            val outletName = outletMap[outletId]?.let {
+                if (it.name.startsWith("Outlet", ignoreCase = true)) it.name else "Outlet ${it.name}"
+            } ?: outletId
+            val rev = list.sumOf { it.first.totalRevenue }
+            val sold = list.sumOf { it.first.totalSold }
+            val exp = list.sumOf { (rep, _) -> expensesByReportId[rep.id].orEmpty().sumOf { it.amount } }
+            val dmg = list.sumOf { (rep, _) -> damagedByReportId[rep.id].orEmpty().sumOf { it.quantity } }
+            OutletPeriodBreakdownUi(
+                outletId = outletId,
+                outletName = outletName,
+                reportCount = list.size,
+                totalRevenue = rev,
+                totalSold = sold,
+                totalExpense = exp,
+                damagedUnits = dmg
+            )
+        }
+        .sortedByDescending { it.totalRevenue }
+
+    // Aggregated product breakdown
+    val productBreakdowns = periodProducts
+        .groupBy { it.productId }
+        .map { (productId, items) ->
+            ProductPeriodBreakdownUi(
+                productId = productId,
+                productName = productMap[productId]?.name ?: productId,
+                totalQuantity = items.sumOf { it.quantity },
+                totalSubtotal = items.sumOf { it.subtotal }
+            )
+        }
+        .sortedByDescending { it.totalSubtotal }
+
+    // Damaged material summary & estimated loss
+    val damagedItems = periodDamaged
+        .groupBy { it.materialId }
+        .map { (matId, items) ->
+            val mat = materialMap[matId]
+            val unit = when (mat?.unit) {
+                UnitType.UNIT -> "pak"
+                UnitType.GR -> "gr"
+                UnitType.ML -> "ml"
+                else -> "pcs"
+            }
+            val qty = items.sumOf { it.quantity }
+            val loss = qty.toLong() * (mat?.cost ?: 0L)
+            DamagedSummaryItemUi(
+                materialId = matId,
+                name = mat?.name ?: matId,
+                quantityText = "${formatDecimal(qty)} $unit",
+                estimatedLoss = loss
+            )
+        }
+        .sortedByDescending { it.estimatedLoss }
+
+    val damagedTotalUnits = periodDamaged.sumOf { it.quantity }
+    val damagedEstimatedLoss = damagedItems.sumOf { it.estimatedLoss }
+
+    return ReportPeriodSummaryUi(
+        periodLabel = periodLabel,
+        dateRangeText = dateRangeText,
+        reportCount = periodReports.size,
+        contributingOutletsCount = outletBreakdowns.size,
+        totalRevenue = totalRevenue,
+        cashRevenue = cashRevenue,
+        qrisRevenue = qrisRevenue,
+        cashShareFraction = cashShareFraction,
+        totalSold = totalSold,
+        totalExpense = totalExpense,
+        netRevenue = netRevenue,
+        damagedTotalUnits = damagedTotalUnits,
+        damagedEstimatedLoss = damagedEstimatedLoss,
+        deltaTrend = deltaTrend,
+        deltaText = deltaText,
+        maxBarRevenueText = if (maxBucketRevenue > 0L) "Maks ${formatShortRupiah(maxBucketRevenue)}" else "Belum ada data",
+        netRevenueText = formatRupiah(netRevenue),
+        totalSalesValueText = formatShortRupiah(totalRevenue),
+        totalProductsSoldText = "${formatDecimal(totalSold)} pcs terjual",
+        totalProductsPcsText = "${formatDecimal(totalSold)} pcs",
+        operationalCostValueText = formatShortRupiah(totalExpense),
+        operationalCostPercentText = operationalCostPercentText,
+        estimatedProfitValueText = formatShortRupiah(netRevenue),
+        cashSalesText = formatRupiah(cashRevenue),
+        qrisSalesText = formatRupiah(qrisRevenue),
+        gasExpenseText = formatRupiah(gasExpense),
+        plasticExpenseText = formatRupiah(plasticExpense),
+        otherExpenseText = formatRupiah(otherExpense),
+        totalExpenseText = formatRupiah(totalExpense),
+        damagedLossValueText = formatShortRupiah(damagedEstimatedLoss),
+        trendBars = trendBars,
+        outletBreakdowns = outletBreakdowns,
+        productBreakdowns = productBreakdowns,
+        damagedItems = damagedItems
+    )
 }
 
 fun sortOutletItems(

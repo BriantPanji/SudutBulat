@@ -176,7 +176,8 @@ data class ReportDamagedLineUi(
     val id: String,
     val materialName: String,
     val quantityText: String,
-    val note: String?
+    val note: String?,
+    val estimatedLoss: Long = 0L
 )
 
 data class SingleReportDetailUi(
@@ -185,6 +186,7 @@ data class SingleReportDetailUi(
     val dateLabel: String,
     val fullDateLabel: String,
     val timeLabel: String,
+    val createdByName: String? = null,
     val cashRevenue: Long,
     val qrisRevenue: Long,
     val totalRevenue: Long,
@@ -193,6 +195,7 @@ data class SingleReportDetailUi(
     val expenseLines: List<ReportExpenseLineUi>,
     val totalExpense: Long,
     val damagedLines: List<ReportDamagedLineUi>,
+    val damagedEstimatedLoss: Long = 0L,
     val hasAnomaly: Boolean = false,
     val anomalyReasonText: String? = null,
     val reviewStatus: ReportReviewStatus = ReportReviewStatus.PENDING,
@@ -204,27 +207,70 @@ data class SingleReportDetailUi(
 data class DamagedSummaryItemUi(
     val materialId: String,
     val name: String,
-    val quantityText: String
+    val quantityText: String,
+    val estimatedLoss: Long = 0L
+)
+
+data class RevenueTrendBarUi(
+    val label: String,
+    val detailLabel: String,
+    val revenue: Long,
+    val heightFraction: Float,
+    val isHighlighted: Boolean
+)
+
+data class OutletPeriodBreakdownUi(
+    val outletId: String,
+    val outletName: String,
+    val reportCount: Int,
+    val totalRevenue: Long,
+    val totalSold: Int,
+    val totalExpense: Long,
+    val damagedUnits: Int
+)
+
+data class ProductPeriodBreakdownUi(
+    val productId: String,
+    val productName: String,
+    val totalQuantity: Int,
+    val totalSubtotal: Long
 )
 
 data class ReportPeriodSummaryUi(
     val periodLabel: String,
     val dateRangeText: String,
-    val netRevenueText: String,
-    val deltaText: String,
-    val totalSalesValueText: String,
-    val totalProductsSoldText: String,
-    val totalProductsPcsText: String,
-    val operationalCostValueText: String,
-    val operationalCostPercentText: String,
-    val estimatedProfitValueText: String,
-    val cashSalesText: String,
-    val qrisSalesText: String,
-    val gasExpenseText: String,
-    val plasticExpenseText: String,
-    val otherExpenseText: String,
-    val totalExpenseText: String,
-    val damagedItems: List<DamagedSummaryItemUi>
+    val reportCount: Int = 0,
+    val contributingOutletsCount: Int = 0,
+    val totalRevenue: Long = 0L,
+    val cashRevenue: Long = 0L,
+    val qrisRevenue: Long = 0L,
+    val cashShareFraction: Float = 0f,
+    val totalSold: Int = 0,
+    val totalExpense: Long = 0L,
+    val netRevenue: Long = 0L,
+    val damagedTotalUnits: Int = 0,
+    val damagedEstimatedLoss: Long = 0L,
+    val deltaTrend: Int? = null,
+    val deltaText: String = "Belum ada pembanding periode lalu",
+    val maxBarRevenueText: String = "Rp0",
+    val netRevenueText: String = "Rp0",
+    val totalSalesValueText: String = "Rp0",
+    val totalProductsSoldText: String = "0 pcs terjual",
+    val totalProductsPcsText: String = "0 pcs",
+    val operationalCostValueText: String = "Rp0",
+    val operationalCostPercentText: String = "0% dari omzet",
+    val estimatedProfitValueText: String = "Rp0",
+    val cashSalesText: String = "Rp0",
+    val qrisSalesText: String = "Rp0",
+    val gasExpenseText: String = "Rp0",
+    val plasticExpenseText: String = "Rp0",
+    val otherExpenseText: String = "Rp0",
+    val totalExpenseText: String = "Rp0",
+    val damagedLossValueText: String = "Rp0",
+    val trendBars: List<RevenueTrendBarUi> = emptyList(),
+    val outletBreakdowns: List<OutletPeriodBreakdownUi> = emptyList(),
+    val productBreakdowns: List<ProductPeriodBreakdownUi> = emptyList(),
+    val damagedItems: List<DamagedSummaryItemUi> = emptyList()
 )
 
 data class CatalogItemUi(

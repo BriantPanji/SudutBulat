@@ -2,6 +2,7 @@ package com.sudutcorp.sudutbulat.feature.report
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CardDefaults
@@ -39,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -55,10 +58,10 @@ import com.sudutcorp.sudutbulat.core.components.SBSearchBar
 import com.sudutcorp.sudutbulat.core.components.SBSegmentedTabs
 import com.sudutcorp.sudutbulat.core.components.SBStatusBadge
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
+import com.sudutcorp.sudutbulat.core.util.formatDecimal
 import com.sudutcorp.sudutbulat.core.util.formatRupiah
 import com.sudutcorp.sudutbulat.data.model.ReportReviewStatus
 import com.sudutcorp.sudutbulat.feature.owner.DailyReportListItemUi
-import com.sudutcorp.sudutbulat.feature.owner.DamagedSummaryItemUi
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiEvent
 import com.sudutcorp.sudutbulat.feature.owner.OwnerUiState
 import com.sudutcorp.sudutbulat.feature.owner.ReportPeriodSummaryUi
@@ -169,6 +172,10 @@ fun OwnerReportContent(
         )
 
         if (uiState.reportTabMode == ReportTabMode.SUMMARY) {
+            var selectedBarIndex by rememberSaveable(reportSummary.periodLabel, reportSummary.trendBars.size) {
+                mutableStateOf<Int?>(null)
+            }
+
             SBSegmentedTabs(
                 options = periods.map { it.first },
                 selected = periods.firstOrNull {
@@ -178,25 +185,60 @@ fun OwnerReportContent(
                 onSelected = { onEvent(OwnerUiEvent.ReportPeriodSelected(it)) }
             )
 
-            // Omzet
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Omzet bersih", color = SBColor.Grey_600, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(reportSummary.netRevenueText, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = SBColor.Grey_700)
+            // Total Omzet Hero
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Total omzet (${reportSummary.periodLabel})",
+                        color = SBColor.Grey_600,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    SBStatusBadge(
+                        text = "${reportSummary.reportCount} laporan",
+                        containerColor = SBColor.Grey_100,
+                        contentColor = SBColor.Grey_600
+                    )
+                }
+                Text(
+                    text = formatRupiah(reportSummary.totalRevenue),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = SBColor.Grey_700
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.arrow_up),
-                        contentDescription = "Naik",
-                        tint = SBColor.Success_600,
-                        modifier = Modifier.size(12.dp)
+                    val deltaColor = when (reportSummary.deltaTrend) {
+                        1 -> SBColor.Success_600
+                        -1 -> SBColor.Primary_550
+                        else -> SBColor.Grey_500
+                    }
+                    if (reportSummary.deltaTrend == 1 || reportSummary.deltaTrend == -1) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.arrow_up),
+                            contentDescription = if (reportSummary.deltaTrend == 1) "Naik" else "Turun",
+                            tint = deltaColor,
+                            modifier = Modifier
+                                .size(12.dp)
+                                .rotate(if (reportSummary.deltaTrend == -1) 180f else 0f)
+                        )
+                    }
+                    Text(
+                        text = reportSummary.deltaText,
+                        color = deltaColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    Text(reportSummary.deltaText, color = SBColor.Success_600, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
-            // Tren Penjualan
+            // Tren Penjualan (Data Aktual)
             OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -205,7 +247,7 @@ fun OwnerReportContent(
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -216,44 +258,159 @@ fun OwnerReportContent(
                             Text("Tren penjualan", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                             Text(reportSummary.dateRangeText, fontSize = 12.sp, color = SBColor.Grey_500)
                         }
-                        Text("Rp", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = SBColor.Grey_500)
+                        Text(
+                            text = reportSummary.maxBarRevenueText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = SBColor.Grey_500
+                        )
                     }
 
-                    val barData = listOf(
-                        "S" to 0.45f, "S" to 0.55f, "R" to 0.50f,
-                        "K" to 0.65f, "J" to 0.60f, "S" to 0.72f, "M" to 0.85f
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        barData.forEach { (day, heightFraction) ->
-                            val barColor = if (day == "M") SBColor.Primary_550 else SBColor.Tertiary_100
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Bottom,
-                                modifier = Modifier.fillMaxHeight()
+                    val hasAnyRevenue = reportSummary.trendBars.any { it.revenue > 0L }
+                    if (!hasAnyRevenue) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(110.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Belum ada transaksi penjualan pada periode ini.",
+                                fontSize = 13.sp,
+                                color = SBColor.Grey_500
+                            )
+                        }
+                    } else {
+                        val activeIdx = selectedBarIndex?.takeIf { it in reportSummary.trendBars.indices }
+                            ?: reportSummary.trendBars.indexOfLast { it.isHighlighted }.takeIf { it >= 0 }
+                            ?: 0
+                        val activeBar = reportSummary.trendBars[activeIdx]
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = SBColor.Grey_100.copy(alpha = 0.7f)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(
+                                Text(
+                                    text = activeBar.detailLabel,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = SBColor.Grey_600
+                                )
+                                Text(
+                                    text = formatRupiah(activeBar.revenue),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SBColor.Primary_550
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(132.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            reportSummary.trendBars.forEachIndexed { idx, bar ->
+                                val isSelected = idx == activeIdx
+                                val barColor = if (isSelected) SBColor.Primary_550 else SBColor.Tertiary_100
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Bottom,
                                     modifier = Modifier
                                         .weight(1f)
-                                        .width(28.dp),
-                                    contentAlignment = Alignment.BottomCenter
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { selectedBarIndex = idx }
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .fillMaxHeight(heightFraction)
-                                            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                                            .background(barColor)
+                                            .weight(1f)
+                                            .fillMaxWidth(0.68f),
+                                        contentAlignment = Alignment.BottomCenter
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .fillMaxHeight(bar.heightFraction)
+                                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                                .background(barColor)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = bar.label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) SBColor.Primary_550 else SBColor.Grey_500,
+                                        maxLines = 1
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(day, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = SBColor.Grey_500)
                             }
+                        }
+                    }
+                }
+            }
+
+            // Komposisi Pembayaran (Tunai vs QRIS)
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.outlinedCardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, SBColor.Grey_100)
+            ) {
+                val cashPct = (reportSummary.cashShareFraction * 100f).toInt()
+                val qrisPct = if (reportSummary.totalRevenue > 0L) (100 - cashPct) else 0
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Komposisi pembayaran",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(CircleShape)
+                            .background(if (reportSummary.totalRevenue > 0L) SBColor.Secondary_200 else SBColor.Grey_100)
+                    ) {
+                        if (reportSummary.cashShareFraction > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(reportSummary.cashShareFraction)
+                                    .fillMaxHeight()
+                                    .clip(CircleShape)
+                                    .background(SBColor.Primary_550)
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Tunai ($cashPct%)", fontSize = 12.sp, color = SBColor.Grey_500)
+                            Text(reportSummary.cashSalesText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
+                        }
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text("QRIS ($qrisPct%)", fontSize = 12.sp, color = SBColor.Grey_500)
+                            Text(reportSummary.qrisSalesText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SBColor.Grey_700)
                         }
                     }
                 }
@@ -285,7 +442,7 @@ fun OwnerReportContent(
                         BusinessSummaryItem(
                             iconRes = R.drawable.ic_store,
                             title = "Total penjualan",
-                            subtitle = reportSummary.totalProductsSoldText,
+                            subtitle = "${reportSummary.totalProductsSoldText} • ${reportSummary.contributingOutletsCount} outlet",
                             value = reportSummary.totalSalesValueText,
                             valueColor = SBColor.Grey_700
                         )
@@ -299,9 +456,21 @@ fun OwnerReportContent(
                         )
                         HorizontalDivider(color = SBColor.Grey_100, thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
                         BusinessSummaryItem(
+                            iconRes = R.drawable.ic_warning,
+                            title = "Kerugian bahan rusak",
+                            subtitle = if (reportSummary.damagedTotalUnits > 0) {
+                                "${formatDecimal(reportSummary.damagedTotalUnits)} unit bahan rusak"
+                            } else {
+                                "Tidak ada bahan rusak"
+                            },
+                            value = reportSummary.damagedLossValueText,
+                            valueColor = if (reportSummary.damagedEstimatedLoss > 0L) SBColor.Primary_550 else SBColor.Grey_600
+                        )
+                        HorizontalDivider(color = SBColor.Grey_100, thickness = 1.dp, modifier = Modifier.padding(horizontal = 16.dp))
+                        BusinessSummaryItem(
                             iconRes = R.drawable.ic_bar_chart,
-                            title = "Estimasi laba",
-                            subtitle = "Setelah biaya operasional",
+                            title = "Pendapatan bersih",
+                            subtitle = "Omzet dikurangi biaya operasional",
                             value = reportSummary.estimatedProfitValueText,
                             valueColor = SBColor.Success_600
                         )
@@ -685,23 +854,5 @@ private fun BusinessSummaryItem(
 
 internal fun defaultReportPeriodSummary(): ReportPeriodSummaryUi = ReportPeriodSummaryUi(
     periodLabel = "30 hari",
-    dateRangeText = "24 Apr – 24 Mei",
-    netRevenueText = "Rp184.650.000",
-    deltaText = "8,7% dibanding periode lalu",
-    totalSalesValueText = "Rp184,6jt",
-    totalProductsSoldText = "36.930 produk",
-    totalProductsPcsText = "36.930 pcs",
-    operationalCostValueText = "Rp23,7jt",
-    operationalCostPercentText = "12,8% dari omzet",
-    estimatedProfitValueText = "Rp62,4jt",
-    cashSalesText = "Rp102.340.000",
-    qrisSalesText = "Rp82.310.000",
-    gasExpenseText = "Rp9.480.000",
-    plasticExpenseText = "Rp7.120.000",
-    otherExpenseText = "Rp7.100.000",
-    totalExpenseText = "Rp23.700.000",
-    damagedItems = listOf(
-        DamagedSummaryItemUi("mat_tahu_original", "Tahu Original", "86 pcs"),
-        DamagedSummaryItemUi("mat_bumbu_balado", "Bumbu", "7 pak")
-    )
+    dateRangeText = "30 hari terakhir"
 )

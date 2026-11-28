@@ -326,9 +326,14 @@ fun MainScreen(
     val currentReportSummary = remember(
         ownerViewModel,
         ownerUiState.selectedReportPeriod,
+        ownerUiState.hasFirestoreSync,
+        ownerUiState.outlets,
+        ownerUiState.reports,
+        ownerUiState.reportProducts,
         ownerUiState.expenses,
         ownerUiState.damagedMaterials,
-        ownerUiState.materials
+        ownerUiState.materials,
+        ownerUiState.products
     ) {
         ownerViewModel?.getReportPeriodSummary(ownerUiState.selectedReportPeriod) ?: defaultReportPeriodSummary()
     }
@@ -572,7 +577,21 @@ fun MainScreen(
 
         composable<OwnerSubRoutes.DetailReport> { backStackEntry ->
             val route = backStackEntry.toRoute<OwnerSubRoutes.DetailReport>()
-            val periodSummary = ownerViewModel?.getReportPeriodSummary(route.period) ?: defaultReportPeriodSummary()
+            val activePeriod = if (route.reportId == null) ownerUiState.selectedReportPeriod else route.period
+            val periodSummary = remember(
+                ownerViewModel,
+                activePeriod,
+                ownerUiState.hasFirestoreSync,
+                ownerUiState.outlets,
+                ownerUiState.reports,
+                ownerUiState.reportProducts,
+                ownerUiState.expenses,
+                ownerUiState.damagedMaterials,
+                ownerUiState.materials,
+                ownerUiState.products
+            ) {
+                ownerViewModel?.getReportPeriodSummary(activePeriod) ?: defaultReportPeriodSummary()
+            }
             val singleReport = remember(ownerUiState, route.reportId) {
                 route.reportId?.let { buildSingleReportDetail(ownerUiState, it) }
             }
@@ -581,6 +600,12 @@ fun MainScreen(
                     navController = nestedNavController,
                     reportSummary = periodSummary,
                     singleReport = singleReport,
+                    selectedPeriod = activePeriod,
+                    onPeriodSelected = if (route.reportId == null) {
+                        { period -> onOwnerEvent(OwnerUiEvent.ReportPeriodSelected(period)) }
+                    } else {
+                        null
+                    },
                     isActionLoading = ownerUiState.isReviewActionLoading,
                     onApproveReport = { reportId, note ->
                         onOwnerEvent(OwnerUiEvent.ApproveDailyReport(reportId, note))
