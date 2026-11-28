@@ -125,6 +125,14 @@ fun OutletStockScreen(
     val selectedFilter = uiState.selectedStockFilter
     val showRequestSheet = uiState.showStockRequestSheet
 
+    LaunchedEffect(uiState.pendingConfirmDistributionId) {
+        val targetId = uiState.pendingConfirmDistributionId
+        if (!targetId.isNullOrBlank()) {
+            confirmingDistId = targetId
+            onEvent(OutletUiEvent.OpenConfirmDistribution(null))
+        }
+    }
+
     LaunchedEffect(effects) {
         effects.collect { effect ->
             when (effect) {
@@ -143,7 +151,9 @@ fun OutletStockScreen(
     }
 
     val pendingConfirmDists = remember(uiState.distributions) {
-        uiState.distributions.filter { it.status == DistributionStatus.SENT }
+        uiState.distributions.filter {
+            it.status == DistributionStatus.ARRIVED || it.status == DistributionStatus.SENT
+        }.sortedByDescending { it.status == DistributionStatus.ARRIVED }
     }
     val pendingRequestCount = remember(uiState.distributions) {
         uiState.distributions.count { it.status == DistributionStatus.DRAFT }
@@ -557,6 +567,7 @@ private fun OutletDistributionCard(
     val (iconBg, iconTint, borderColor) = when (dist.status) {
         DistributionStatus.DRAFT -> Triple(SBColor.Warning_100, SBColor.Warning_600, SBColor.Secondary_200)
         DistributionStatus.SENT -> Triple(SBColor.Primary_100, SBColor.Primary_550, SBColor.Primary_200)
+        DistributionStatus.ARRIVED -> Triple(SBColor.Secondary_100, SBColor.Primary_550, SBColor.Primary_400)
         DistributionStatus.RECEIVED -> Triple(SBColor.Success_100, SBColor.Success_600, SBColor.Grey_100)
         DistributionStatus.PARTIALLY_RECEIVED -> Triple(SBColor.Warning_100, SBColor.Warning_600, SBColor.Secondary_200)
         DistributionStatus.NOT_RECEIVED -> Triple(SBColor.Error_100, SBColor.Primary_550, SBColor.Primary_200)
@@ -633,11 +644,12 @@ private fun OutletDistributionCard(
                         }
                         DistributionStatusBadge(status = dist.status)
                     }
+                    val methodSuffix = if (dist.status != DistributionStatus.DRAFT) " • ${dist.deliveryMethod.label}" else ""
                     Text(
                         text = if (dist.createdByName.isNotBlank()) {
-                            "Oleh ${dist.createdByName} • ${dist.items.size} bahan"
+                            "Oleh ${dist.createdByName} • ${dist.items.size} bahan$methodSuffix"
                         } else {
-                            "${dist.items.size} bahan"
+                            "${dist.items.size} bahan$methodSuffix"
                         },
                         fontSize = 12.sp,
                         color = SBColor.Grey_500,
@@ -719,7 +731,8 @@ private fun OutletDistributionCard(
             }
 
             when (dist.status) {
-                DistributionStatus.SENT -> {
+                DistributionStatus.SENT,
+                DistributionStatus.ARRIVED -> {
                     Button(
                         onClick = onConfirmClick,
                         enabled = !isActionLoading,
@@ -738,7 +751,15 @@ private fun OutletDistributionCard(
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Text("Konfirmasi penerimaan", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (dist.status == DistributionStatus.ARRIVED) {
+                                    "Konfirmasi sekarang (sudah tiba)"
+                                } else {
+                                    "Konfirmasi penerimaan"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -822,7 +843,11 @@ private fun OutletDistributionDetailSheet(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     SBKeyValueRow(label = "Dibuat oleh", value = dist.createdByName.ifBlank { "Gudang" })
+                    if (dist.status != DistributionStatus.DRAFT) {
+                        SBKeyValueRow(label = "Metode pengiriman", value = dist.deliveryMethod.label)
+                    }
                     dist.sentTimeLabel?.let { SBKeyValueRow(label = "Waktu dikirim", value = it) }
+                    dist.arrivedTimeLabel?.let { SBKeyValueRow(label = "Tiba di outlet", value = it) }
                     dist.confirmedTimeLabel?.let { SBKeyValueRow(label = "Waktu dikonfirmasi", value = it) }
                     dist.confirmedByName?.let { SBKeyValueRow(label = "Dikonfirmasi oleh", value = it) }
                 }
@@ -937,7 +962,8 @@ private fun OutletDistributionDetailSheet(
             }
 
             when (dist.status) {
-                DistributionStatus.SENT -> {
+                DistributionStatus.SENT,
+                DistributionStatus.ARRIVED -> {
                     Button(
                         onClick = onConfirmClick,
                         enabled = !isActionLoading,

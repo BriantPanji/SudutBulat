@@ -188,6 +188,16 @@ fun OutletHomeScreen(
             onClick = openDailyReportContextual
         )
 
+        if (uiState.arrivedDistributions.isNotEmpty()) {
+            OutletArrivedDistributionBanner(
+                arrivedDistributions = uiState.arrivedDistributions,
+                onConfirmNowClick = { distId ->
+                    onEvent(OutletUiEvent.OpenConfirmDistribution(distId))
+                    onOpenStockTab()
+                }
+            )
+        }
+
         if (uiState.rejectedReports.isNotEmpty()) {
             OutletRejectedReportsBanner(
                 rejectedReports = uiState.rejectedReports,
@@ -198,9 +208,10 @@ fun OutletHomeScreen(
             )
         }
 
-        if (metrics.pendingConfirmCount > 0) {
+        val inTransitOnlyCount = (metrics.pendingConfirmCount - metrics.arrivedPendingCount).coerceAtLeast(0)
+        if (inTransitOnlyCount > 0) {
             OutletPendingConfirmBanner(
-                pendingCount = metrics.pendingConfirmCount,
+                pendingCount = inTransitOnlyCount,
                 onClick = { openStockWithFilter(OutletStockFilter.NEED_CONFIRM) }
             )
         }
@@ -273,7 +284,8 @@ fun OutletHomeScreen(
                         dist = dist,
                         onClick = {
                             val filter = when {
-                                dist.status == com.sudutcorp.sudutbulat.data.model.DistributionStatus.SENT ->
+                                dist.status == com.sudutcorp.sudutbulat.data.model.DistributionStatus.SENT ||
+                                    dist.status == com.sudutcorp.sudutbulat.data.model.DistributionStatus.ARRIVED ->
                                     OutletStockFilter.NEED_CONFIRM
                                 dist.status == com.sudutcorp.sudutbulat.data.model.DistributionStatus.DRAFT ->
                                     OutletStockFilter.REQUEST
@@ -572,6 +584,98 @@ private fun OutletHeroSalesCard(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OutletArrivedDistributionBanner(
+    arrivedDistributions: List<OutletDistributionUi>,
+    onConfirmNowClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val primary = arrivedDistributions.first()
+    val titleText = if (arrivedDistributions.size == 1) {
+        "Pengiriman ${primary.type.label.lowercase()} sudah tiba!"
+    } else {
+        "${arrivedDistributions.size} pengiriman sudah tiba di outlet!"
+    }
+    val subtitleText = buildString {
+        append(primary.deliveryMethod.label)
+        append(" • ${primary.items.size} bahan (${primary.totalSent} unit)")
+        primary.arrivedTimeLabel?.let { append(" • Tiba $it") }
+    }
+
+    OutlinedCard(
+        onClick = { onConfirmNowClick(primary.id) },
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = SBColor.Primary_100),
+        border = BorderStroke(1.5.dp, SBColor.Primary_400)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    color = SBColor.Primary_550
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_truck),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = titleText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = SBColor.Primary_550
+                    )
+                    Text(
+                        text = subtitleText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SBColor.Grey_700,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(
+                    painter = painterResource(R.drawable.ic_chevron_right),
+                    contentDescription = null,
+                    tint = SBColor.Primary_550,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = SBColor.Primary_550
+            ) {
+                Text(
+                    text = "Segera cek & konfirmasi penerimaan sekarang →",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
             }
         }
     }

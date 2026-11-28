@@ -29,6 +29,7 @@ private val DASHBOARD_HEADER_DATE_FORMATTER: DateTimeFormatter =
 
 private val SENT_OR_CONFIRMED_STATUSES = setOf(
     DistributionStatus.SENT,
+    DistributionStatus.ARRIVED,
     DistributionStatus.RECEIVED,
     DistributionStatus.PARTIALLY_RECEIVED,
     DistributionStatus.NOT_RECEIVED
@@ -266,7 +267,9 @@ fun computeOwnerDerivedState(
         .map { it.outletId }
         .toSet()
         .size
-    val todayInTransitDistributionsCount = todayDistributions.count { it.status == DistributionStatus.SENT }
+    val todayInTransitDistributionsCount = todayDistributions.count {
+        it.status == DistributionStatus.SENT || it.status == DistributionStatus.ARRIVED
+    }
     val pendingAdditionalRequestsCount = raw.distributions.count {
         it.type == DistributionType.ADDITIONAL && it.status == DistributionStatus.DRAFT
     }

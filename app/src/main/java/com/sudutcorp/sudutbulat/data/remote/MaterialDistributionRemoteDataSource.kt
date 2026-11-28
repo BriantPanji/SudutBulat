@@ -3,6 +3,7 @@ package com.sudutcorp.sudutbulat.data.remote
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
 import com.sudutcorp.sudutbulat.data.model.MaterialDistributionItem
@@ -131,14 +132,18 @@ open class MaterialDistributionRemoteDataSource(
         confirmedBy: String? = null,
         confirmationNote: String? = null,
         sentAt: Timestamp? = null,
-        confirmedAt: Timestamp? = null
+        arrivedAt: Timestamp? = null,
+        confirmedAt: Timestamp? = null,
+        deliveryMethod: DeliveryMethod? = null
     ): Result<Unit> = runCatching {
         val col = distributionsCollection ?: throw IllegalStateException("Layanan Firestore tidak tersedia.")
         val updates = mutableMapOf<String, Any>("status" to status.name)
         if (confirmedBy != null) updates["confirmed_by"] = confirmedBy
         if (confirmationNote != null) updates["confirmation_note"] = confirmationNote
         if (sentAt != null) updates["sent_at"] = sentAt
+        if (arrivedAt != null) updates["arrived_at"] = arrivedAt
         if (confirmedAt != null) updates["confirmed_at"] = confirmedAt
+        if (deliveryMethod != null) updates["delivery_method"] = deliveryMethod.firestoreValue
 
         col.document(id).update(updates).await()
     }

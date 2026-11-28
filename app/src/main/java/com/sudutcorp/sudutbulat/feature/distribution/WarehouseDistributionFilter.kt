@@ -34,6 +34,7 @@ enum class DistributionStatusFilter(
     NOT_SENT("Belum dikirim"),
     PENDING("Pending", DistributionStatus.DRAFT),
     SENT("Dikirim", DistributionStatus.SENT),
+    ARRIVED("Tiba di outlet", DistributionStatus.ARRIVED),
     RECEIVED("Diterima", DistributionStatus.RECEIVED),
     PARTIALLY_RECEIVED("Sebagian", DistributionStatus.PARTIALLY_RECEIVED),
     NOT_RECEIVED("Tidak diterima", DistributionStatus.NOT_RECEIVED),
@@ -79,11 +80,12 @@ data class DistributionTabFilterState(
 
 private fun DistributionStatus.sortPriority(): Int = when (this) {
     DistributionStatus.DRAFT -> 0
-    DistributionStatus.SENT -> 1
-    DistributionStatus.PARTIALLY_RECEIVED -> 2
-    DistributionStatus.NOT_RECEIVED -> 3
-    DistributionStatus.RECEIVED -> 4
-    DistributionStatus.CANCELLED -> 5
+    DistributionStatus.ARRIVED -> 1
+    DistributionStatus.SENT -> 2
+    DistributionStatus.PARTIALLY_RECEIVED -> 3
+    DistributionStatus.NOT_RECEIVED -> 4
+    DistributionStatus.RECEIVED -> 5
+    DistributionStatus.CANCELLED -> 6
 }
 
 // Material 3 DatePicker returns UTC midnight millis; convert via ZoneOffset.UTC before matching local calendar day.
@@ -146,6 +148,7 @@ fun filterAndSortDistributions(
         card.outletName.lowercase(Locale.ROOT).contains(query) ||
             card.itemsSummary.lowercase(Locale.ROOT).contains(query) ||
             card.createdByName.lowercase(Locale.ROOT).contains(query) ||
+            card.deliveryMethod.label.lowercase(Locale.ROOT).contains(query) ||
             (card.note?.lowercase(Locale.ROOT)?.contains(query) == true) ||
             (card.confirmationNote?.lowercase(Locale.ROOT)?.contains(query) == true) ||
             card.items.any { it.materialName.lowercase(Locale.ROOT).contains(query) }
@@ -252,7 +255,9 @@ fun computeWarehouseDashboardMetrics(
     completedMorningCount: Int
 ): WarehouseDashboardMetrics {
     val todayCards = cards.filter { it.isToday }
-    val todayInTransitCount = todayCards.count { it.status == DistributionStatus.SENT }
+    val todayInTransitCount = todayCards.count {
+        it.status == DistributionStatus.SENT || it.status == DistributionStatus.ARRIVED
+    }
     val todayConfirmedCount = todayCards.count { it.status == DistributionStatus.RECEIVED }
     val todayIssueCount = todayCards.count {
         it.status == DistributionStatus.PARTIALLY_RECEIVED || it.status == DistributionStatus.NOT_RECEIVED

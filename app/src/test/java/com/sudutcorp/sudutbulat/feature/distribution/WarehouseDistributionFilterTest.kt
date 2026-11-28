@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.feature.distribution
 
 import com.google.firebase.Timestamp
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
@@ -324,5 +325,48 @@ class WarehouseDistributionFilterTest {
         assertEquals(0, metrics.completionPercent)
         assertEquals(0, metrics.outletsWithPresetCount)
         assertEquals(0, metrics.todayTotalItemsSent)
+    }
+
+    @Test
+    fun `ARRIVED status is searchable by deliveryMethod, filterable, prioritized above SENT, and counted in transit`() {
+        val todayMillis = LocalDate.of(2026, 11, 27).atTime(9, 0).atZone(jakartaZone).toInstant().toEpochMilli()
+        val cards = listOf(
+            card("sent_c", status = DistributionStatus.SENT, createdAtMillis = todayMillis, isToday = true)
+                .copy(deliveryMethod = DeliveryMethod.WAREHOUSE_COURIER),
+            card("arrived_c", status = DistributionStatus.ARRIVED, createdAtMillis = todayMillis + 1000, isToday = true)
+                .copy(deliveryMethod = DeliveryMethod.GOJEK, arrivedTimeLabel = "09.15")
+        )
+
+        val arrivedOnly = filterAndSortDistributions(
+            cards = cards,
+            tab = WarehouseDistributionTab.ROUTINE,
+            filter = DistributionTabFilterState(statusFilter = DistributionStatusFilter.ARRIVED),
+            zoneId = jakartaZone
+        )
+        assertEquals(listOf("arrived_c"), arrivedOnly.map { it.id })
+
+        val byGojekSearch = filterAndSortDistributions(
+            cards = cards,
+            tab = WarehouseDistributionTab.ROUTINE,
+            filter = DistributionTabFilterState(searchQuery = "gojek"),
+            zoneId = jakartaZone
+        )
+        assertEquals(listOf("arrived_c"), byGojekSearch.map { it.id })
+
+        val byStatusAsc = filterAndSortDistributions(
+            cards = cards,
+            tab = WarehouseDistributionTab.ROUTINE,
+            filter = DistributionTabFilterState(sortField = DistributionSortField.STATUS, sortDirection = SortDirection.ASC),
+            zoneId = jakartaZone
+        )
+        assertEquals(listOf("arrived_c", "sent_c"), byStatusAsc.map { it.id })
+
+        val metrics = computeWarehouseDashboardMetrics(
+            activeOutlets = listOf(Outlet(id = "o1", name = "Sudirman")),
+            activeMaterialIds = setOf("m1"),
+            cards = cards,
+            completedMorningCount = 1
+        )
+        assertEquals(2, metrics.todayInTransitCount)
     }
 }

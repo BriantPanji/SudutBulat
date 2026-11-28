@@ -62,8 +62,10 @@ import com.sudutcorp.sudutbulat.feature.distribution.WarehouseViewModel
 import com.sudutcorp.sudutbulat.feature.home.WarehouseRoleBottomSheet
 import com.sudutcorp.sudutbulat.feature.notification.OwnerNotificationScreen
 import com.sudutcorp.sudutbulat.feature.outlet.AddOutletScreen
+import com.sudutcorp.sudutbulat.feature.outlet.OutletArrivedReminderHost
 import com.sudutcorp.sudutbulat.feature.outlet.OutletScreen
 import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEffect
+import com.sudutcorp.sudutbulat.feature.outlet.OutletUiEvent
 import com.sudutcorp.sudutbulat.feature.outlet.OutletUiState
 import com.sudutcorp.sudutbulat.feature.outlet.OutletViewModel
 import com.sudutcorp.sudutbulat.feature.outlet.OwnerDetailOutletScreen
@@ -654,6 +656,16 @@ fun MainScreen(
             }
         )
     }
+
+    OutletArrivedReminderHost(
+        isEnabled = activeViewRole == Role.OUTLET,
+        arrivedDistributions = outletUiState.arrivedDistributions,
+        onConfirmNow = { distId ->
+            outletViewModel?.onEvent(OutletUiEvent.OpenConfirmDistribution(distId))
+            nestedNavController.popBackStack(OwnerSubRoutes.TabsRoot, inclusive = false)
+            onSelectTab(1)
+        }
+    )
 
     SnackbarHost(
         hostState = snackbarHostState,

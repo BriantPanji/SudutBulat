@@ -2,6 +2,7 @@ package com.sudutcorp.sudutbulat.feature.outlet
 
 import com.google.firebase.Timestamp
 import com.sudutcorp.sudutbulat.data.model.DailyReport
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Outlet
@@ -184,5 +185,52 @@ class OutletStockLogicTest {
         assertEquals(900_000L, withToday.todayCashRevenue)
         assertEquals(600_000L, withToday.todayQrisRevenue)
         assertEquals(75, withToday.targetPercent)
+    }
+
+    @Test
+    fun arrivedDistributions_appearFirstInNeedConfirm_searchableByMethod_andCountedInMetrics() {
+        val sample = listOf(
+            OutletDistributionUi(
+                id = "d_sent",
+                status = DistributionStatus.SENT,
+                type = DistributionType.ROUTINE,
+                deliveryMethod = DeliveryMethod.WAREHOUSE_COURIER,
+                timeLabel = "Hari ini, 07.00",
+                isToday = true,
+                note = null,
+                confirmationNote = null,
+                items = emptyList(),
+                totalSent = 100
+            ),
+            OutletDistributionUi(
+                id = "d_arrived",
+                status = DistributionStatus.ARRIVED,
+                type = DistributionType.ADDITIONAL,
+                deliveryMethod = DeliveryMethod.GRAB,
+                arrivedTimeLabel = "11.05",
+                timeLabel = "Hari ini, 10.45",
+                isToday = true,
+                note = null,
+                confirmationNote = null,
+                items = emptyList(),
+                totalSent = 50
+            )
+        )
+
+        val needConfirm = filterOutletDistributions(sample, OutletStockFilter.NEED_CONFIRM, "")
+        assertEquals(listOf("d_arrived", "d_sent"), needConfirm.map { it.id })
+
+        val byMethod = filterOutletDistributions(sample, OutletStockFilter.ALL, "grab")
+        assertEquals(listOf("d_arrived"), byMethod.map { it.id })
+
+        val metrics = computeOutletDashboardMetrics(
+            assignedOutlet = Outlet(id = "o1", name = "Sudirman"),
+            todayReport = null,
+            recentReports = emptyList(),
+            distributions = sample,
+            nowDate = Date(1_760_000_000_000L)
+        )
+        assertEquals(2, metrics.pendingConfirmCount)
+        assertEquals(1, metrics.arrivedPendingCount)
     }
 }

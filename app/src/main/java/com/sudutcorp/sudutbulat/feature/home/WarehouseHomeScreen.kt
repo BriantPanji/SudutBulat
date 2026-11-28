@@ -63,6 +63,7 @@ import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Outlet
 import com.sudutcorp.sudutbulat.data.model.Role
 import com.sudutcorp.sudutbulat.feature.distribution.AdditionalDistributionSubTab
+import com.sudutcorp.sudutbulat.feature.distribution.ApproveDistributionMethodDialog
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionCardRow
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionCardUi
 import com.sudutcorp.sudutbulat.feature.distribution.DistributionDetailBottomSheet
@@ -100,6 +101,7 @@ fun WarehouseHomeScreen(
     var showOutletPresetListSheet by rememberSaveable { mutableStateOf(false) }
     var editingPresetOutletId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var approvingDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
     var rejectingDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(effects) {
@@ -234,7 +236,7 @@ fun WarehouseHomeScreen(
                 openDistributionWithFilter(WarehouseDistributionTab.ADDITIONAL, DistributionStatusFilter.ALL)
             },
             onCardClick = { detailDistributionId = it },
-            onApprove = { onEvent(WarehouseUiEvent.ApproveRequest(it)) },
+            onApprove = { approvingDistributionId = it },
             onRejectClick = { rejectingDistributionId = it }
         )
 
@@ -302,12 +304,29 @@ fun WarehouseHomeScreen(
             isActionLoading = uiState.isActionLoading,
             onDismiss = { detailDistributionId = null },
             onApprove = {
-                onEvent(WarehouseUiEvent.ApproveRequest(detailCard.id))
+                detailDistributionId = null
+                approvingDistributionId = detailCard.id
+            },
+            onMarkArrived = {
+                onEvent(WarehouseUiEvent.MarkDistributionArrived(detailCard.id))
                 detailDistributionId = null
             },
             onReject = {
                 detailDistributionId = null
                 rejectingDistributionId = detailCard.id
+            }
+        )
+    }
+
+    val approvingCard = approvingDistributionId?.let { id -> uiState.distributionCards.firstOrNull { it.id == id } }
+    if (approvingCard != null) {
+        ApproveDistributionMethodDialog(
+            outletName = approvingCard.outletName,
+            initialMethod = approvingCard.deliveryMethod,
+            onDismiss = { approvingDistributionId = null },
+            onConfirm = { method ->
+                onEvent(WarehouseUiEvent.ApproveRequest(approvingCard.id, method))
+                approvingDistributionId = null
             }
         )
     }

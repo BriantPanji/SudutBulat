@@ -334,7 +334,9 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
         confirmedBy: String?,
         confirmationNote: String?,
         sentAt: Timestamp?,
-        confirmedAt: Timestamp?
+        arrivedAt: Timestamp?,
+        confirmedAt: Timestamp?,
+        deliveryMethod: com.sudutcorp.sudutbulat.data.model.DeliveryMethod?
     ): Result<Unit> = runCatching {
         if (shouldFail) throw RuntimeException("Simulated network failure")
         val dist = distributions[id] ?: throw NoSuchElementException()
@@ -343,7 +345,9 @@ class FakeMaterialDistributionRemoteDataSource : MaterialDistributionRemoteDataS
             confirmedBy = confirmedBy ?: dist.confirmedBy,
             confirmationNote = confirmationNote ?: dist.confirmationNote,
             sentAt = sentAt ?: dist.sentAt,
-            confirmedAt = confirmedAt ?: dist.confirmedAt
+            arrivedAt = arrivedAt ?: dist.arrivedAt,
+            confirmedAt = confirmedAt ?: dist.confirmedAt,
+            deliveryMethod = deliveryMethod ?: dist.deliveryMethod
         )
     }
 

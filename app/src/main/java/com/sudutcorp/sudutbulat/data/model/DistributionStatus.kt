@@ -9,6 +9,9 @@ enum class DistributionStatus {
     @PropertyName("SENT")
     SENT,
 
+    @PropertyName("ARRIVED")
+    ARRIVED,
+
     @PropertyName("RECEIVED")
     RECEIVED,
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -95,6 +96,7 @@ import com.sudutcorp.sudutbulat.core.components.SBSortDropdownButton
 import com.sudutcorp.sudutbulat.core.components.SBSubHeader
 import com.sudutcorp.sudutbulat.core.ui.theme.SBColor
 import com.sudutcorp.sudutbulat.core.ui.theme.SudutBulatTheme
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Outlet
@@ -123,6 +125,7 @@ fun DistributionScreen(
     var showOutletPresetListSheet by rememberSaveable { mutableStateOf(false) }
     var editingPresetOutletId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
+    var approvingDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
     var rejectingDistributionId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(effects) {
@@ -552,7 +555,8 @@ fun DistributionScreen(
                     showTypeBadge = isHistoryTab,
                     showDateInTime = isHistoryTab,
                     onClick = { detailDistributionId = card.id },
-                    onApprove = { onEvent(WarehouseUiEvent.ApproveRequest(card.id)) },
+                    onApprove = { approvingDistributionId = card.id },
+                    onMarkArrived = { onEvent(WarehouseUiEvent.MarkDistributionArrived(card.id)) },
                     onReject = { rejectingDistributionId = card.id }
                 )
             }
@@ -628,12 +632,29 @@ fun DistributionScreen(
             isActionLoading = uiState.isActionLoading,
             onDismiss = { detailDistributionId = null },
             onApprove = {
-                onEvent(WarehouseUiEvent.ApproveRequest(detailCard.id))
+                detailDistributionId = null
+                approvingDistributionId = detailCard.id
+            },
+            onMarkArrived = {
+                onEvent(WarehouseUiEvent.MarkDistributionArrived(detailCard.id))
                 detailDistributionId = null
             },
             onReject = {
                 detailDistributionId = null
                 rejectingDistributionId = detailCard.id
+            }
+        )
+    }
+
+    val approvingCard = approvingDistributionId?.let { id -> uiState.distributionCards.firstOrNull { it.id == id } }
+    if (approvingCard != null) {
+        ApproveDistributionMethodDialog(
+            outletName = approvingCard.outletName,
+            initialMethod = approvingCard.deliveryMethod,
+            onDismiss = { approvingDistributionId = null },
+            onConfirm = { method ->
+                onEvent(WarehouseUiEvent.ApproveRequest(approvingCard.id, method))
+                approvingDistributionId = null
             }
         )
     }
@@ -1329,6 +1350,13 @@ fun CreateDistributionScreen(
                     )
                 }
 
+                item(key = "create_delivery_method", contentType = "delivery_method") {
+                    DeliveryMethodSelector(
+                        selected = form.deliveryMethod,
+                        onSelected = { onEvent(WarehouseUiEvent.SelectDeliveryMethod(it)) }
+                    )
+                }
+
                 if (form.distributionType == DistributionType.ROUTINE && selectedOutlet != null) {
                     item(key = "create_preset_banner", contentType = "preset_banner") {
                         val hasPreset = selectedOutlet.routinePreset.any { it.quantity > 0 }
@@ -1483,7 +1511,8 @@ internal fun DistributionDetailBottomSheet(
     isActionLoading: Boolean,
     onDismiss: () -> Unit,
     onApprove: () -> Unit,
-    onReject: () -> Unit
+    onReject: () -> Unit,
+    onMarkArrived: () -> Unit = {}
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1532,7 +1561,11 @@ internal fun DistributionDetailBottomSheet(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     SBKeyValueRow(label = "Dibuat oleh", value = card.createdByName)
+                    if (card.status != DistributionStatus.DRAFT) {
+                        SBKeyValueRow(label = "Metode pengiriman", value = card.deliveryMethod.label)
+                    }
                     card.sentTimeLabel?.let { SBKeyValueRow(label = "Waktu dikirim", value = it) }
+                    card.arrivedTimeLabel?.let { SBKeyValueRow(label = "Tiba di outlet", value = it) }
                     card.confirmedTimeLabel?.let { SBKeyValueRow(label = "Waktu dikonfirmasi", value = it) }
                     card.confirmedByName?.let { SBKeyValueRow(label = "Dikonfirmasi oleh", value = it) }
                 }
@@ -1672,6 +1705,145 @@ internal fun DistributionDetailBottomSheet(
                         Text("Setujui & Kirim", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            } else if (card.status == DistributionStatus.SENT) {
+                Button(
+                    onClick = onMarkArrived,
+                    enabled = !isActionLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SBColor.Primary_550)
+                ) {
+                    Text("Tandai tiba di outlet", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeliveryMethodSelector(
+    selected: DeliveryMethod,
+    onSelected: (DeliveryMethod) -> Unit,
+    modifier: Modifier = Modifier,
+    title: String = "Metode pengiriman"
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = SBColor.Grey_700
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DeliveryMethod.entries.forEach { method ->
+                val isSelected = method == selected
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelected(method) },
+                    label = {
+                        Text(
+                            text = method.label,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SBColor.Primary_550,
+                        selectedLabelColor = Color.White,
+                        containerColor = SBColor.Grey_100,
+                        labelColor = SBColor.Grey_600
+                    ),
+                    border = null
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ApproveDistributionMethodDialog(
+    outletName: String,
+    initialMethod: DeliveryMethod = DeliveryMethod.WAREHOUSE_COURIER,
+    onDismiss: () -> Unit,
+    onConfirm: (DeliveryMethod) -> Unit
+) {
+    var selectedMethodName by rememberSaveable(outletName) { mutableStateOf(initialMethod.name) }
+    val selectedMethod = DeliveryMethod.fromString(selectedMethodName)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Setujui & kirim stok",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Grey_700
+                    )
+                    Text(
+                        text = "Pilih metode pengiriman untuk $outletName sebelum mengirim stok.",
+                        fontSize = 13.sp,
+                        color = SBColor.Grey_500
+                    )
+                }
+
+                DeliveryMethodSelector(
+                    selected = selectedMethod,
+                    onSelected = { selectedMethodName = it.name },
+                    title = "Metode pengiriman"
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SBColor.Grey_100,
+                            contentColor = SBColor.Grey_700
+                        )
+                    ) {
+                        Text("Batal", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = { onConfirm(selectedMethod) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SBColor.Primary_550,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("Kirim sekarang", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -1766,11 +1938,13 @@ fun DistributionCardRow(
     modifier: Modifier = Modifier,
     showTypeBadge: Boolean = false,
     showDateInTime: Boolean = false,
+    onMarkArrived: (() -> Unit)? = null,
     onClick: () -> Unit = {}
 ) {
     val (iconBg, iconTint, borderColor) = when (card.status) {
         DistributionStatus.DRAFT -> Triple(SBColor.Warning_100, SBColor.Warning_600, SBColor.Secondary_200)
         DistributionStatus.SENT -> Triple(SBColor.Primary_100, SBColor.Primary_550, SBColor.Grey_100)
+        DistributionStatus.ARRIVED -> Triple(SBColor.Secondary_100, SBColor.Primary_550, SBColor.Primary_200)
         DistributionStatus.RECEIVED -> Triple(SBColor.Success_100, SBColor.Success_600, SBColor.Grey_100)
         DistributionStatus.PARTIALLY_RECEIVED -> Triple(SBColor.Warning_100, SBColor.Warning_600, SBColor.Secondary_200)
         DistributionStatus.NOT_RECEIVED -> Triple(SBColor.Error_100, SBColor.Primary_550, SBColor.Primary_200)
@@ -1845,8 +2019,9 @@ fun DistributionCardRow(
                             }
                         }
                         val timeText = if (showDateInTime) card.timeLabel else card.todayTimeLabel
+                        val methodSuffix = if (card.status != DistributionStatus.DRAFT) " • ${card.deliveryMethod.label}" else ""
                         Text(
-                            text = "$timeText • ${card.createdByName}",
+                            text = "$timeText • ${card.createdByName}$methodSuffix",
                             fontSize = 12.sp,
                             color = SBColor.Grey_500,
                             maxLines = 1,
@@ -1955,6 +2130,24 @@ fun DistributionCardRow(
                         Text("Setujui & Kirim", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
+            } else if (card.status == DistributionStatus.SENT && onMarkArrived != null) {
+                OutlinedButton(
+                    onClick = onMarkArrived,
+                    enabled = !isActionLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, SBColor.Primary_200),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(
+                        text = "Tandai tiba di outlet",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SBColor.Primary_550
+                    )
+                }
             }
         }
     }
@@ -1968,6 +2161,7 @@ fun DistributionStatusBadge(
     val (label, containerColor, contentColor) = when (status) {
         DistributionStatus.DRAFT -> Triple("Pending", SBColor.Warning_100, SBColor.Warning_600)
         DistributionStatus.SENT -> Triple("Dikirim", SBColor.Primary_100, SBColor.Primary_550)
+        DistributionStatus.ARRIVED -> Triple("Tiba di outlet", SBColor.Secondary_100, SBColor.Primary_550)
         DistributionStatus.RECEIVED -> Triple("Diterima", SBColor.Success_100, SBColor.Success_600)
         DistributionStatus.PARTIALLY_RECEIVED -> Triple("Sebagian", SBColor.Warning_100, SBColor.Warning_600)
         DistributionStatus.NOT_RECEIVED -> Triple("Tidak diterima", SBColor.Error_100, SBColor.Primary_550)

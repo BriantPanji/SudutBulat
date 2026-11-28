@@ -7,6 +7,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
@@ -39,6 +40,9 @@ object FirestoreMappers {
         val clean = raw?.trim()?.uppercase() ?: return DistributionType.ROUTINE
         return DistributionType.entries.firstOrNull { it.name == clean } ?: DistributionType.ROUTINE
     }
+
+    fun parseDeliveryMethod(raw: String?): DeliveryMethod =
+        DeliveryMethod.fromString(raw)
 
     fun parseExpenseCategory(raw: String?): ExpenseCategory {
         val clean = raw?.trim()?.uppercase() ?: return ExpenseCategory.OTHER
@@ -321,10 +325,12 @@ object FirestoreMappers {
             confirmedBy = getString("confirmed_by")?.takeIf { it.isNotBlank() },
             status = parseDistributionStatus(getString("status")),
             type = parseDistributionType(getString("type")),
+            deliveryMethod = parseDeliveryMethod(getString("delivery_method")),
             note = getString("note")?.take(512),
             confirmationNote = getString("confirmation_note")?.take(512),
             createdAt = getTimestamp("created_at") ?: Timestamp.now(),
             sentAt = getTimestamp("sent_at"),
+            arrivedAt = getTimestamp("arrived_at"),
             confirmedAt = getTimestamp("confirmed_at"),
             items = parsedItems
         )
@@ -343,10 +349,12 @@ object FirestoreMappers {
         "confirmed_by" to confirmedBy,
         "status" to status.name,
         "type" to type.name,
+        "delivery_method" to deliveryMethod.firestoreValue,
         "note" to note,
         "confirmation_note" to confirmationNote,
         "created_at" to createdAt,
         "sent_at" to sentAt,
+        "arrived_at" to arrivedAt,
         "confirmed_at" to confirmedAt,
         "items" to items.map { it.toFirestoreItemMap() }
     )

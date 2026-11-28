@@ -9,6 +9,7 @@ import com.sudutcorp.sudutbulat.data.model.DailyReport
 import com.sudutcorp.sudutbulat.data.model.DailyReportDamagedMaterial
 import com.sudutcorp.sudutbulat.data.model.DailyReportExpense
 import com.sudutcorp.sudutbulat.data.model.DailyReportProduct
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.ExpenseCategory
@@ -93,12 +94,14 @@ data class OutletDistributionUi(
     val id: String,
     val status: DistributionStatus,
     val type: DistributionType = DistributionType.ROUTINE,
+    val deliveryMethod: DeliveryMethod = DeliveryMethod.WAREHOUSE_COURIER,
     val timeLabel: String,
     val isToday: Boolean = false,
     val createdAtMillis: Long = 0L,
     val createdByName: String = "",
     val confirmedByName: String? = null,
     val sentTimeLabel: String? = null,
+    val arrivedTimeLabel: String? = null,
     val confirmedTimeLabel: String? = null,
     val note: String?,
     val confirmationNote: String?,
@@ -130,7 +133,7 @@ internal fun filterOutletDistributions(
     return distributions.filter { dist ->
         val matchesStatus = when (filter) {
             OutletStockFilter.ALL -> true
-            OutletStockFilter.NEED_CONFIRM -> dist.status == DistributionStatus.SENT
+            OutletStockFilter.NEED_CONFIRM -> dist.status == DistributionStatus.SENT || dist.status == DistributionStatus.ARRIVED
             OutletStockFilter.REQUEST -> dist.status == DistributionStatus.DRAFT
             OutletStockFilter.DONE -> dist.status == DistributionStatus.RECEIVED ||
                 dist.status == DistributionStatus.PARTIALLY_RECEIVED ||
@@ -142,13 +145,14 @@ internal fun filterOutletDistributions(
 
         dist.createdByName.lowercase(Locale.ROOT).contains(q) ||
             dist.type.label.lowercase(Locale.ROOT).contains(q) ||
+            dist.deliveryMethod.label.lowercase(Locale.ROOT).contains(q) ||
             (dist.note?.lowercase(Locale.ROOT)?.contains(q) == true) ||
             (dist.confirmationNote?.lowercase(Locale.ROOT)?.contains(q) == true) ||
             dist.items.any { item ->
                 item.materialName.lowercase(Locale.ROOT).contains(q) ||
                     (item.note?.lowercase(Locale.ROOT)?.contains(q) == true)
             }
-    }
+    }.sortedByDescending { it.status == DistributionStatus.ARRIVED }
 }
 
 data class DraftExpenseEntry(
@@ -450,6 +454,7 @@ data class OutletDashboardMetrics(
     val lastReportRevenue: Long = 0L,
     val lastReportSold: Int = 0,
     val pendingConfirmCount: Int = 0,
+    val arrivedPendingCount: Int = 0,
     val pendingRequestCount: Int = 0,
     val todayReceivedUnits: Int = 0,
     val morningRoutineStatusLabel: String = "Belum dikirim Gudang"
@@ -478,7 +483,10 @@ internal fun computeOutletDashboardMetrics(
         recentReports.firstOrNull()
     }
 
-    val pendingConfirmCount = distributions.count { it.status == DistributionStatus.SENT }
+    val pendingConfirmCount = distributions.count {
+        it.status == DistributionStatus.SENT || it.status == DistributionStatus.ARRIVED
+    }
+    val arrivedPendingCount = distributions.count { it.status == DistributionStatus.ARRIVED }
     val pendingRequestCount = distributions.count { it.status == DistributionStatus.DRAFT }
 
     val todayDists = distributions.filter { it.isToday }
@@ -486,7 +494,8 @@ internal fun computeOutletDashboardMetrics(
         when (dist.status) {
             DistributionStatus.RECEIVED,
             DistributionStatus.PARTIALLY_RECEIVED -> dist.totalReceived ?: dist.totalSent
-            DistributionStatus.SENT -> dist.totalSent
+            DistributionStatus.SENT,
+            DistributionStatus.ARRIVED -> dist.totalSent
             else -> 0
         }
     }
@@ -495,6 +504,7 @@ internal fun computeOutletDashboardMetrics(
     val morningRoutineStatusLabel = when (todayRoutine?.status) {
         DistributionStatus.RECEIVED -> "Rutin pagi diterima"
         DistributionStatus.PARTIALLY_RECEIVED -> "Rutin diterima sebagian"
+        DistributionStatus.ARRIVED -> "Rutin sudah tiba di outlet"
         DistributionStatus.SENT -> "Rutin menunggu konfirmasi"
         DistributionStatus.NOT_RECEIVED -> "Rutin tidak diterima"
         else -> "Rutin belum dikirim"
@@ -515,6 +525,7 @@ internal fun computeOutletDashboardMetrics(
         lastReportRevenue = previousReport?.totalRevenue ?: (assignedOutlet?.totalRevenue ?: 0L),
         lastReportSold = previousReport?.totalSold ?: (assignedOutlet?.totalPiecesSold ?: 0),
         pendingConfirmCount = pendingConfirmCount,
+        arrivedPendingCount = arrivedPendingCount,
         pendingRequestCount = pendingRequestCount,
         todayReceivedUnits = todayReceivedUnits,
         morningRoutineStatusLabel = morningRoutineStatusLabel
@@ -527,6 +538,8 @@ data class OutletUiState(
     val activeMaterials: List<Material> = emptyList(),
     val activeProducts: List<Product> = emptyList(),
     val distributions: List<OutletDistributionUi> = emptyList(),
+    val arrivedDistributions: List<OutletDistributionUi> = emptyList(),
+    val pendingConfirmDistributionId: String? = null,
     val recentReports: List<DailyReport> = emptyList(),
     val reportHistoryItems: List<OutletReportHistoryItemUi> = emptyList(),
     val rejectedReports: List<OutletReportHistoryItemUi> = emptyList(),
@@ -563,6 +576,7 @@ sealed interface OutletUiEvent {
     ) : OutletUiEvent
 
     data class SelectStockFilter(val filter: OutletStockFilter) : OutletUiEvent
+    data class OpenConfirmDistribution(val distributionId: String?) : OutletUiEvent
     data class SetStockRequestSheetVisible(val visible: Boolean) : OutletUiEvent
     data object ResetStockRequestForm : OutletUiEvent
     data class UpdateRequestQty(val materialId: String, val qtyInput: String) : OutletUiEvent
@@ -724,6 +738,12 @@ class OutletViewModel(
             )
             is OutletUiEvent.SelectStockFilter -> _state.update {
                 it.copy(selectedStockFilter = event.filter)
+            }
+            is OutletUiEvent.OpenConfirmDistribution -> _state.update {
+                it.copy(
+                    pendingConfirmDistributionId = event.distributionId,
+                    selectedStockFilter = if (event.distributionId != null) OutletStockFilter.NEED_CONFIRM else it.selectedStockFilter
+                )
             }
             is OutletUiEvent.SetStockRequestSheetVisible -> _state.update {
                 it.copy(
@@ -1272,12 +1292,14 @@ class OutletViewModel(
                     id = dist.id,
                     status = dist.status,
                     type = dist.type,
+                    deliveryMethod = dist.deliveryMethod,
                     timeLabel = if (isToday) "Hari ini, ${hourFmt.format(createdDate)}" else timeFmt.format(createdDate),
                     isToday = isToday,
                     createdAtMillis = dist.createdAt.toDate().time,
                     createdByName = createdByName,
                     confirmedByName = confirmedByName,
                     sentTimeLabel = dist.sentAt?.let { timeFmt.format(it.toDate()) },
+                    arrivedTimeLabel = dist.arrivedAt?.let { timeFmt.format(it.toDate()) },
                     confirmedTimeLabel = dist.confirmedAt?.let { timeFmt.format(it.toDate()) },
                     note = dist.note,
                     confirmationNote = dist.confirmationNote,
@@ -1404,12 +1426,14 @@ class OutletViewModel(
             nowDate = nowTs.toDate()
         )
 
+        val arrivedDists = outletDists.filter { it.status == DistributionStatus.ARRIVED }
         return raw.copy(
             staffName = matchedUser?.name?.takeIf { it.isNotBlank() } ?: "Dimas Pratama",
             assignedOutlet = assignedOutlet,
             activeMaterials = raw.rawMaterials.filter { it.isActive },
             activeProducts = raw.rawProducts.filter { it.isActive },
             distributions = outletDists,
+            arrivedDistributions = arrivedDists,
             recentReports = outletReports,
             reportHistoryItems = historyItems,
             rejectedReports = rejectedItems,

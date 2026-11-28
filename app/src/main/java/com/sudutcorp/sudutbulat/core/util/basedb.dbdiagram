@@ -12,6 +12,7 @@ Table users { //collection users
   role UserRole [not null]
   outlet_id string [ref: >? outlets.id]
   is_active boolean [not null, default: true]
+  photo_url string // Cloudinary secure_url (folder pp)
 }
 
 Table outlets {
@@ -101,12 +102,14 @@ Table material_distributions {
 
   status DistributionStatus [not null, default: 'DRAFT']
   type DistributionType [not null, default: 'ROUTINE']
+  delivery_method DeliveryMethod [not null, default: 'WAREHOUSE_COURIER']
 
   note string(512)
   confirmation_note string(512)
 
   created_at timestamp [not null]
   sent_at timestamp
+  arrived_at timestamp
   confirmed_at timestamp
 
   items array // list of { material_id, quantity_sent, quantity_received, note }
@@ -128,10 +131,20 @@ enum ProductSaleType {
 Enum DistributionStatus {
   DRAFT
   SENT
+  ARRIVED
   RECEIVED
   PARTIALLY_RECEIVED
   NOT_RECEIVED
   CANCELLED
+}
+
+Enum DeliveryMethod {
+  WAREHOUSE_COURIER
+  SELF_PICKUP
+  GOJEK
+  GRAB
+  MAXIM
+  OTHER
 }
 
 Enum DistributionType {

@@ -46,8 +46,9 @@ service cloud.firestore {
 
     function isValidDistribution() {
       let data = request.resource.data;
-      return data.status in ['DRAFT', 'SENT', 'RECEIVED', 'PARTIALLY_RECEIVED', 'NOT_RECEIVED', 'CANCELLED']
-        && data.type in ['ROUTINE', 'ADDITIONAL'];
+      return data.status in ['DRAFT', 'SENT', 'ARRIVED', 'RECEIVED', 'PARTIALLY_RECEIVED', 'NOT_RECEIVED', 'CANCELLED']
+        && data.type in ['ROUTINE', 'ADDITIONAL']
+        && (!('delivery_method' in data) || data.delivery_method in ['WAREHOUSE_COURIER', 'SELF_PICKUP', 'GOJEK', 'GRAB', 'MAXIM', 'OTHER']);
     }
 
     match /material_distributions/{docId} {

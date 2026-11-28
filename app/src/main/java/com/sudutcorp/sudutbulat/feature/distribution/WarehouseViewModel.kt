@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.sudutcorp.sudutbulat.core.util.buildInitials
 import com.sudutcorp.sudutbulat.data.auth.AuthRepository
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionType
 import com.sudutcorp.sudutbulat.data.model.Material
@@ -53,12 +54,14 @@ data class DistributionCardUi(
     val confirmedByName: String?,
     val status: DistributionStatus,
     val type: DistributionType,
+    val deliveryMethod: DeliveryMethod = DeliveryMethod.WAREHOUSE_COURIER,
     val totalQuantity: Int,
     val itemsSummary: String,
     val items: List<DistributionItemDetailUi>,
     val timeLabel: String,
     val todayTimeLabel: String,
     val sentTimeLabel: String?,
+    val arrivedTimeLabel: String? = null,
     val confirmedTimeLabel: String?,
     val createdAtMillis: Long,
     val note: String?,
@@ -69,6 +72,7 @@ data class DistributionCardUi(
 data class CreateDistributionFormState(
     val selectedOutletId: String = "",
     val distributionType: DistributionType = DistributionType.ROUTINE,
+    val deliveryMethod: DeliveryMethod = DeliveryMethod.WAREHOUSE_COURIER,
     val itemQuantities: Map<String, String> = emptyMap(),
     val note: String = "",
     val isSaving: Boolean = false,
@@ -133,9 +137,14 @@ sealed interface WarehouseUiEvent {
         val items: List<RoutinePresetItem>
     ) : WarehouseUiEvent
     data class UpdateItemQuantity(val materialId: String, val qtyInput: String) : WarehouseUiEvent
+    data class SelectDeliveryMethod(val method: DeliveryMethod) : WarehouseUiEvent
     data class UpdateNote(val note: String) : WarehouseUiEvent
     data object SubmitCreateDistribution : WarehouseUiEvent
-    data class ApproveRequest(val distributionId: String) : WarehouseUiEvent
+    data class ApproveRequest(
+        val distributionId: String,
+        val deliveryMethod: DeliveryMethod = DeliveryMethod.WAREHOUSE_COURIER
+    ) : WarehouseUiEvent
+    data class MarkDistributionArrived(val distributionId: String) : WarehouseUiEvent
     data class RejectRequest(val distributionId: String, val reason: String) : WarehouseUiEvent
 }
 
@@ -338,11 +347,15 @@ class WarehouseViewModel(
                 if (digits.isBlank()) updated.remove(event.materialId) else updated[event.materialId] = digits
                 current.copy(createForm = current.createForm.copy(itemQuantities = updated, errorMessage = null))
             }
+            is WarehouseUiEvent.SelectDeliveryMethod -> _state.update {
+                it.copy(createForm = it.createForm.copy(deliveryMethod = event.method, errorMessage = null))
+            }
             is WarehouseUiEvent.UpdateNote -> _state.update {
                 it.copy(createForm = it.createForm.copy(note = event.note, errorMessage = null))
             }
             WarehouseUiEvent.SubmitCreateDistribution -> submitCreateDistribution()
-            is WarehouseUiEvent.ApproveRequest -> approveRequest(event.distributionId)
+            is WarehouseUiEvent.ApproveRequest -> approveRequest(event.distributionId, event.deliveryMethod)
+            is WarehouseUiEvent.MarkDistributionArrived -> markDistributionArrived(event.distributionId)
             is WarehouseUiEvent.RejectRequest -> rejectRequest(event.distributionId, event.reason)
         }
     }
@@ -385,6 +398,7 @@ class WarehouseViewModel(
                 createdBy = resolveCurrentUserId(),
                 status = DistributionStatus.SENT,
                 type = form.distributionType,
+                deliveryMethod = form.deliveryMethod,
                 note = form.note.trim().ifBlank { defaultNote },
                 createdAt = now,
                 sentAt = now
@@ -420,18 +434,43 @@ class WarehouseViewModel(
         }
     }
 
-    private fun approveRequest(distributionId: String) {
+    private fun approveRequest(
+        distributionId: String,
+        deliveryMethod: DeliveryMethod = DeliveryMethod.WAREHOUSE_COURIER
+    ) {
         viewModelScope.launch {
             _state.update { it.copy(isActionLoading = true) }
             distributionRepository.updateDistributionStatus(
                 id = distributionId,
                 status = DistributionStatus.SENT,
-                sentAt = Timestamp.now()
+                sentAt = Timestamp.now(),
+                deliveryMethod = deliveryMethod
             ).onSuccess {
                 _state.update { it.copy(isActionLoading = false) }
-                _effects.send(WarehouseUiEffect.ShowSnackbar("Permintaan stok disetujui dan dikirim."))
+                _effects.send(WarehouseUiEffect.ShowSnackbar("Permintaan stok disetujui & dikirim (${deliveryMethod.label})."))
             }.onFailure { e ->
                 reportError("menyetujui permintaan stok", e)
+            }
+        }
+    }
+
+    private fun markDistributionArrived(distributionId: String) {
+        val card = _state.value.distributionCards.firstOrNull { it.id == distributionId }
+        if (card != null && card.status != DistributionStatus.SENT) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isActionLoading = true) }
+            distributionRepository.updateDistributionStatus(
+                id = distributionId,
+                status = DistributionStatus.ARRIVED,
+                arrivedAt = Timestamp.now()
+            ).onSuccess {
+                _state.update { it.copy(isActionLoading = false) }
+                _effects.send(
+                    WarehouseUiEffect.ShowSnackbar("Status diubah ke Tiba di Outlet. Pengingat dikirim ke staf outlet.")
+                )
+            }.onFailure { e ->
+                reportError("memperbarui status tiba di outlet", e)
             }
         }
     }
@@ -515,12 +554,14 @@ class WarehouseViewModel(
                 confirmedByName = dist.confirmedBy?.let { userMap[it]?.name ?: it },
                 status = dist.status,
                 type = dist.type,
+                deliveryMethod = dist.deliveryMethod,
                 totalQuantity = totalQty,
                 itemsSummary = summary,
                 items = detailItems,
                 timeLabel = dateTimeFmt.format(createdDate),
                 todayTimeLabel = clockFmt.format(createdDate),
                 sentTimeLabel = dist.sentAt?.toDate()?.let { dateTimeFmt.format(it) },
+                arrivedTimeLabel = dist.arrivedAt?.toDate()?.let { dateTimeFmt.format(it) },
                 confirmedTimeLabel = dist.confirmedAt?.toDate()?.let { dateTimeFmt.format(it) },
                 createdAtMillis = createdDate.time,
                 note = dist.note,

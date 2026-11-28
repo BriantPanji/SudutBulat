@@ -1,6 +1,7 @@
 package com.sudutcorp.sudutbulat.data.repository
 
 import com.google.firebase.Timestamp
+import com.sudutcorp.sudutbulat.data.model.DeliveryMethod
 import com.sudutcorp.sudutbulat.data.model.DistributionStatus
 import com.sudutcorp.sudutbulat.data.model.DistributionWithItems
 import com.sudutcorp.sudutbulat.data.model.MaterialDistribution
@@ -72,7 +73,9 @@ class MaterialDistributionRepository(
         confirmedBy: String? = null,
         confirmationNote: String? = null,
         sentAt: Timestamp? = null,
-        confirmedAt: Timestamp? = null
+        arrivedAt: Timestamp? = null,
+        confirmedAt: Timestamp? = null,
+        deliveryMethod: DeliveryMethod? = null
     ): Result<Unit> {
         return remoteDataSource.updateDistributionStatus(
             id = id,
@@ -80,7 +83,9 @@ class MaterialDistributionRepository(
             confirmedBy = confirmedBy,
             confirmationNote = confirmationNote,
             sentAt = sentAt,
-            confirmedAt = confirmedAt
+            arrivedAt = arrivedAt,
+            confirmedAt = confirmedAt,
+            deliveryMethod = deliveryMethod
         )
     }
 

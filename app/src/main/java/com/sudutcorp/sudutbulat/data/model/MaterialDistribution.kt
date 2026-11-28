@@ -31,6 +31,10 @@ data class MaterialDistribution(
 
     val type: DistributionType = DistributionType.ROUTINE,
 
+    @get:PropertyName("delivery_method")
+    @set:PropertyName("delivery_method")
+    var deliveryMethod: DeliveryMethod = DeliveryMethod.WAREHOUSE_COURIER,
+
     val note: String? = null,
 
     @get:PropertyName("confirmation_note")
@@ -44,6 +48,10 @@ data class MaterialDistribution(
     @get:PropertyName("sent_at")
     @set:PropertyName("sent_at")
     var sentAt: Timestamp? = null,
+
+    @get:PropertyName("arrived_at")
+    @set:PropertyName("arrived_at")
+    var arrivedAt: Timestamp? = null,
 
     @get:PropertyName("confirmed_at")
     @set:PropertyName("confirmed_at")

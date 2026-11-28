@@ -45,6 +45,8 @@ const REQUEST_NOTES = [
   "Stok tahu pedas cepat habis hari ini",
 ];
 
+const DELIVERY_METHODS = ["WAREHOUSE_COURIER", "SELF_PICKUP", "GOJEK", "GRAB", "MAXIM", "OTHER"];
+
 const ROUTINE_NOTES = [
   "Distribusi rutin pagi otomatis dari Gudang Pusat",
   "Pengiriman rutin harian sesuai preset outlet",
@@ -144,10 +146,11 @@ async function generateRoutineDistributions(db, admin, master, todayKey) {
   const chosenOutlets = shuffle(master.activeOutlets).slice(0, targetCount);
 
   const docs = chosenOutlets.map((outlet) => {
-    const status = pick(["SENT", "RECEIVED", "RECEIVED", "PARTIALLY_RECEIVED"]);
+    const status = pick(["SENT", "ARRIVED", "RECEIVED", "RECEIVED", "PARTIALLY_RECEIVED"]);
+    const deliveryMethod = pick(DELIVERY_METHODS);
     const createdBy = warehouseUsers.length > 0 ? pick(warehouseUsers).id : "gudang";
     const outletStaff = staffByOutlet.get(outlet.id) || [];
-    const confirmedBy = status === "SENT" ? null : outletStaff.length > 0 ? pick(outletStaff) : "staff";
+    const confirmedBy = status === "SENT" || status === "ARRIVED" ? null : outletStaff.length > 0 ? pick(outletStaff) : "staff";
 
     const rawItems = buildItemsFromOutletPreset(outlet, master.activeMaterials);
     const items = rawItems.map((item, idx) => {
@@ -166,6 +169,7 @@ async function generateRoutineDistributions(db, admin, master, todayKey) {
       confirmed_by: confirmedBy,
       status,
       type: "ROUTINE",
+      delivery_method: deliveryMethod,
       note: pick(ROUTINE_NOTES),
       confirmation_note:
         status === "RECEIVED"
@@ -175,7 +179,8 @@ async function generateRoutineDistributions(db, admin, master, todayKey) {
           : null,
       created_at: todayTimestamp(admin, 6, randInt(15, 45)),
       sent_at: todayTimestamp(admin, 7, randInt(0, 25)),
-      confirmed_at: status === "SENT" ? null : todayTimestamp(admin, 7, randInt(30, 55)),
+      arrived_at: status === "SENT" ? null : todayTimestamp(admin, 7, randInt(26, 40)),
+      confirmed_at: status === "SENT" || status === "ARRIVED" ? null : todayTimestamp(admin, 7, randInt(41, 55)),
       items,
     };
   });
@@ -197,7 +202,8 @@ async function generateAdditionalRequests(db, admin, master, todayKey, requestCo
     const whAdmin = warehouseUsers.length > 0 ? pick(warehouseUsers).id : "gudang";
 
     // Mayoritas DRAFT agar langsung bisa diuji Approve/Reject di tab Tambahan
-    const status = i === 0 ? "DRAFT" : pick(["DRAFT", "DRAFT", "SENT", "RECEIVED", "CANCELLED"]);
+    const status = i === 0 ? "DRAFT" : pick(["DRAFT", "DRAFT", "SENT", "ARRIVED", "RECEIVED", "CANCELLED"]);
+    const deliveryMethod = pick(DELIVERY_METHODS);
     const pickedMaterials = shuffle(master.activeMaterials).slice(0, randInt(1, Math.min(3, master.activeMaterials.length)));
     const items = pickedMaterials.map((mat) => {
       const unit = String(mat.unit || "pcs").toLowerCase();
@@ -218,6 +224,7 @@ async function generateAdditionalRequests(db, admin, master, todayKey, requestCo
       confirmed_by: status === "RECEIVED" ? requester : status === "CANCELLED" ? whAdmin : null,
       status,
       type: "ADDITIONAL",
+      delivery_method: deliveryMethod,
       note: pick(REQUEST_NOTES),
       confirmation_note:
         status === "CANCELLED"
@@ -226,10 +233,17 @@ async function generateAdditionalRequests(db, admin, master, todayKey, requestCo
           ? "Tambahan stok sudah diterima di outlet"
           : null,
       created_at: todayTimestamp(admin, createdHour, randInt(0, 50)),
-      sent_at: status === "SENT" || status === "RECEIVED" ? todayTimestamp(admin, createdHour + 1, randInt(0, 30)) : null,
+      sent_at:
+        status === "SENT" || status === "ARRIVED" || status === "RECEIVED"
+          ? todayTimestamp(admin, createdHour + 1, randInt(0, 25))
+          : null,
+      arrived_at:
+        status === "ARRIVED" || status === "RECEIVED"
+          ? todayTimestamp(admin, createdHour + 1, randInt(26, 40))
+          : null,
       confirmed_at:
         status === "RECEIVED" || status === "CANCELLED"
-          ? todayTimestamp(admin, createdHour + 1, randInt(31, 55))
+          ? todayTimestamp(admin, createdHour + 1, randInt(41, 55))
           : null,
       items,
     });
